@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rejki Backend — Logging Standard</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0d1117; --surf: #161b22; --surf2: #1c2230; --border: #30363d;
+      --text: #e6edf3; --muted: #8b949e; --tag: #21262d;
+      --green: #56d364; --blue: #79c0ff; --orange: #f78166;
+      --yellow: #e3b341; --purple: #bc8cff; --teal: #56d3b4; --r: 10px;
+    }
+    html { scroll-behavior: smooth; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; font-size: 15px; }
+    .layout { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
+    @media (max-width: 840px) { .layout { grid-template-columns: 1fr; } .nav { display: none; } }
+    .nav { position: sticky; top: 0; height: 100vh; overflow-y: auto; background: var(--surf); border-right: 1px solid var(--border); padding: 1.75rem 1rem; }
+    .nav-logo { font-size: 1.1rem; font-weight: 800; color: var(--orange); margin-bottom: 1.75rem; }
+    .nav-logo span { color: var(--text); }
+    .nav-group { margin-bottom: 1.5rem; }
+    .nav-group-label { font-size: 0.67rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: .4rem; }
+    .nav-link { display: block; padding: .32rem .6rem; border-radius: 6px; font-size: .85rem; color: var(--muted); text-decoration: none; transition: background .12s, color .12s; }
+    .nav-link:hover { background: var(--tag); color: var(--text); }
+    .nav-link.accent { color: var(--teal); }
+    .nav-link.back { color: var(--blue); font-size: .8rem; }
+    main { max-width: 920px; margin: 0 auto; padding: 3rem 2rem 6rem; }
+    @media (max-width: 600px) { main { padding: 2rem 1rem 4rem; } }
+    .hero { border-bottom: 1px solid var(--border); margin-bottom: 3rem; padding-bottom: 2.5rem; }
+    .eyebrow { display: inline-block; font-size: .73rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--teal); background: rgba(86,211,180,.07); border: 1px solid rgba(86,211,180,.25); border-radius: 20px; padding: .22rem .75rem; margin-bottom: .9rem; }
+    .hero h1 { font-size: clamp(1.7rem,4vw,2.5rem); font-weight: 800; line-height: 1.15; letter-spacing: -.4px; margin-bottom: .9rem; }
+    .hero h1 em { font-style: normal; color: var(--teal); }
+    .hero p { color: var(--muted); font-size: 1rem; max-width: 680px; line-height: 1.75; }
+    .badges { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: 1.2rem; }
+    .badge { font-size: .76rem; font-weight: 600; padding: .25rem .75rem; border-radius: 20px; border: 1px solid; }
+    .b-tl { color: var(--teal);   border-color: rgba(86,211,180,.4); background: rgba(86,211,180,.06); }
+    .b-ph { color: var(--purple); border-color: rgba(188,140,255,.4); background: rgba(188,140,255,.06); }
+    section { margin-bottom: 3.5rem; }
+    .sec-title { display: flex; align-items: center; gap: .6rem; font-size: 1.2rem; font-weight: 700; margin-bottom: 1.25rem; padding-bottom: .55rem; border-bottom: 1px solid var(--border); }
+    .sec-icon { width: 30px; height: 30px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: .95rem; flex-shrink: 0; }
+    .ic-g { background: rgba(86,211,100,.1); } .ic-b { background: rgba(121,192,255,.1); }
+    .ic-o { background: rgba(247,129,102,.1); } .ic-y { background: rgba(227,179,65,.1); }
+    .ic-t { background: rgba(86,211,180,.1); }
+    .sub-title { font-size: .95rem; font-weight: 700; margin: 1.6rem 0 .65rem; display: flex; align-items: center; gap: .5rem; }
+    .sub-title::before { content: ''; display: inline-block; width: 3px; height: 14px; background: var(--teal); border-radius: 2px; }
+    .tbl { width: 100%; border-collapse: collapse; font-size: .84rem; background: var(--surf); border: 1px solid var(--border); border-radius: var(--r); overflow: hidden; }
+    .tbl th { background: var(--surf2); padding: .6rem 1rem; text-align: left; font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+    .tbl td { padding: .65rem 1rem; border-bottom: 1px solid var(--border); vertical-align: top; line-height: 1.55; }
+    .tbl tr:last-child td { border-bottom: none; }
+    .tbl tr:hover td { background: var(--surf2); }
+    .tbl-wrap { overflow-x: auto; }
+    .code { background: #0d1117; border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.2rem; overflow-x: auto; margin-top: .6rem; }
+    .code pre { font-family: 'Cascadia Code','Fira Code','Consolas',monospace; font-size: .8rem; line-height: 1.75; }
+    .ck { color: #ff7b72; } .cs { color: #a5d6ff; } .cc { color: #6e7681; }
+    .ct { color: #ffa657; } .cfn { color: #d2a8ff; } .cv { color: #56d364; }
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; margin-top: .6rem; }
+    @media (max-width: 680px) { .two-col { grid-template-columns: 1fr; } }
+    .col-label { font-size: .68rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: .35rem; }
+    .callout { border-radius: var(--r); padding: .85rem 1.1rem; margin-top: .9rem; font-size: .86rem; display: flex; gap: .65rem; line-height: 1.65; }
+    .callout-icon { flex-shrink: 0; font-size: 1rem; margin-top: 2px; }
+    .callout p { color: var(--muted); } .callout strong { color: var(--text); display: block; margin-bottom: .15rem; }
+    .c-info { background: rgba(121,192,255,.06); border: 1px solid rgba(121,192,255,.22); }
+    .c-warn { background: rgba(227,179,65,.06);  border: 1px solid rgba(227,179,65,.22); }
+    .c-ok   { background: rgba(86,211,100,.06);  border: 1px solid rgba(86,211,100,.22); }
+    .c-danger { background: rgba(247,129,102,.06); border: 1px solid rgba(247,129,102,.22); }
+    .lv { display: inline-flex; align-items: center; font-size: .73rem; font-weight: 700; padding: .1rem .5rem; border-radius: 4px; font-family: 'Cascadia Code','Fira Code',monospace; border: 1px solid; }
+    .lv-t { color: #6e7681;       background: rgba(110,118,129,.08); border-color: rgba(110,118,129,.3); }
+    .lv-d { color: var(--blue);   background: rgba(121,192,255,.08); border-color: rgba(121,192,255,.3); }
+    .lv-i { color: var(--green);  background: rgba(86,211,100,.08);  border-color: rgba(86,211,100,.3);  }
+    .lv-w { color: var(--yellow); background: rgba(227,179,65,.08);  border-color: rgba(227,179,65,.3);  }
+    .lv-e { color: var(--orange); background: rgba(247,129,102,.08); border-color: rgba(247,129,102,.3); }
+    code { font-family: 'Cascadia Code','Fira Code','Consolas',monospace; font-size: .8rem; background: var(--tag); border: 1px solid var(--border); border-radius: 4px; padding: .05rem .4rem; color: var(--blue); }
+    footer { margin-top: 4rem; padding-top: 1.25rem; border-top: 1px solid var(--border); font-size: .78rem; color: var(--muted); }
+  </style>
+</head>
+<body>
+<div class="layout">
+  <nav class="nav">
+    <div class="nav-logo">rejki<span>-backend</span></div>
+    <div class="nav-group">
+      <div class="nav-group-label">Navigasi</div>
+      <a class="nav-link back" href="index.html">← Architecture Overview</a>
+      <a class="nav-link back" href="api-standard.html">← API Standard</a>
+      <a class="nav-link back" href="security-baseline.html">← Security Baseline</a>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-label">Isi Dokumen</div>
+      <a class="nav-link" href="#prinsip">Prinsip</a>
+      <a class="nav-link" href="#level">Log Level</a>
+      <a class="nav-link" href="#format">Format JSON</a>
+      <a class="nav-link" href="#field-wajib">Field Wajib</a>
+      <a class="nav-link" href="#konteks">Konteks per Layer</a>
+      <a class="nav-link" href="#larangan">Yang Tidak Boleh Di-log</a>
+      <a class="nav-link" href="#tracing">Distributed Tracing</a>
+      <a class="nav-link" href="#impl">Implementasi Rust</a>
+      <a class="nav-link accent" href="#checklist">Checklist</a>
+    </div>
+  </nav>
+  <main>
+    <div class="hero">
+      <div class="eyebrow">Phase 1.5 — Logging Standard</div>
+      <h1>Logging &amp; <em>Observability</em></h1>
+      <p>Standar format log, level penggunaan, field wajib, dan apa yang tidak boleh di-log di seluruh service Rejki Backend. Log yang konsisten adalah fondasi debugging production.</p>
+      <div class="badges">
+        <span class="badge b-ph">Phase 1.5</span>
+        <span class="badge b-tl">JSON Structured</span>
+        <span class="badge b-tl">tracing crate</span>
+      </div>
+    </div>
+
+    <section id="prinsip">
+      <h2 class="sec-title"><span class="sec-icon ic-t">🧭</span>Prinsip</h2>
+      <div class="tbl-wrap"><table class="tbl"><tbody>
+        <tr><td><strong>Structured, bukan plaintext</strong></td><td>Semua log dalam format JSON agar bisa di-query, di-filter, dan di-aggregate oleh log aggregator (Loki, Elasticsearch, Cloudwatch).</td></tr>
+        <tr><td><strong>Setiap log punya <code>request_id</code></strong></td><td>Semua log dalam satu request dapat ditelusuri dari satu ID. Tanpa ini, debugging multi-service tidak mungkin.</td></tr>
+        <tr><td><strong>Log untuk mesin, bukan manusia</strong></td><td>Jangan tulis prose panjang di log message. Tulis event singkat, letakkan data di field terstruktur.</td></tr>
+        <tr><td><strong>Level bermakna</strong></td><td>Gunakan level yang tepat. INFO yang terlalu banyak sama buruknya dengan tidak ada log — noise menutupi sinyal.</td></tr>
+        <tr><td><strong>Tidak ada data sensitif</strong></td><td>Password, token, OTP, NIK tidak pernah masuk log — bahkan di level DEBUG.</td></tr>
+      </tbody></table></div>
+    </section>
+
+    <section id="level">
+      <h2 class="sec-title"><span class="sec-icon ic-b">📊</span>Log Level</h2>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Level</th><th>Kapan Digunakan</th><th>Contoh</th></tr></thead>
+        <tbody>
+          <tr><td><span class="lv lv-e">ERROR</span></td><td>Operasi gagal dan tidak bisa di-recover. Perlu investigasi segera. Selalu alert production.</td><td>DB connection gagal, panic, external service down</td></tr>
+          <tr><td><span class="lv lv-w">WARN</span></td><td>Kondisi tidak normal tapi operasi masih bisa lanjut. Perlu dimonitor tapi tidak urgent.</td><td>Retry attempt, token hampir expired, queue backlog tinggi</td></tr>
+          <tr><td><span class="lv lv-i">INFO</span></td><td>Event penting di alur normal. Harus informatif tanpa verbose. Dipakai di production.</td><td>Server start, request masuk (summary), user login, resource dibuat</td></tr>
+          <tr><td><span class="lv lv-d">DEBUG</span></td><td>Detail untuk debugging. Dimatikan di production. Aktif hanya saat investigasi.</td><td>Query SQL hasil, payload request, state internal service</td></tr>
+          <tr><td><span class="lv lv-t">TRACE</span></td><td>Sangat verbose — setiap langkah kecil. Hanya lokal, tidak pernah di staging/production.</td><td>Loop iteration, byte-level data, function call chain</td></tr>
+        </tbody>
+      </table></div>
+      <div class="callout c-warn">
+        <span class="callout-icon">⚠️</span>
+        <div>
+          <strong>Level default per environment</strong>
+          <p>Development: <span class="lv lv-d">DEBUG</span> · Staging: <span class="lv lv-i">INFO</span> · Production: <span class="lv lv-i">INFO</span> (bisa switch ke <span class="lv lv-d">DEBUG</span> sementara via env var tanpa restart). Set via <code>RUST_LOG=rejki=info,sqlx=warn</code>.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="format">
+      <h2 class="sec-title"><span class="sec-icon ic-t">📋</span>Format JSON</h2>
+      <p style="color:var(--muted);font-size:.85rem;margin-bottom:.5rem;">Setiap baris log adalah satu JSON object. Tidak ada multi-line log — jika ada newline dalam message, escape menjadi <code>\n</code>.</p>
+
+      <div class="sub-title">Format Standar</div>
+      <div class="code"><pre>{
+  <span class="cs">"timestamp"</span>: <span class="cs">"2026-06-09T10:00:00.123Z"</span>,   <span class="cc">// ISO 8601 UTC, presisi millisecond</span>
+  <span class="cs">"level"</span>:     <span class="cs">"INFO"</span>,                        <span class="cc">// TRACE | DEBUG | INFO | WARN | ERROR</span>
+  <span class="cs">"target"</span>:    <span class="cs">"auth_service::interface"</span>,      <span class="cc">// Rust module path</span>
+  <span class="cs">"message"</span>:   <span class="cs">"user login success"</span>,           <span class="cc">// singkat, lowercase, past tense</span>
+  <span class="cs">"request_id"</span>:<span class="cs">"req_7f3a9c2d"</span>,               <span class="cc">// wajib di semua log dalam request</span>
+  <span class="cs">"user_id"</span>:   <span class="cs">"550e8400-uuid"</span>,              <span class="cc">// jika ada konteks user</span>
+  <span class="cs">"duration_ms"</span>: <span class="cv">42</span>,                        <span class="cc">// durasi operasi dalam ms</span>
+  <span class="cs">"service"</span>:   <span class="cs">"auth-service"</span>,               <span class="cc">// nama service</span>
+  <span class="cs">"env"</span>:       <span class="cs">"production"</span>                   <span class="cc">// dari ENV env var</span>
+}</pre></div>
+
+      <div class="sub-title">Format Error Log</div>
+      <div class="code"><pre>{
+  <span class="cs">"timestamp"</span>: <span class="cs">"2026-06-09T10:00:01.456Z"</span>,
+  <span class="cs">"level"</span>:     <span class="cs">"ERROR"</span>,
+  <span class="cs">"target"</span>:    <span class="cs">"auth_service::infrastructure"</span>,
+  <span class="cs">"message"</span>:   <span class="cs">"database query failed"</span>,
+  <span class="cs">"request_id"</span>:<span class="cs">"req_7f3a9c2d"</span>,
+  <span class="cs">"error"</span>:     <span class="cs">"connection pool timeout after 30s"</span>,  <span class="cc">// detail error — TIDAK dikirim ke client</span>
+  <span class="cs">"service"</span>:   <span class="cs">"auth-service"</span>,
+  <span class="cs">"env"</span>:       <span class="cs">"production"</span>
+}</pre></div>
+    </section>
+
+    <section id="field-wajib">
+      <h2 class="sec-title"><span class="sec-icon ic-b">📌</span>Field Wajib</h2>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Field</th><th>Tipe</th><th>Wajib?</th><th>Keterangan</th></tr></thead>
+        <tbody>
+          <tr><td><code>timestamp</code></td><td>string ISO 8601</td><td>Selalu</td><td>UTC, presisi millisecond. <code>tracing-subscriber</code> generate otomatis.</td></tr>
+          <tr><td><code>level</code></td><td>string</td><td>Selalu</td><td>UPPERCASE: TRACE / DEBUG / INFO / WARN / ERROR.</td></tr>
+          <tr><td><code>target</code></td><td>string</td><td>Selalu</td><td>Rust module path — otomatis dari <code>tracing</code>. Berguna untuk filter per modul.</td></tr>
+          <tr><td><code>message</code></td><td>string</td><td>Selalu</td><td>Singkat, lowercase, past tense. Maks 80 karakter. Data detail ada di field lain.</td></tr>
+          <tr><td><code>service</code></td><td>string</td><td>Selalu</td><td>Nama service: <code>auth-service</code>, <code>user-service</code>, dll. Set saat init tracing.</td></tr>
+          <tr><td><code>env</code></td><td>string</td><td>Selalu</td><td>Dari env var <code>ENV</code>: <code>development</code> / <code>staging</code> / <code>production</code>.</td></tr>
+          <tr><td><code>request_id</code></td><td>string</td><td>Dalam request</td><td>Propagasi dari HTTP header <code>X-Request-ID</code> via tracing span.</td></tr>
+          <tr><td><code>user_id</code></td><td>string UUID</td><td>Jika auth</td><td>Ada saat request sudah melewati auth middleware. Jangan log jika belum auth.</td></tr>
+          <tr><td><code>duration_ms</code></td><td>number</td><td>Akhir operasi</td><td>Durasi operasi dalam millisecond. Wajib di log request selesai dan DB query.</td></tr>
+          <tr><td><code>error</code></td><td>string</td><td>Saat ERROR/WARN</td><td>Pesan error internal. Tidak pernah dikirim ke client — hanya ada di log.</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="konteks">
+      <h2 class="sec-title"><span class="sec-icon ic-o">🏗️</span>Konteks Log per Layer</h2>
+
+      <div class="sub-title">Interface Layer — HTTP Request/Response</div>
+      <div class="code"><pre><span class="cc">// Log di awal setiap request (via TraceLayer)</span>
+{ <span class="cs">"level"</span>: <span class="cs">"INFO"</span>, <span class="cs">"message"</span>: <span class="cs">"request started"</span>,
+  <span class="cs">"method"</span>: <span class="cs">"POST"</span>, <span class="cs">"path"</span>: <span class="cs">"/api/v1/auth/login"</span>,
+  <span class="cs">"request_id"</span>: <span class="cs">"req_..."</span>, <span class="cs">"ip"</span>: <span class="cs">"1.2.3.4"</span> }
+
+<span class="cc">// Log di akhir request</span>
+{ <span class="cs">"level"</span>: <span class="cs">"INFO"</span>, <span class="cs">"message"</span>: <span class="cs">"request completed"</span>,
+  <span class="cs">"method"</span>: <span class="cs">"POST"</span>, <span class="cs">"path"</span>: <span class="cs">"/api/v1/auth/login"</span>,
+  <span class="cs">"status"</span>: <span class="cv">200</span>, <span class="cs">"duration_ms"</span>: <span class="cv">42</span>, <span class="cs">"request_id"</span>: <span class="cs">"req_..."</span> }
+
+<span class="cc">// Log auth failure — WARN bukan ERROR (ini kondisi normal)</span>
+{ <span class="cs">"level"</span>: <span class="cs">"WARN"</span>, <span class="cs">"message"</span>: <span class="cs">"login failed"</span>,
+  <span class="cs">"reason"</span>: <span class="cs">"invalid credentials"</span>, <span class="cs">"email_hash"</span>: <span class="cs">"sha256(email)"</span>,
+  <span class="cs">"request_id"</span>: <span class="cs">"req_..."</span> }  <span class="cc">// email di-hash, bukan plaintext</span></pre></div>
+
+      <div class="sub-title">Application Layer — Business Events</div>
+      <div class="code"><pre><span class="cc">// Event bisnis penting — INFO</span>
+{ <span class="cs">"level"</span>: <span class="cs">"INFO"</span>, <span class="cs">"message"</span>: <span class="cs">"user registered"</span>,
+  <span class="cs">"user_id"</span>: <span class="cs">"uuid"</span>, <span class="cs">"request_id"</span>: <span class="cs">"req_..."</span> }
+
+{ <span class="cs">"level"</span>: <span class="cs">"INFO"</span>, <span class="cs">"message"</span>: <span class="cs">"iklan created"</span>,
+  <span class="cs">"iklan_id"</span>: <span class="cs">"uuid"</span>, <span class="cs">"user_id"</span>: <span class="cs">"uuid"</span>,
+  <span class="cs">"type"</span>: <span class="cs">"pekerjaan"</span>, <span class="cs">"request_id"</span>: <span class="cs">"req_..."</span> }
+
+<span class="cc">// Validasi bisnis gagal — WARN (bukan ERROR, ini expected)</span>
+{ <span class="cs">"level"</span>: <span class="cs">"WARN"</span>, <span class="cs">"message"</span>: <span class="cs">"otp expired"</span>,
+  <span class="cs">"user_id"</span>: <span class="cs">"uuid"</span>, <span class="cs">"request_id"</span>: <span class="cs">"req_..."</span> }</pre></div>
+
+      <div class="sub-title">Infrastructure Layer — DB &amp; External</div>
+      <div class="code"><pre><span class="cc">// Query lambat — WARN jika > 100ms</span>
+{ <span class="cs">"level"</span>: <span class="cs">"WARN"</span>, <span class="cs">"message"</span>: <span class="cs">"slow query"</span>,
+  <span class="cs">"duration_ms"</span>: <span class="cv">230</span>, <span class="cs">"query"</span>: <span class="cs">"SELECT ... FROM auth.users"</span>,
+  <span class="cs">"request_id"</span>: <span class="cs">"req_..."</span> }  <span class="cc">// query tanpa parameter value</span>
+
+<span class="cc">// DB error — ERROR</span>
+{ <span class="cs">"level"</span>: <span class="cs">"ERROR"</span>, <span class="cs">"message"</span>: <span class="cs">"database error"</span>,
+  <span class="cs">"error"</span>: <span class="cs">"unique violation on auth.users.email"</span>,
+  <span class="cs">"request_id"</span>: <span class="cs">"req_..."</span> }
+
+<span class="cc">// Startup — INFO</span>
+{ <span class="cs">"level"</span>: <span class="cs">"INFO"</span>, <span class="cs">"message"</span>: <span class="cs">"database connected"</span>,
+  <span class="cs">"pool_size"</span>: <span class="cv">10</span>, <span class="cs">"service"</span>: <span class="cs">"auth-service"</span> }</pre></div>
+    </section>
+
+    <section id="larangan">
+      <h2 class="sec-title"><span class="sec-icon ic-o">🚫</span>Yang Tidak Boleh Di-log</h2>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Data</th><th>Alasan</th><th>Gantinya</th></tr></thead>
+        <tbody>
+          <tr><td>Password (plaintext atau hash)</td><td>Bocor via log aggregator</td><td>Jangan log sama sekali</td></tr>
+          <tr><td>Access token / refresh token</td><td>Token bisa langsung dipakai untuk impersonasi</td><td>Log hanya <code>token_prefix</code> (8 char pertama)</td></tr>
+          <tr><td>OTP</td><td>OTP bisa langsung dipakai</td><td>Log hanya <code>otp_sent: true</code></td></tr>
+          <tr><td>Email plaintext di WARN/ERROR</td><td>PII — bisa jadi masalah GDPR/PDP</td><td>Log SHA-256 hash email untuk korelasi</td></tr>
+          <tr><td>NIK / no. HP / rekening bank</td><td>Data sensitif regulasi PDP Indonesia</td><td>Log hanya <code>user_id</code></td></tr>
+          <tr><td>SQL query dengan parameter value</td><td>Data user muncul di log</td><td>Log query template saja (tanpa <code>$1</code> value)</td></tr>
+          <tr><td>Request body lengkap</td><td>Berisi password, data pribadi</td><td>Log hanya field non-sensitif yang relevan</td></tr>
+          <tr><td>Stack trace ke log INFO</td><td>Noise — stack trace hanya di ERROR</td><td>Log message + error field saja</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="tracing">
+      <h2 class="sec-title"><span class="sec-icon ic-b">🔗</span>Distributed Tracing via <code>request_id</code></h2>
+      <p style="color:var(--muted);font-size:.85rem;margin-bottom:.8rem;">Semua log dalam satu request harus membawa <code>request_id</code> yang sama, sehingga bisa di-trace dari awal hingga akhir — bahkan lintas service (in-process).</p>
+      <div class="code"><pre><span class="cc">// rejki-app/src/main.rs — middleware inject request_id ke tracing span</span>
+<span class="cc">// Setiap request otomatis punya span dengan request_id</span>
+
+<span class="cc">// Contoh trace satu login request:</span>
+<span class="cc">// request_id: req_abc123</span>
+
+{ <span class="cs">"msg"</span>: <span class="cs">"request started"</span>,    <span class="cs">"request_id"</span>: <span class="cs">"req_abc123"</span>, <span class="cs">"path"</span>: <span class="cs">"/api/v1/auth/login"</span> }
+{ <span class="cs">"msg"</span>: <span class="cs">"db query started"</span>,    <span class="cs">"request_id"</span>: <span class="cs">"req_abc123"</span>, <span class="cs">"table"</span>: <span class="cs">"auth.users"</span> }
+{ <span class="cs">"msg"</span>: <span class="cs">"db query completed"</span>,  <span class="cs">"request_id"</span>: <span class="cs">"req_abc123"</span>, <span class="cs">"duration_ms"</span>: <span class="cv">12</span> }
+{ <span class="cs">"msg"</span>: <span class="cs">"token issued"</span>,        <span class="cs">"request_id"</span>: <span class="cs">"req_abc123"</span>, <span class="cs">"user_id"</span>: <span class="cs">"uuid"</span> }
+{ <span class="cs">"msg"</span>: <span class="cs">"request completed"</span>,   <span class="cs">"request_id"</span>: <span class="cs">"req_abc123"</span>, <span class="cs">"status"</span>: <span class="cv">200</span>, <span class="cs">"duration_ms"</span>: <span class="cv">42</span> }
+
+<span class="cc">// Filter semua log untuk satu request:</span>
+<span class="cc">// jq 'select(.request_id == "req_abc123")' app.log</span></pre></div>
+    </section>
+
+    <section id="impl">
+      <h2 class="sec-title"><span class="sec-icon ic-o">⚙️</span>Implementasi Rust</h2>
+
+      <div class="sub-title">common/tracing-setup — update untuk JSON output</div>
+      <div class="code"><pre><span class="cc">// common/tracing-setup/src/lib.rs</span>
+<span class="ck">pub fn</span> <span class="cfn">init_tracing</span>() {
+  <span class="ck">let</span> env = std::env::<span class="cfn">var</span>(<span class="cs">"ENV"</span>).<span class="cfn">unwrap_or_else</span>(|_| <span class="cs">"development"</span>.<span class="cfn">into</span>());
+  <span class="ck">let</span> service = std::env::<span class="cfn">var</span>(<span class="cs">"SERVICE_NAME"</span>).<span class="cfn">unwrap_or_else</span>(|_| <span class="cs">"rejki"</span>.<span class="cfn">into</span>());
+
+  <span class="ck">if</span> env == <span class="cs">"production"</span> || env == <span class="cs">"staging"</span> {
+    <span class="cc">// JSON structured untuk production — bisa di-ingest log aggregator</span>
+    tracing_subscriber::<span class="cfn">fmt</span>()
+      .<span class="cfn">json</span>()
+      .<span class="cfn">with_current_span</span>(<span class="ck">true</span>)
+      .<span class="cfn">with_span_list</span>(<span class="ck">true</span>)
+      .<span class="cfn">with_env_filter</span>(<span class="ct">EnvFilter</span>::<span class="cfn">from_default_env</span>())
+      .<span class="cfn">init</span>();
+  } <span class="ck">else</span> {
+    <span class="cc">// Pretty format untuk development — mudah dibaca manusia</span>
+    tracing_subscriber::<span class="cfn">fmt</span>()
+      .<span class="cfn">pretty</span>()
+      .<span class="cfn">with_env_filter</span>(<span class="ct">EnvFilter</span>::<span class="cfn">from_default_env</span>())
+      .<span class="cfn">init</span>();
+  }
+}</pre></div>
+
+      <div class="sub-title">Penggunaan di Handler</div>
+      <div class="code"><pre><span class="cc">// Di handler — gunakan tracing macro, bukan println!</span>
+<span class="cfn">tracing::info!</span>(
+  user_id = %claims.sub,
+  request_id = %req_id,
+  <span class="cs">"user login success"</span>
+);
+
+<span class="cfn">tracing::warn!</span>(
+  request_id = %req_id,
+  reason = <span class="cs">"invalid credentials"</span>,
+  <span class="cs">"login failed"</span>
+);
+
+<span class="cfn">tracing::error!</span>(
+  request_id = %req_id,
+  error = %err,  <span class="cc">// detail error hanya di log, tidak ke client</span>
+  <span class="cs">"database query failed"</span>
+);</pre></div>
+
+      <div class="callout c-info">
+        <span class="callout-icon">💡</span>
+        <div>
+          <strong>Crate yang dibutuhkan</strong>
+          <p><code>tracing</code> + <code>tracing-subscriber</code> + <code>tracing-subscriber/json</code> feature sudah ada di workspace. Tambah <code>SERVICE_NAME</code> ke <code>.env.example</code> per service.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="checklist">
+      <h2 class="sec-title"><span class="sec-icon ic-g">✅</span>Checklist</h2>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Item</th><th>Lokasi</th></tr></thead>
+        <tbody>
+          <tr><td>Update <code>common/tracing-setup</code> — JSON output untuk staging/production, pretty untuk dev</td><td><code>common/tracing-setup/src/lib.rs</code></td></tr>
+          <tr><td>Tambah <code>SERVICE_NAME</code> ke <code>.env.example</code> per service</td><td><code>.env.example</code></td></tr>
+          <tr><td>Middleware inject <code>request_id</code> ke tracing span setiap request</td><td><code>rejki-app/src/main.rs</code></td></tr>
+          <tr><td>Semua handler gunakan <code>tracing::info/warn/error!</code> — tidak ada <code>println!</code></td><td>Semua <code>interface/handlers.rs</code></td></tr>
+          <tr><td>Slow query log — WARN jika DB query &gt; 100ms</td><td><code>infrastructure/pg_repository.rs</code> per service</td></tr>
+          <tr><td>Tidak ada password / token / OTP di log (review semua handler)</td><td>Semua service</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <footer>
+      <p>Rejki Backend — Logging Standard · 9 Juni 2026 · Phase 1.5</p>
+      <p style="margin-top:.3rem;">Stack: Rust · tracing · tracing-subscriber JSON</p>
+    </footer>
+  </main>
+</div>
+</body>
+</html>

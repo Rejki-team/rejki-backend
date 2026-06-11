@@ -1,0 +1,1153 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rejki Backend — VPS Deployment Guide</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0d1117; --surf: #161b22; --surf2: #1c2230; --border: #30363d;
+      --text: #e6edf3; --muted: #8b949e; --tag: #21262d;
+      --green: #56d364; --blue: #79c0ff; --orange: #f78166;
+      --yellow: #e3b341; --purple: #bc8cff; --cyan: #56b6d4; --r: 10px;
+    }
+    html { scroll-behavior: smooth; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; font-size: 15px; }
+    .layout { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
+    @media (max-width: 840px) { .layout { grid-template-columns: 1fr; } .nav { display: none; } }
+    .nav { position: sticky; top: 0; height: 100vh; overflow-y: auto; background: var(--surf); border-right: 1px solid var(--border); padding: 1.75rem 1rem; }
+    .nav-logo { font-size: 1.1rem; font-weight: 800; color: var(--yellow); margin-bottom: 1.75rem; }
+    .nav-logo span { color: var(--text); }
+    .nav-group { margin-bottom: 1.5rem; }
+    .nav-group-label { font-size: .67rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: .4rem; }
+    .nav-link { display: block; padding: .32rem .6rem; border-radius: 6px; font-size: .85rem; color: var(--muted); text-decoration: none; transition: background .12s, color .12s; }
+    .nav-link:hover { background: var(--tag); color: var(--text); }
+    .nav-link.accent { color: var(--yellow); }
+    .nav-link.back { color: var(--blue); font-size: .8rem; }
+    .nav-link.active { background: rgba(227,179,65,.08); color: var(--yellow); font-weight: 600; }
+    main { max-width: 920px; margin: 0 auto; padding: 3rem 2rem 6rem; }
+    @media (max-width: 600px) { main { padding: 2rem 1rem 4rem; } }
+    .hero { border-bottom: 1px solid var(--border); margin-bottom: 3rem; padding-bottom: 2.5rem; }
+    .eyebrow { display: inline-block; font-size: .73rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--orange); background: rgba(247,129,102,.07); border: 1px solid rgba(247,129,102,.25); border-radius: 20px; padding: .22rem .75rem; margin-bottom: .9rem; }
+    .hero h1 { font-size: clamp(1.7rem,4vw,2.5rem); font-weight: 800; line-height: 1.15; letter-spacing: -.4px; margin-bottom: .9rem; }
+    .hero h1 em { font-style: normal; color: var(--orange); }
+    .hero p { color: var(--muted); font-size: 1rem; max-width: 680px; line-height: 1.75; }
+    .badges { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: 1.2rem; }
+    .badge { font-size: .76rem; font-weight: 600; padding: .25rem .75rem; border-radius: 20px; border: 1px solid; }
+    .b-y  { color: var(--yellow); border-color: rgba(227,179,65,.4);  background: rgba(227,179,65,.06); }
+    .b-g  { color: var(--green);  border-color: rgba(86,211,100,.4);  background: rgba(86,211,100,.06); }
+    .b-b  { color: var(--blue);   border-color: rgba(121,192,255,.4); background: rgba(121,192,255,.06); }
+    .b-c  { color: var(--cyan);   border-color: rgba(86,182,212,.4);  background: rgba(86,182,212,.06); }
+    .b-o  { color: var(--orange); border-color: rgba(247,129,102,.4); background: rgba(247,129,102,.06); }
+    .b-ph { color: var(--purple); border-color: rgba(188,140,255,.4); background: rgba(188,140,255,.06); }
+    section { margin-bottom: 3.5rem; }
+    .sec-title { display: flex; align-items: center; gap: .6rem; font-size: 1.2rem; font-weight: 700; margin-bottom: 1.25rem; padding-bottom: .55rem; border-bottom: 1px solid var(--border); }
+    .sec-icon { width: 30px; height: 30px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: .95rem; flex-shrink: 0; }
+    .ic-g { background: rgba(86,211,100,.1); } .ic-b { background: rgba(121,192,255,.1); }
+    .ic-o { background: rgba(247,129,102,.1); } .ic-y { background: rgba(227,179,65,.1); }
+    .ic-c { background: rgba(86,182,212,.1); } .ic-p { background: rgba(188,140,255,.1); }
+    .sub-title { font-size: .95rem; font-weight: 700; margin: 1.6rem 0 .65rem; display: flex; align-items: center; gap: .5rem; }
+    .sub-title::before { content: ''; display: inline-block; width: 3px; height: 14px; background: var(--orange); border-radius: 2px; }
+    .tbl { width: 100%; border-collapse: collapse; font-size: .84rem; background: var(--surf); border: 1px solid var(--border); border-radius: var(--r); overflow: hidden; }
+    .tbl th { background: var(--surf2); padding: .6rem 1rem; text-align: left; font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+    .tbl td { padding: .65rem 1rem; border-bottom: 1px solid var(--border); vertical-align: top; line-height: 1.55; }
+    .tbl tr:last-child td { border-bottom: none; }
+    .tbl tr:hover td { background: var(--surf2); }
+    .tbl-wrap { overflow-x: auto; }
+    .cblock { background: var(--surf2); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-top: .6rem; }
+    .cblock-header { display: flex; align-items: center; justify-content: space-between; padding: .45rem .9rem; border-bottom: 1px solid var(--border); }
+    .cblock-lang { font-size: .68rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+    .cblock-file { font-size: .72rem; color: var(--blue); font-family: 'Cascadia Code','Fira Code','Consolas',monospace; }
+    .cblock pre { font-family: 'Cascadia Code','Fira Code','Consolas',monospace; font-size: .8rem; line-height: 1.75; padding: .9rem 1.1rem; overflow-x: auto; }
+    .ck  { color: #ff7b72; } .cs  { color: #a5d6ff; } .cc  { color: #6e7681; }
+    .ct  { color: #ffa657; } .cfn { color: #d2a8ff; } .cv  { color: #56d364; }
+    .cn  { color: #79c0ff; }
+    .callout { border-radius: var(--r); padding: .85rem 1.1rem; margin-top: .9rem; font-size: .86rem; display: flex; gap: .65rem; line-height: 1.65; }
+    .callout-icon { flex-shrink: 0; font-size: 1rem; margin-top: 2px; }
+    .callout p { color: var(--muted); } .callout strong { color: var(--text); display: block; margin-bottom: .15rem; }
+    .c-info { background: rgba(121,192,255,.06); border: 1px solid rgba(121,192,255,.22); }
+    .c-warn { background: rgba(227,179,65,.06);  border: 1px solid rgba(227,179,65,.22); }
+    .c-ok   { background: rgba(86,211,100,.06);  border: 1px solid rgba(86,211,100,.22); }
+    .c-danger { background: rgba(247,129,102,.06); border: 1px solid rgba(247,129,102,.22); }
+    code { font-family: 'Cascadia Code','Fira Code','Consolas',monospace; font-size: .8rem; background: var(--tag); border: 1px solid var(--border); border-radius: 4px; padding: .05rem .4rem; color: var(--blue); }
+    .steps { display: flex; flex-direction: column; gap: 0; }
+    .step { display: flex; gap: 1.1rem; position: relative; padding-bottom: 2rem; }
+    .step:last-child { padding-bottom: 0; }
+    .step-left { display: flex; flex-direction: column; align-items: center; gap: 0; flex-shrink: 0; }
+    .step-num { font-size: .75rem; font-weight: 800; color: var(--bg); background: var(--orange); width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; z-index: 1; }
+    .step-line { width: 2px; flex: 1; background: var(--border); margin-top: 4px; }
+    .step:last-child .step-line { display: none; }
+    .step-body { flex: 1; padding-top: 3px; }
+    .step-body h3 { font-size: 1rem; font-weight: 700; margin-bottom: .5rem; }
+    .step-body p { font-size: .86rem; color: var(--muted); margin-bottom: .65rem; line-height: 1.65; }
+    .step-body p:last-child { margin-bottom: 0; }
+    .checklist { display: flex; flex-direction: column; gap: .45rem; }
+    .chk { display: flex; align-items: flex-start; gap: .75rem; background: var(--surf); border: 1px solid var(--border); border-radius: 8px; padding: .7rem .9rem; font-size: .85rem; }
+    .chk-box { width: 16px; height: 16px; border: 2px solid var(--border); border-radius: 4px; flex-shrink: 0; margin-top: 2px; position: relative; }
+    .chk-box.done { background: var(--green); border-color: var(--green); }
+    .chk-box.done::after { content: '✓'; position: absolute; top: -2px; left: 1px; font-size: .7rem; color: var(--bg); font-weight: 800; }
+    .chk-text { flex: 1; line-height: 1.55; }
+    .chk-text.done { color: var(--muted); text-decoration: line-through; }
+    .phase-tag { display: inline-block; font-size: .68rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; border-radius: 4px; padding: .1rem .45rem; margin-left: .5rem; vertical-align: middle; }
+    .tag-one-time { background: rgba(247,129,102,.12); color: var(--orange); border: 1px solid rgba(247,129,102,.3); }
+    .tag-per-deploy { background: rgba(86,211,100,.12); color: var(--green); border: 1px solid rgba(86,211,100,.3); }
+    footer { margin-top: 4rem; padding-top: 1.25rem; border-top: 1px solid var(--border); font-size: .78rem; color: var(--muted); }
+  </style>
+</head>
+<body>
+<div class="layout">
+  <nav class="nav">
+    <div class="nav-logo">rejki<span>-backend</span></div>
+    <div class="nav-group">
+      <div class="nav-group-label">Navigasi</div>
+      <a class="nav-link back" href="index.html">← Architecture Overview</a>
+      <a class="nav-link back" href="infrastructure-setup.html">← Infrastructure Setup</a>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-label">Sections</div>
+      <a class="nav-link" href="#prerequisites">Prerequisites</a>
+      <a class="nav-link" href="#server-setup">1. Server Setup</a>
+      <a class="nav-link" href="#docker-install">2. Install Docker</a>
+      <a class="nav-link" href="#firewall">3. Firewall (ufw)</a>
+      <a class="nav-link" href="#cloudflare-tunnel">4. Cloudflare Tunnel</a>
+      <a class="nav-link" href="#deploy-repo">5. Deploy Repo</a>
+      <a class="nav-link" href="#secrets">6. Secrets & Keys</a>
+      <a class="nav-link" href="#first-run">7. First Run</a>
+      <a class="nav-link" href="#updates">8. Update / Redeploy</a>
+      <a class="nav-link" href="#monitoring">9. Monitoring & Logs</a>
+      <a class="nav-link" href="#dev-prod-single-vps">10. Dev &amp; Prod — 1 VPS</a>
+      <a class="nav-link" href="#checklist">Checklist</a>
+    </div>
+  </nav>
+
+  <main>
+    <!-- ── Hero ── -->
+    <div class="hero">
+      <div class="eyebrow">Deployment Guide — One-time VPS Setup</div>
+      <h1>Setup <em>VPS</em> untuk Production</h1>
+      <p>Panduan lengkap dari VPS baru hingga aplikasi berjalan di production. Mencakup instalasi Docker, firewall, Cloudflare Tunnel, deploy repo, dan manajemen secrets. Diasumsikan VPS Ubuntu 22.04 / 24.04.</p>
+      <div class="badges">
+        <span class="badge b-o">Ubuntu 22.04+</span>
+        <span class="badge b-b">Docker Engine</span>
+        <span class="badge b-g">ufw Firewall</span>
+        <span class="badge b-c">Cloudflare Tunnel</span>
+        <span class="badge b-y">One VPS</span>
+      </div>
+    </div>
+
+    <!-- ── Prerequisites ── -->
+    <section id="prerequisites">
+      <div class="sec-title">
+        <div class="sec-icon ic-y">📋</div>
+        Prerequisites
+      </div>
+
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Item</th><th>Minimum</th><th>Keterangan</th></tr></thead>
+          <tbody>
+            <tr><td>VPS OS</td><td>Ubuntu 22.04 LTS</td><td>Ubuntu 24.04 juga didukung. Hindari CentOS/RHEL — perintah berbeda.</td></tr>
+            <tr><td>RAM</td><td>2 GB</td><td>4 GB direkomendasikan. Rust build butuh ~1.5 GB saat compile di VPS.</td></tr>
+            <tr><td>CPU</td><td>1 vCPU</td><td>2 vCPU lebih nyaman untuk build. Build Rust bisa lambat di 1 vCPU.</td></tr>
+            <tr><td>Disk</td><td>20 GB</td><td>Docker images Rust build bisa besar (~2-3 GB). SSD lebih baik.</td></tr>
+            <tr><td>Domain</td><td>Wajib</td><td>Dikonfigurasi di Cloudflare. Tunnel butuh domain yang nameserver-nya di Cloudflare.</td></tr>
+            <tr><td>Akses</td><td>SSH sebagai root atau user sudo</td><td>Semua perintah di bawah diasumsikan dijalankan sebagai user dengan sudo.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout c-warn" style="margin-top:1rem;">
+        <div class="callout-icon">⚠️</div>
+        <div><strong>Build di VPS atau lokal?</strong>
+          <p>Rust build di VPS dengan 1-2 vCPU bisa memakan waktu 5-15 menit. Alternatif yang lebih cepat: build image Docker di mesin lokal, push ke Docker Hub / GitHub Container Registry, lalu pull di VPS. Panduan ini menggunakan build langsung di VPS (lebih simpel untuk awal).</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 1. Server Setup ── -->
+    <section id="server-setup">
+      <div class="sec-title">
+        <div class="sec-icon ic-o">🖥️</div>
+        1. Server Setup Awal
+        <span class="phase-tag tag-one-time">One-time</span>
+      </div>
+
+      <p style="font-size:.86rem;color:var(--muted);margin-bottom:1rem;">Langkah pertama setelah VPS baru — update sistem, buat user non-root, setup SSH key.</p>
+
+      <div class="sub-title">Update sistem & install package dasar</div>
+      <div class="cblock">
+        <div class="cblock-header">
+          <span class="cblock-lang">bash</span>
+          <span class="cblock-file">VPS — sebagai root</span>
+        </div>
+        <pre><span class="cc"># Update semua package</span>
+sudo apt-get update && sudo apt-get upgrade -y
+
+<span class="cc"># Install package utilitas dasar</span>
+sudo apt-get install -y \
+    curl \
+    git \
+    htop \
+    unzip \
+    ca-certificates \
+    gnupg \
+    lsb-release</pre>
+      </div>
+
+      <div class="sub-title">Buat user deploy (opsional, direkomendasikan)</div>
+      <div class="cblock">
+        <div class="cblock-header">
+          <span class="cblock-lang">bash</span>
+          <span class="cblock-file">VPS</span>
+        </div>
+        <pre><span class="cc"># Buat user "deploy" dengan sudo access</span>
+sudo useradd -m -s /bin/bash -G sudo deploy
+
+<span class="cc"># Set password (atau gunakan SSH key saja)</span>
+sudo passwd deploy
+
+<span class="cc"># Copy SSH authorized_keys dari root ke user deploy</span>
+sudo mkdir -p /home/deploy/.ssh
+sudo cp ~/.ssh/authorized_keys /home/deploy/.ssh/
+sudo chown -R deploy:deploy /home/deploy/.ssh
+sudo chmod 700 /home/deploy/.ssh
+sudo chmod 600 /home/deploy/.ssh/authorized_keys</pre>
+      </div>
+
+      <div class="callout c-info">
+        <div class="callout-icon">ℹ️</div>
+        <div><strong>SSH Key Authentication</strong>
+          <p>Pastikan login menggunakan SSH key, bukan password. Setelah setup, pertimbangkan disable password auth di <code>/etc/ssh/sshd_config</code>: set <code>PasswordAuthentication no</code>, lalu <code>sudo systemctl reload sshd</code>.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 2. Install Docker ── -->
+    <section id="docker-install">
+      <div class="sec-title">
+        <div class="sec-icon ic-b">🐳</div>
+        2. Install Docker Engine
+        <span class="phase-tag tag-one-time">One-time</span>
+      </div>
+
+      <p style="font-size:.86rem;color:var(--muted);margin-bottom:1rem;">Gunakan official Docker repo — jangan gunakan <code>apt install docker.io</code> karena versinya sering jauh tertinggal.</p>
+
+      <div class="cblock">
+        <div class="cblock-header">
+          <span class="cblock-lang">bash</span>
+          <span class="cblock-file">VPS — install Docker Engine</span>
+        </div>
+        <pre><span class="cc"># Tambah Docker GPG key</span>
+sudo install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
+    | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+sudo chmod a+r /etc/apt/keyrings/docker.gpg
+
+<span class="cc"># Tambah Docker repository</span>
+echo \
+  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
+  https://download.docker.com/linux/ubuntu \
+  $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
+  | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+<span class="cc"># Install Docker Engine + Compose plugin</span>
+sudo apt-get update
+sudo apt-get install -y \
+    docker-ce \
+    docker-ce-cli \
+    containerd.io \
+    docker-buildx-plugin \
+    docker-compose-plugin
+
+<span class="cc"># Tambah user ke group docker (tidak perlu sudo untuk docker)</span>
+sudo usermod -aG docker $USER
+
+<span class="cc"># Aktifkan Docker daemon saat boot</span>
+sudo systemctl enable docker
+sudo systemctl start docker
+
+<span class="cc"># Verifikasi — logout & login dulu agar group berlaku</span>
+docker --version
+docker compose version</pre>
+      </div>
+
+      <div class="callout c-warn">
+        <div class="callout-icon">⚠️</div>
+        <div><strong>Logout & login setelah <code>usermod -aG docker</code></strong>
+          <p>Group membership baru berlaku setelah sesi SSH baru. Jalankan <code>newgrp docker</code> untuk langsung aktif tanpa logout, atau tutup dan buka kembali koneksi SSH.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 3. Firewall ── -->
+    <section id="firewall">
+      <div class="sec-title">
+        <div class="sec-icon ic-o">🔥</div>
+        3. Firewall dengan ufw
+        <span class="phase-tag tag-one-time">One-time</span>
+      </div>
+
+      <p style="font-size:.86rem;color:var(--muted);margin-bottom:1rem;">Prinsip: buka hanya port yang benar-benar dibutuhkan dari luar. Port PostgreSQL (5432) dan Redis (6379) <strong>tidak boleh</strong> bisa diakses dari internet.</p>
+
+      <div class="cblock">
+        <div class="cblock-header">
+          <span class="cblock-lang">bash</span>
+          <span class="cblock-file">VPS — konfigurasi ufw</span>
+        </div>
+        <pre><span class="cc"># Reset ke default (deny incoming, allow outgoing)</span>
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
+
+<span class="cc"># Izinkan SSH — WAJIB dilakukan sebelum enable, atau terkunci!</span>
+sudo ufw allow ssh           <span class="cc"># port 22</span>
+
+<span class="cc"># Izinkan HTTP — diakses Cloudflare Tunnel dari dalam Docker</span>
+<span class="cc"># nginx listen :80 dan Tunnel connect ke host port 80</span>
+sudo ufw allow 80/tcp
+
+<span class="cc"># JANGAN buka 5432 (postgres) atau 6379 (redis) ke internet</span>
+<span class="cc"># Keduanya hanya perlu diakses antar container di internal network</span>
+
+<span class="cc"># Aktifkan firewall</span>
+sudo ufw enable
+
+<span class="cc"># Verifikasi</span>
+sudo ufw status verbose</pre>
+      </div>
+
+      <div class="tbl-wrap" style="margin-top:1rem;">
+        <table class="tbl">
+          <thead><tr><th>Port</th><th>Status</th><th>Alasan</th></tr></thead>
+          <tbody>
+            <tr><td>22 (SSH)</td><td style="color:var(--green);">Buka</td><td>Akses management VPS</td></tr>
+            <tr><td>80 (HTTP)</td><td style="color:var(--green);">Buka</td><td>Cloudflare Tunnel connect ke nginx:80 melalui host</td></tr>
+            <tr><td>443 (HTTPS)</td><td style="color:var(--muted);">Tidak perlu</td><td>HTTPS ditangani Cloudflare — traffic masuk lewat Tunnel, bukan port 443 langsung</td></tr>
+            <tr><td>5432 (PostgreSQL)</td><td style="color:var(--orange);">Tutup</td><td>Hanya diakses antar container di internal network</td></tr>
+            <tr><td>6379 (Redis)</td><td style="color:var(--orange);">Tutup</td><td>Hanya diakses antar container di internal network</td></tr>
+            <tr><td>8080, 9000</td><td style="color:var(--orange);">Tutup</td><td>Service backend — hanya diakses nginx melalui Docker network</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout c-info" style="margin-top:1rem;">
+        <div class="callout-icon">ℹ️</div>
+        <div><strong>docker-compose expose vs ports</strong>
+          <p>Di <code>docker-compose.yml</code>, <code>rejki-app</code> dan <code>bun-notification</code> menggunakan <code>expose</code> bukan <code>ports</code> — artinya port mereka hanya bisa diakses sesama container di network yang sama, tidak di-publish ke host. Ini defense-in-depth tambahan di samping firewall.</p>
+        </div>
+      </div>
+
+      <div class="callout c-warn" style="margin-top:.6rem;">
+        <div class="callout-icon">⚠️</div>
+        <div><strong>docker-compose ports 5432 dan 6379 di production</strong>
+          <p>Di <code>docker-compose.yml</code> saat ini, postgres dan redis meng-expose port ke host untuk kemudahan development. Di production, pertimbangkan untuk menghapus baris <code>ports</code> keduanya — ufw sudah memblokir akses luar, tapi defense-in-depth lebih baik.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 4. Cloudflare Tunnel ── -->
+    <section id="cloudflare-tunnel">
+      <div class="sec-title">
+        <div class="sec-icon ic-c">☁️</div>
+        4. Setup Cloudflare Tunnel
+        <span class="phase-tag tag-one-time">One-time</span>
+      </div>
+
+      <p style="font-size:.86rem;color:var(--muted);margin-bottom:1rem;">Cloudflare Tunnel menghubungkan domain ke VPS tanpa membuka port 443 ke internet. HTTPS, DDoS protection, dan CDN ditangani Cloudflare.</p>
+
+      <div class="steps">
+        <div class="step">
+          <div class="step-left">
+            <div class="step-num">1</div>
+            <div class="step-line"></div>
+          </div>
+          <div class="step-body">
+            <h3>Login ke Cloudflare Dashboard</h3>
+            <p>Pastikan domain sudah terdaftar di Cloudflare dan nameserver domain sudah diubah ke Cloudflare. Pergi ke <strong>Zero Trust → Networks → Tunnels</strong>.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-left">
+            <div class="step-num">2</div>
+            <div class="step-line"></div>
+          </div>
+          <div class="step-body">
+            <h3>Buat Tunnel baru</h3>
+            <p>Klik <strong>Create a tunnel</strong> → pilih <strong>Cloudflared</strong> → beri nama (contoh: <code>rejki-production</code>) → klik Save tunnel.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-left">
+            <div class="step-num">3</div>
+            <div class="step-line"></div>
+          </div>
+          <div class="step-body">
+            <h3>Copy token tunnel</h3>
+            <p>Cloudflare menampilkan perintah install dengan token. <strong>Copy hanya token-nya</strong> — panjang string setelah <code>--token</code>. Simpan di <code>.env</code> sebagai <code>CLOUDFLARE_TUNNEL_TOKEN</code>.</p>
+            <div class="cblock">
+              <div class="cblock-header">
+                <span class="cblock-lang">bash</span>
+                <span class="cblock-file">.env (di VPS)</span>
+              </div>
+              <pre>CLOUDFLARE_TUNNEL_TOKEN=eyJhIjoiMTIzNDU2Nzg5...</pre>
+            </div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-left">
+            <div class="step-num">4</div>
+            <div class="step-line"></div>
+          </div>
+          <div class="step-body">
+            <h3>Konfigurasi Public Hostname</h3>
+            <p>Di halaman tunnel, tab <strong>Public Hostname</strong> → Add a public hostname:</p>
+            <div class="tbl-wrap" style="margin-top:.5rem;">
+              <table class="tbl">
+                <thead><tr><th>Field</th><th>Nilai</th></tr></thead>
+                <tbody>
+                  <tr><td>Subdomain</td><td><code>api</code> (atau kosong untuk root domain)</td></tr>
+                  <tr><td>Domain</td><td><code>rejki.id</code> (domain kamu)</td></tr>
+                  <tr><td>Type</td><td>HTTP</td></tr>
+                  <tr><td>URL</td><td><code>nginx:80</code> atau <code>localhost:80</code></td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p style="margin-top:.65rem;">Karena cloudflare-tunnel container berada di Docker network yang sama dengan nginx, gunakan <code>nginx:80</code> (nama service Docker) sebagai URL tujuan.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-left">
+            <div class="step-num">5</div>
+            <div class="step-line"></div>
+          </div>
+          <div class="step-body">
+            <h3>Tunnel dijalankan via Docker Compose</h3>
+            <p>Tunnel berjalan sebagai container Docker dengan <code>profiles: [prod]</code>. Tidak perlu install <code>cloudflared</code> di host — cukup jalankan <code>docker compose --profile prod up -d</code>.</p>
+            <div class="callout c-ok" style="margin-top:.5rem;">
+              <div class="callout-icon">✅</div>
+              <div><strong>Verifikasi</strong>
+                <p>Setelah container berjalan, cek status tunnel di Cloudflare Dashboard — status harus berubah dari <strong>Inactive</strong> ke <strong>Healthy</strong>.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 5. Deploy Repo ── -->
+    <section id="deploy-repo">
+      <div class="sec-title">
+        <div class="sec-icon ic-g">📦</div>
+        5. Clone &amp; Persiapkan Repo
+        <span class="phase-tag tag-one-time">One-time</span>
+      </div>
+
+      <div class="cblock">
+        <div class="cblock-header">
+          <span class="cblock-lang">bash</span>
+          <span class="cblock-file">VPS</span>
+        </div>
+        <pre><span class="cc"># Clone ke direktori yang diinginkan</span>
+cd /opt
+sudo mkdir rejki
+sudo chown deploy:deploy rejki    <span class="cc"># atau user kamu</span>
+cd rejki
+
+git clone https://github.com/YOUR_USERNAME/rejki-backend.git .
+
+<span class="cc"># Atau jika private repo, gunakan deploy key / personal access token</span>
+git clone https://YOUR_TOKEN@github.com/YOUR_USERNAME/rejki-backend.git .</pre>
+      </div>
+
+      <div class="callout c-info" style="margin-top:.8rem;">
+        <div class="callout-icon">ℹ️</div>
+        <div><strong>Lokasi repo di VPS</strong>
+          <p>Konvensi yang umum: <code>/opt/rejki</code> untuk aplikasi production. Hindari taruh di home directory jika menggunakan user deploy terpisah.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 6. Secrets & Keys ── -->
+    <section id="secrets">
+      <div class="sec-title">
+        <div class="sec-icon ic-o">🔑</div>
+        6. Setup Secrets &amp; Keys
+        <span class="phase-tag tag-one-time">One-time</span>
+      </div>
+
+      <p style="font-size:.86rem;color:var(--muted);margin-bottom:.7rem;">File-file ini tidak ada di git (sudah di <code>.gitignore</code>) — harus dibuat manual di VPS.</p>
+
+      <div class="callout c-info" style="margin-bottom:.8rem;">
+        <div class="callout-icon">ℹ️</div>
+        <div><strong>Referensi lengkap env var ada di Config Standard</strong>
+          <p>Bagian di bawah hanya menampilkan nilai production yang perlu diisi. Untuk penjelasan setiap variabel, tipe data, nilai valid, dan prinsip fail-fast, lihat <a href="config-standard.html" style="color:var(--blue);">Config Standard — Katalog Variabel</a>.</p>
+        </div>
+      </div>
+
+      <div class="sub-title">Buat file .env</div>
+      <div class="cblock">
+        <div class="cblock-header">
+          <span class="cblock-lang">bash</span>
+          <span class="cblock-file">VPS — /opt/rejki/.env</span>
+        </div>
+        <pre><span class="cc"># Copy dari .env.example sebagai template</span>
+cp .env.example .env
+nano .env   <span class="cc"># atau vim .env</span></pre>
+      </div>
+
+      <div class="sub-title">Isi minimal untuk production</div>
+      <div class="cblock">
+        <div class="cblock-header">
+          <span class="cblock-lang">bash</span>
+          <span class="cblock-file">.env (production)</span>
+        </div>
+        <pre>APP_ENV=production
+
+<span class="cc"># PostgreSQL</span>
+POSTGRES_USER=rejki
+POSTGRES_PASSWORD=<span class="cv">GANTI_DENGAN_PASSWORD_KUAT</span>
+POSTGRES_DB=rejki
+DATABASE_URL=postgresql://rejki:<span class="cv">GANTI_DENGAN_PASSWORD_KUAT</span>@postgres:5432/rejki
+
+<span class="cc"># Redis</span>
+REDIS_URL=redis://redis:6379
+
+<span class="cc"># JWT</span>
+JWT_PRIVATE_KEY_PATH=/app/keys/jwt_private_key.pem
+JWT_PUBLIC_KEY_PATH=/app/keys/jwt_public_key.pem
+
+<span class="cc"># Firebase (untuk bun-notification-service)</span>
+FIREBASE_PROJECT_ID=<span class="cv">your-firebase-project-id</span>
+FIREBASE_SERVICE_ACCOUNT_PATH=/app/keys/firebase-service-account.json
+
+<span class="cc"># Email</span>
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USERNAME=<span class="cv">noreply@rejki.id</span>
+SMTP_PASSWORD=<span class="cv">gmail-app-password</span>
+EMAIL_FROM=Rejki &lt;noreply@rejki.id&gt;
+
+<span class="cc"># Cloudflare Tunnel</span>
+CLOUDFLARE_TUNNEL_TOKEN=<span class="cv">token-dari-cloudflare-dashboard</span></pre>
+      </div>
+
+      <div class="callout c-danger" style="margin-top:.8rem;">
+        <div class="callout-icon">🚨</div>
+        <div><strong>Permission file .env wajib dibatasi</strong>
+          <p>File <code>.env</code> berisi semua credential. Set permission agar hanya owner yang bisa baca:</p>
+        </div>
+      </div>
+      <div class="cblock" style="margin-top:.5rem;">
+        <div class="cblock-header"><span class="cblock-lang">bash</span></div>
+        <pre>chmod 600 .env
+ls -la .env
+<span class="cc"># Output: -rw------- 1 deploy deploy ... .env</span></pre>
+      </div>
+
+      <div class="sub-title">Buat direktori keys &amp; isi secrets</div>
+      <div class="cblock">
+        <div class="cblock-header">
+          <span class="cblock-lang">bash</span>
+          <span class="cblock-file">VPS</span>
+        </div>
+        <pre>mkdir -p keys
+chmod 700 keys
+
+<span class="cc"># Generate JWT RSA key pair (jika belum ada)</span>
+openssl genrsa -out keys/jwt_private_key.pem 2048
+openssl rsa -in keys/jwt_private_key.pem -pubout -out keys/jwt_public_key.pem
+chmod 600 keys/jwt_private_key.pem
+chmod 644 keys/jwt_public_key.pem</pre>
+      </div>
+
+      <div class="cblock" style="margin-top:.6rem;">
+        <div class="cblock-header">
+          <span class="cblock-lang">bash</span>
+          <span class="cblock-file">VPS — upload Firebase service account</span>
+        </div>
+        <pre><span class="cc"># Dari mesin lokal — upload file service account ke VPS</span>
+scp keys/firebase-service-account.json \
+    deploy@YOUR_VPS_IP:/opt/rejki/keys/firebase-service-account.json
+
+<span class="cc"># Di VPS — set permission</span>
+chmod 600 keys/firebase-service-account.json</pre>
+      </div>
+    </section>
+
+    <!-- ── 7. First Run ── -->
+    <section id="first-run">
+      <div class="sec-title">
+        <div class="sec-icon ic-g">🚀</div>
+        7. First Run — Jalankan Pertama Kali
+      </div>
+
+      <div class="steps">
+        <div class="step">
+          <div class="step-left">
+            <div class="step-num">1</div>
+            <div class="step-line"></div>
+          </div>
+          <div class="step-body">
+            <h3>Build semua image</h3>
+            <p>Proses build Rust bisa memakan waktu 5-15 menit di VPS kecil. Ini hanya perlu dilakukan sekali penuh — build berikutnya jauh lebih cepat berkat cache layer.</p>
+            <div class="cblock">
+              <div class="cblock-header"><span class="cblock-lang">bash</span></div>
+              <pre>cd /opt/rejki
+docker compose build</pre>
+            </div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-left">
+            <div class="step-num">2</div>
+            <div class="step-line"></div>
+          </div>
+          <div class="step-body">
+            <h3>Jalankan dengan Cloudflare Tunnel (production)</h3>
+            <div class="cblock">
+              <div class="cblock-header"><span class="cblock-lang">bash</span></div>
+              <pre><span class="cc"># Production — dengan Cloudflare Tunnel</span>
+docker compose --profile prod up -d
+
+<span class="cc"># Tanpa Tunnel — untuk testing di VPS (akses via IP langsung)</span>
+docker compose up -d</pre>
+            </div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-left">
+            <div class="step-num">3</div>
+            <div class="step-line"></div>
+          </div>
+          <div class="step-body">
+            <h3>Verifikasi semua service healthy</h3>
+            <div class="cblock">
+              <div class="cblock-header"><span class="cblock-lang">bash</span></div>
+              <pre>docker compose ps
+
+<span class="cc"># Output yang diharapkan — semua (healthy):</span>
+<span class="cc"># NAME                  STATUS</span>
+<span class="cc"># rejki-postgres-1      Up (healthy)</span>
+<span class="cc"># rejki-redis-1         Up (healthy)</span>
+<span class="cc"># rejki-rejki-app-1     Up (healthy)</span>
+<span class="cc"># rejki-bun-notification-1  Up (healthy)</span>
+<span class="cc"># rejki-nginx-1         Up</span>
+<span class="cc"># rejki-cloudflare-tunnel-1  Up</span></pre>
+            </div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-left">
+            <div class="step-num">4</div>
+            <div class="step-line"></div>
+          </div>
+          <div class="step-body">
+            <h3>Test health endpoint</h3>
+            <div class="cblock">
+              <div class="cblock-header"><span class="cblock-lang">bash</span></div>
+              <pre><span class="cc"># Dari dalam VPS</span>
+curl http://localhost/health
+
+<span class="cc"># Output yang diharapkan:</span>
+<span class="cc"># {"status":"ok"}</span>
+
+<span class="cc"># Dari internet (setelah Cloudflare Tunnel aktif)</span>
+curl https://api.rejki.id/health</pre>
+            </div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-left">
+            <div class="step-num">5</div>
+            <div class="step-line"></div>
+          </div>
+          <div class="step-body">
+            <h3>Verifikasi Docker restart on boot</h3>
+            <p>Docker daemon sudah di-enable via <code>systemctl enable docker</code>. Semua container menggunakan <code>restart: unless-stopped</code> — otomatis restart setelah VPS reboot tanpa perlu cron job tambahan.</p>
+            <div class="cblock">
+              <div class="cblock-header"><span class="cblock-lang">bash</span></div>
+              <pre><span class="cc"># Verifikasi Docker auto-start</span>
+sudo systemctl is-enabled docker
+<span class="cc"># Output: enabled</span>
+
+<span class="cc"># Test reboot (opsional — lakukan di luar jam sibuk)</span>
+sudo reboot
+<span class="cc"># Tunggu beberapa menit, SSH kembali</span>
+docker compose ps</pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 8. Update / Redeploy ── -->
+    <section id="updates">
+      <div class="sec-title">
+        <div class="sec-icon ic-g">🔄</div>
+        8. Update &amp; Redeploy
+        <span class="phase-tag tag-per-deploy">Per Deploy</span>
+      </div>
+
+      <p style="font-size:.86rem;color:var(--muted);margin-bottom:.7rem;">Langkah manual — digunakan sebelum CI/CD aktif, atau saat hotfix darurat yang tidak bisa menunggu pipeline.</p>
+
+      <div class="callout c-ok" style="margin-bottom:.8rem;">
+        <div class="callout-icon">✅</div>
+        <div><strong>Setelah CI/CD setup, bagian ini tidak perlu dilakukan manual</strong>
+          <p>Push ke <code>main</code> → GitHub Actions otomatis SSH ke VPS dan jalankan langkah-langkah di bawah. Lihat <a href="cicd-setup.html" style="color:var(--blue);">CI/CD Setup</a>. Jalankan manual hanya saat pipeline down atau hotfix mendesak.</p>
+        </div>
+      </div>
+
+      <div class="cblock">
+        <div class="cblock-header">
+          <span class="cblock-lang">bash</span>
+          <span class="cblock-file">VPS — redeploy manual (darurat / sebelum CI/CD aktif)</span>
+        </div>
+        <pre>cd /opt/rejki
+
+<span class="cc"># 1. Pull perubahan terbaru</span>
+git pull origin main
+
+<span class="cc"># 2. Rebuild image yang berubah</span>
+docker compose build rejki-app
+<span class="cc"># Jika bun-notification-service juga berubah:</span>
+docker compose build bun-notification
+
+<span class="cc"># 3. Restart service dengan image baru</span>
+docker compose up -d rejki-app
+<span class="cc"># Atau restart semua sekaligus:</span>
+docker compose --profile prod up -d
+
+<span class="cc"># 4. Cek status</span>
+docker compose ps
+docker compose logs --tail=50 rejki-app</pre>
+      </div>
+
+      <div class="callout c-info" style="margin-top:.8rem;">
+        <div class="callout-icon">ℹ️</div>
+        <div><strong>Zero-downtime deployment</strong>
+          <p>Saat ini deployment memerlukan downtime singkat (container lama stop, container baru start). Untuk zero-downtime, perlu setup lebih kompleks (health-check rolling update atau load balancer dua instance). Cukup untuk tahap awal — pertimbangkan di Phase 3 jika dibutuhkan.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 9. Monitoring ── -->
+    <section id="monitoring">
+      <div class="sec-title">
+        <div class="sec-icon ic-b">📊</div>
+        9. Monitoring &amp; Log Management
+      </div>
+
+      <div class="sub-title">Perintah monitoring harian</div>
+      <div class="cblock">
+        <div class="cblock-header">
+          <span class="cblock-lang">bash</span>
+          <span class="cblock-file">VPS — monitoring</span>
+        </div>
+        <pre><span class="cc"># Status semua service</span>
+docker compose ps
+
+<span class="cc"># Resource usage (CPU, RAM)</span>
+docker stats --no-stream
+
+<span class="cc"># Log realtime semua service</span>
+docker compose logs -f
+
+<span class="cc"># Log service tertentu</span>
+docker compose logs -f rejki-app
+docker compose logs -f bun-notification
+docker compose logs -f nginx
+
+<span class="cc"># Log N baris terakhir</span>
+docker compose logs --tail=100 rejki-app
+
+<span class="cc"># Disk usage Docker</span>
+docker system df
+
+<span class="cc"># Cek Redis Stream</span>
+docker compose exec redis redis-cli XLEN notifications_stream
+docker compose exec redis redis-cli XLEN notifications_dlq   <span class="cc"># dead letter queue</span>
+
+<span class="cc"># Cek koneksi PostgreSQL aktif</span>
+docker compose exec postgres psql -U rejki -d rejki \
+    -c "SELECT count(*) FROM pg_stat_activity;"</pre>
+      </div>
+
+      <div class="sub-title">Log rotation</div>
+      <p style="font-size:.86rem;color:var(--muted);margin:.6rem 0;">Docker menyimpan log container di host. Tanpa konfigurasi, log bisa tumbuh tidak terbatas. Tambahkan konfigurasi log rotation ke Docker daemon:</p>
+      <div class="cblock">
+        <div class="cblock-header">
+          <span class="cblock-lang">json</span>
+          <span class="cblock-file">/etc/docker/daemon.json</span>
+        </div>
+        <pre>{
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "50m",
+    "max-file": "5"
+  }
+}</pre>
+      </div>
+      <div class="cblock" style="margin-top:.5rem;">
+        <div class="cblock-header"><span class="cblock-lang">bash</span></div>
+        <pre><span class="cc"># Apply konfigurasi daemon.json</span>
+sudo systemctl reload docker
+
+<span class="cc"># Container yang sudah berjalan perlu di-recreate untuk pakai setting baru</span>
+docker compose down && docker compose --profile prod up -d</pre>
+      </div>
+
+      <div class="callout c-warn" style="margin-top:.8rem;">
+        <div class="callout-icon">⚠️</div>
+        <div><strong>Monitor dead letter queue (DLQ)</strong>
+          <p>Jika <code>XLEN notifications_dlq</code> terus bertambah, artinya ada notifikasi yang gagal dikirim setelah semua retry. Perlu investigasi — kemungkinan FCM token semua expired, koneksi Firebase bermasalah, atau format event salah.</p>
+        </div>
+      </div>
+
+      <div class="sub-title">Disk cleanup berkala</div>
+      <div class="cblock">
+        <div class="cblock-header">
+          <span class="cblock-lang">bash</span>
+          <span class="cblock-file">VPS — cleanup Docker resources tidak terpakai</span>
+        </div>
+        <pre><span class="cc"># Hapus image lama, container stopped, network tidak terpakai</span>
+<span class="cc"># AMAN — tidak menyentuh container yang sedang berjalan</span>
+docker system prune -f
+
+<span class="cc"># Jika mau hapus semua image tidak dipakai juga</span>
+docker system prune -af  <span class="cc"># ⚠️ akan re-download image saat rebuild</span></pre>
+      </div>
+    </section>
+
+    <!-- ── Checklist ── -->
+    <section id="checklist">
+      <div class="sec-title">
+        <div class="sec-icon ic-g">✅</div>
+        Checklist Deployment Production
+      </div>
+
+      <p style="font-size:.86rem;color:var(--muted);margin-bottom:1rem;"><span class="phase-tag tag-one-time">One-time</span> = sekali saja saat pertama setup &nbsp;&nbsp; <span class="phase-tag tag-per-deploy">Per Deploy</span> = setiap kali update</p>
+
+      <div class="checklist">
+        <div class="chk">
+          <div class="chk-box"></div>
+          <div class="chk-text">VPS Ubuntu 22.04+ dengan minimal 2 GB RAM <span class="phase-tag tag-one-time">One-time</span></div>
+        </div>
+        <div class="chk">
+          <div class="chk-box"></div>
+          <div class="chk-text"><code>apt upgrade</code> — sistem up-to-date sebelum setup <span class="phase-tag tag-one-time">One-time</span></div>
+        </div>
+        <div class="chk">
+          <div class="chk-box"></div>
+          <div class="chk-text">Docker Engine + Compose plugin terinstall dari official repo Docker <span class="phase-tag tag-one-time">One-time</span></div>
+        </div>
+        <div class="chk">
+          <div class="chk-box"></div>
+          <div class="chk-text"><code>systemctl enable docker</code> — Docker daemon auto-start saat VPS reboot <span class="phase-tag tag-one-time">One-time</span></div>
+        </div>
+        <div class="chk">
+          <div class="chk-box"></div>
+          <div class="chk-text">ufw aktif: allow SSH (22) + HTTP (80), block 5432/6379/8080/9000 dari luar <span class="phase-tag tag-one-time">One-time</span></div>
+        </div>
+        <div class="chk">
+          <div class="chk-box"></div>
+          <div class="chk-text">Cloudflare Tunnel dibuat di dashboard, token disimpan di <code>.env</code> sebagai <code>CLOUDFLARE_TUNNEL_TOKEN</code> <span class="phase-tag tag-one-time">One-time</span></div>
+        </div>
+        <div class="chk">
+          <div class="chk-box"></div>
+          <div class="chk-text">Public hostname tunnel dikonfigurasi: <code>api.rejki.id</code> → <code>nginx:80</code> (HTTP) <span class="phase-tag tag-one-time">One-time</span></div>
+        </div>
+        <div class="chk">
+          <div class="chk-box"></div>
+          <div class="chk-text">Repo di-clone ke <code>/opt/rejki</code> <span class="phase-tag tag-one-time">One-time</span></div>
+        </div>
+        <div class="chk">
+          <div class="chk-box"></div>
+          <div class="chk-text"><code>.env</code> dibuat dari <code>.env.example</code>, semua nilai production diisi, <code>chmod 600 .env</code> <span class="phase-tag tag-one-time">One-time</span></div>
+        </div>
+        <div class="chk">
+          <div class="chk-box"></div>
+          <div class="chk-text">JWT RSA key pair di-generate: <code>keys/jwt_private_key.pem</code> + <code>keys/jwt_public_key.pem</code> <span class="phase-tag tag-one-time">One-time</span></div>
+        </div>
+        <div class="chk">
+          <div class="chk-box"></div>
+          <div class="chk-text">Firebase service account JSON di-upload ke <code>keys/firebase-service-account.json</code>, <code>chmod 600</code> <span class="phase-tag tag-one-time">One-time</span></div>
+        </div>
+        <div class="chk">
+          <div class="chk-box"></div>
+          <div class="chk-text"><code>/etc/docker/daemon.json</code> dikonfigurasi dengan log rotation (max-size 50m, max-file 5) <span class="phase-tag tag-one-time">One-time</span></div>
+        </div>
+        <div class="chk">
+          <div class="chk-box"></div>
+          <div class="chk-text">nginx volume di <code>docker-compose.yml</code> diubah ke <code>nginx.prod.conf</code> (bukan dev) <span class="phase-tag tag-one-time">One-time</span></div>
+        </div>
+        <div class="chk">
+          <div class="chk-box"></div>
+          <div class="chk-text"><code>docker compose build</code> — build semua image (bisa 5-15 menit untuk Rust) <span class="phase-tag tag-one-time">One-time</span></div>
+        </div>
+        <div class="chk">
+          <div class="chk-box"></div>
+          <div class="chk-text"><code>docker compose --profile prod up -d</code> — semua service running <span class="phase-tag tag-per-deploy">Per Deploy</span></div>
+        </div>
+        <div class="chk">
+          <div class="chk-box"></div>
+          <div class="chk-text"><code>docker compose ps</code> — semua service status <strong>healthy</strong> <span class="phase-tag tag-per-deploy">Per Deploy</span></div>
+        </div>
+        <div class="chk">
+          <div class="chk-box"></div>
+          <div class="chk-text"><code>curl https://api.rejki.id/health</code> → <code>{"status":"ok"}</code> dari internet <span class="phase-tag tag-per-deploy">Per Deploy</span></div>
+        </div>
+        <div class="chk">
+          <div class="chk-box"></div>
+          <div class="chk-text">Cloudflare Tunnel status <strong>Healthy</strong> di dashboard <span class="phase-tag tag-per-deploy">Per Deploy</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 10. Dev & Prod di Satu VPS ── -->
+    <section id="dev-prod-single-vps">
+      <div class="sec-title">
+        <div class="sec-icon ic-p">🔀</div>
+        10. Dev &amp; Prod di Satu VPS — Tanpa Staging
+      </div>
+
+      <p style="font-size:.86rem;color:var(--muted);margin-bottom:1rem;">Karena hanya ada satu VPS dan tidak ada staging server, dev dan prod dijalankan sebagai <strong>dua instance Docker Compose terpisah</strong> di direktori berbeda, dengan port berbeda, dan database berbeda.</p>
+
+      <div class="callout c-warn">
+        <div class="callout-icon">⚠️</div>
+        <div><strong>Risiko satu VPS: resource berbagi</strong>
+          <p>Dev dan prod berbagi CPU dan RAM. Build Rust di sisi dev bisa mempengaruhi performa prod. Lakukan build di jam sepi, atau build lokal lalu push image ke registry.</p>
+        </div>
+      </div>
+
+      <div class="sub-title">Struktur direktori</div>
+      <div class="cblock">
+        <div class="cblock-header">
+          <span class="cblock-lang">bash</span>
+          <span class="cblock-file">VPS — layout direktori</span>
+        </div>
+        <pre>/opt/rejki/
+├── <span class="cv">prod/</span>          <span class="cc"># production — branch: main</span>
+│   ├── .env       <span class="cc"># APP_ENV=production</span>
+│   ├── keys/
+│   └── ...        <span class="cc"># clone repo prod</span>
+└── <span class="cv">dev/</span>           <span class="cc"># development — branch: develop</span>
+    ├── .env       <span class="cc"># APP_ENV=development</span>
+    ├── keys/
+    └── ...        <span class="cc"># clone repo dev</span></pre>
+      </div>
+
+      <div class="sub-title">Setup direktori</div>
+      <div class="cblock">
+        <div class="cblock-header">
+          <span class="cblock-lang">bash</span>
+          <span class="cblock-file">VPS</span>
+        </div>
+        <pre>sudo mkdir -p /opt/rejki/{prod,dev}
+sudo chown -R deploy:deploy /opt/rejki
+
+<span class="cc"># Clone production (branch main)</span>
+cd /opt/rejki/prod
+git clone -b main https://github.com/YOUR_USERNAME/rejki-backend.git .
+
+<span class="cc"># Clone development (branch develop)</span>
+cd /opt/rejki/dev
+git clone -b develop https://github.com/YOUR_USERNAME/rejki-backend.git .</pre>
+      </div>
+
+      <div class="sub-title">Port allocation — dev dan prod tidak bertabrakan</div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Service</th><th>Production port (host)</th><th>Development port (host)</th></tr></thead>
+          <tbody>
+            <tr><td>nginx</td><td>80</td><td>8080</td></tr>
+            <tr><td>PostgreSQL</td><td>5432</td><td>5433</td></tr>
+            <tr><td>Redis</td><td>6379</td><td>6380</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sub-title">Pembeda dev vs prod — sisanya setara</div>
+      <p style="font-size:.86rem;color:var(--muted);margin:.5rem 0 .6rem;">Di konteks VPS, konfigurasi dev dan prod pada dasarnya <strong>sama</strong>. Yang membedakan hanya tiga hal berikut; selebihnya identik (struktur variabel, image, layout).</p>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Aspek</th><th>Dev</th><th>Prod</th></tr></thead>
+          <tbody>
+            <tr><td>Domain</td><td><strong>Subdomain</strong> — mis. <code>dev.rejki.id</code></td><td><strong>Domain utama</strong> — mis. <code>rejki.id</code></td></tr>
+            <tr><td>Swagger UI</td><td><strong>Ada</strong> — <code>/swagger-ui</code> + <code>/api-docs/openapi.json</code> (otomatis dari <code>APP_ENV=development</code>)</td><td><strong>Tidak ada</strong> — kedua rute tidak dipasang (404), skema API tidak terekspos</td></tr>
+            <tr><td>nginx</td><td><code>nginx.dev.conf</code></td><td><code>nginx.prod.conf</code> — tambah rate limiting &amp; JSON logging</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="note" style="margin:.6rem 0;">
+        <strong>Swagger di-gate oleh <code>APP_ENV</code>, bukan oleh nginx.</strong> Saat <code>APP_ENV=production</code>, rejki-app tidak mendaftarkan rute Swagger sama sekali — baik UI (<code>/swagger-ui</code>) maupun dokumen (<code>/api-docs/openapi.json</code>) mengembalikan 404. Tidak ada variable khusus untuk mengaktifkan/menonaktifkan Swagger.
+      </div>
+      <div class="note" style="margin:.6rem 0;">
+        <strong>Secret &amp; variable GitHub Actions seragam.</strong> Karena struktur konfigurasi dev &amp; prod sama, gunakan kumpulan secret/variable yang sama untuk kedua environment; yang berbeda hanya <em>nilai</em> environment-specific (domain/subdomain, <code>APP_ENV</code>, token Cloudflare Tunnel). Tambahkan variable baru ke kedua environment agar paritas terjaga. Lihat <a href="cicd-setup.html">CI/CD Setup</a>.
+      </div>
+
+      <div class="sub-title">docker-compose.override.yml untuk dev</div>
+      <p style="font-size:.86rem;color:var(--muted);margin:.5rem 0 .6rem;">Buat file <code>docker-compose.override.yml</code> di direktori <code>dev/</code> — Docker Compose otomatis merge file ini dengan <code>docker-compose.yml</code> utama. Tidak perlu modifikasi <code>docker-compose.yml</code> utama.</p>
+      <div class="cblock">
+        <div class="cblock-header">
+          <span class="cblock-lang">yaml</span>
+          <span class="cblock-file">/opt/rejki/dev/docker-compose.override.yml</span>
+        </div>
+        <pre><span class="cc"># Override port untuk dev — tidak bertabrakan dengan prod</span>
+<span class="ck">services</span><span class="cc">:</span>
+  <span class="ck">postgres</span><span class="cc">:</span>
+    <span class="cn">ports</span><span class="cc">:</span>
+      <span class="cc">- "5433:5432"</span>   <span class="cc"># dev postgres di host port 5433</span>
+
+  <span class="ck">redis</span><span class="cc">:</span>
+    <span class="cn">ports</span><span class="cc">:</span>
+      <span class="cc">- "6380:6379"</span>   <span class="cc"># dev redis di host port 6380</span>
+
+  <span class="ck">nginx</span><span class="cc">:</span>
+    <span class="cn">ports</span><span class="cc">:</span>
+      <span class="cc">- "8080:80"</span>     <span class="cc"># dev nginx di host port 8080</span>
+    <span class="cn">volumes</span><span class="cc">:</span>
+      <span class="cc">- ./nginx.dev.conf:/etc/nginx/conf.d/default.conf:ro</span>  <span class="cc"># pastikan pakai dev config</span></pre>
+      </div>
+
+      <div class="sub-title">.env untuk masing-masing environment</div>
+      <div class="cblock">
+        <div class="cblock-header">
+          <span class="cblock-lang">bash</span>
+          <span class="cblock-file">/opt/rejki/prod/.env</span>
+        </div>
+        <pre>APP_ENV=production
+POSTGRES_PASSWORD=<span class="cv">password-kuat-prod</span>
+DATABASE_URL=postgresql://rejki:<span class="cv">password-kuat-prod</span>@postgres:5432/rejki
+REDIS_URL=redis://redis:6379
+CLOUDFLARE_TUNNEL_TOKEN=<span class="cv">token-prod</span>
+<span class="cc"># ... semua var prod lainnya</span></pre>
+      </div>
+      <div class="cblock" style="margin-top:.5rem;">
+        <div class="cblock-header">
+          <span class="cblock-lang">bash</span>
+          <span class="cblock-file">/opt/rejki/dev/.env</span>
+        </div>
+        <pre>APP_ENV=development
+POSTGRES_PASSWORD=<span class="cv">password-dev</span>
+DATABASE_URL=postgresql://rejki:<span class="cv">password-dev</span>@postgres:5432/rejki_dev
+POSTGRES_DB=rejki_dev          <span class="cc"># database terpisah dari prod!</span>
+REDIS_URL=redis://redis:6379
+<span class="cc"># CLOUDFLARE_TUNNEL_TOKEN tidak perlu — dev tidak pakai tunnel</span>
+<span class="cc"># ... var dev lainnya (boleh pakai kredensial test)</span></pre>
+      </div>
+
+      <div class="callout c-danger" style="margin-top:.8rem;">
+        <div class="callout-icon">🚨</div>
+        <div><strong>Database dev dan prod harus terpisah</strong>
+          <p>Dev menggunakan <code>POSTGRES_DB=rejki_dev</code>, prod menggunakan <code>POSTGRES_DB=rejki</code>. Meski berada di container PostgreSQL berbeda (satu di <code>/opt/rejki/prod</code>, satu di <code>/opt/rejki/dev</code>), pastikan <code>DATABASE_URL</code> masing-masing menunjuk ke database yang benar. Data prod tidak boleh tercampur dengan dev.</p>
+        </div>
+      </div>
+
+      <div class="sub-title">Docker Compose project name — cegah nama container bentrok</div>
+      <p style="font-size:.86rem;color:var(--muted);margin:.5rem 0 .6rem;">Docker Compose memberi nama container berdasarkan nama direktori + nama service. Karena dua direktori berbeda (<code>prod/</code> dan <code>dev/</code>), nama container otomatis berbeda. Tapi lebih eksplisit menggunakan <code>-p</code> flag atau file <code>.env</code>:</p>
+      <div class="cblock">
+        <div class="cblock-header">
+          <span class="cblock-lang">bash</span>
+          <span class="cblock-file">Cara menjalankan</span>
+        </div>
+        <pre><span class="cc"># Production — dengan Cloudflare Tunnel</span>
+cd /opt/rejki/prod
+docker compose -p rejki-prod --profile prod up -d
+
+<span class="cc"># Development — tanpa Cloudflare Tunnel</span>
+cd /opt/rejki/dev
+docker compose -p rejki-dev up -d
+
+<span class="cc"># Lihat semua container (dari direktori manapun)</span>
+docker ps
+
+<span class="cc"># Log production</span>
+docker compose -p rejki-prod logs -f rejki-app
+
+<span class="cc"># Log development</span>
+docker compose -p rejki-dev logs -f rejki-app</pre>
+      </div>
+
+      <div class="sub-title">Akses dev dari luar &amp; pengamanan Swagger</div>
+      <p style="font-size:.86rem;color:var(--muted);margin:.5rem 0 .6rem;">Karena dev memiliki Swagger UI (peta lengkap API), <strong>akses dev tidak boleh publik</strong>. Mengikuti praktik industri (pertahanan berlapis untuk dokumentasi API non-produksi):</p>
+      <ul style="font-size:.86rem;color:var(--muted);margin:.2rem 0 .6rem 1.1rem;line-height:1.6;">
+        <li><strong>Gate environment</strong> — Swagger absen total di prod (sudah otomatis dari <code>APP_ENV</code>).</li>
+        <li><strong>Batasi jaringan dev</strong> — default: subdomain dev (<code>dev.rejki.id</code>) di belakang <strong>Cloudflare Access</strong> (SSO + audit, tanpa shared secret). Lebih baik daripada basic-auth nginx. Alternatif tanpa subdomain publik: SSH tunnel sementara (di bawah).</li>
+        <li><strong>Selalu HTTPS</strong> — ditangani Cloudflare.</li>
+        <li><strong>Lindungi juga <code>openapi.json</code></strong>, bukan hanya UI — pembatasan jaringan berlaku ke seluruh subdomain dev, sehingga dokumen skema tidak bisa ditarik langsung.</li>
+      </ul>
+      <p style="font-size:.86rem;color:var(--muted);margin:.5rem 0 .6rem;">Dev tidak memerlukan Cloudflare Tunnel untuk produksi. Untuk akses dev cepat dari laptop tanpa mengekspos subdomain, gunakan SSH tunnel sementara:</p>
+      <div class="cblock">
+        <div class="cblock-header">
+          <span class="cblock-lang">bash</span>
+          <span class="cblock-file">Mesin lokal — SSH tunnel ke dev di VPS</span>
+        </div>
+        <pre><span class="cc"># Forward localhost:18080 → VPS:8080 (nginx dev)</span>
+ssh -L 18080:localhost:8080 deploy@YOUR_VPS_IP -N
+
+<span class="cc"># Akses di browser/Postman:</span>
+<span class="cc"># http://localhost:18080/api/v1/...</span></pre>
+      </div>
+
+      <div class="sub-title">Workflow deploy — dev ke prod</div>
+      <p style="font-size:.86rem;color:var(--muted);margin:.5rem 0 .6rem;">Karena tidak ada staging, alur pengujian dilakukan di environment dev di VPS yang sama, sebelum merge ke main dan deploy ke prod:</p>
+      <div class="cblock">
+        <div class="cblock-header">
+          <span class="cblock-lang">bash</span>
+          <span class="cblock-file">Alur kerja</span>
+        </div>
+        <pre><span class="cc">── 1. Kerjakan fitur di branch feature/xxx ──────────────────────</span>
+<span class="cc"># Di mesin lokal</span>
+git checkout -b feature/notif-push
+<span class="cc"># ... coding ...</span>
+git push origin feature/notif-push
+
+<span class="cc">── 2. Deploy ke dev di VPS untuk testing ────────────────────────</span>
+cd /opt/rejki/dev
+git fetch origin
+git checkout develop
+git merge feature/notif-push     <span class="cc"># atau via PR ke develop</span>
+docker compose -p rejki-dev build rejki-app
+docker compose -p rejki-dev up -d rejki-app
+<span class="cc"># Test via SSH tunnel dari mesin lokal</span>
+
+<span class="cc">── 3. Jika OK, merge ke main dan deploy prod ─────────────────────</span>
+<span class="cc"># Merge develop → main (via PR atau langsung)</span>
+cd /opt/rejki/prod
+git pull origin main
+docker compose -p rejki-prod build rejki-app
+docker compose -p rejki-prod up -d rejki-app
+
+<span class="cc"># Verifikasi prod</span>
+curl https://api.rejki.id/health</pre>
+      </div>
+
+      <div class="sub-title">ufw — buka port 8080 untuk dev (opsional)</div>
+      <p style="font-size:.86rem;color:var(--muted);margin:.5rem 0 .6rem;">Jika ingin akses langsung ke dev dari luar VPS tanpa SSH tunnel (misalnya akses dari IP tertentu saja):</p>
+      <div class="cblock">
+        <div class="cblock-header">
+          <span class="cblock-lang">bash</span>
+          <span class="cblock-file">VPS — opsional, hanya jika dibutuhkan</span>
+        </div>
+        <pre><span class="cc"># Buka port 8080 HANYA dari IP tertentu (IP kantor/rumah)</span>
+sudo ufw allow from YOUR_IP_ADDRESS to any port 8080
+
+<span class="cc"># JANGAN buka 8080 untuk semua IP di production VPS</span>
+<span class="cc"># Lebih aman: gunakan SSH tunnel (lihat di atas)</span></pre>
+      </div>
+
+      <div class="callout c-ok" style="margin-top:.8rem;">
+        <div class="callout-icon">✅</div>
+        <div><strong>Ringkasan: Dev vs Prod di satu VPS</strong>
+          <p>Prod di <code>/opt/rejki/prod</code> → nginx port 80 → Cloudflare Tunnel → internet. Dev di <code>/opt/rejki/dev</code> → nginx port 8080 → akses via SSH tunnel dari lokal. Database terpisah (<code>rejki</code> vs <code>rejki_dev</code>). Kedua instance berjalan bersamaan tanpa konflik berkat project name berbeda (<code>-p rejki-prod</code> vs <code>-p rejki-dev</code>).</p>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      <p>rejki-backend · VPS Deployment Guide · Ubuntu 22.04 + Docker Engine + Cloudflare Tunnel · Phase 1.5</p>
+    </footer>
+  </main>
+</div>
+</body>
+</html>

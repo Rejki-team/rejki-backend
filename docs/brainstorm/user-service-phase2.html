@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rejki Backend — Brainstorm: User Service (Phase 2)</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0d1117; --surf: #161b22; --surf2: #1c2230; --border: #30363d;
+      --text: #e6edf3; --muted: #8b949e; --tag: #21262d;
+      --green: #56d364; --blue: #79c0ff; --orange: #f78166;
+      --yellow: #e3b341; --purple: #bc8cff; --cyan: #56b6d4; --r: 10px;
+    }
+    html { scroll-behavior: smooth; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; font-size: 15px; }
+    .layout { display: grid; grid-template-columns: 250px 1fr; min-height: 100vh; }
+    @media (max-width: 880px) { .layout { grid-template-columns: 1fr; } .nav { display: none; } }
+    .nav { position: sticky; top: 0; height: 100vh; overflow-y: auto; background: var(--surf); border-right: 1px solid var(--border); padding: 1.75rem 1rem; }
+    .nav-logo { font-size: 1.1rem; font-weight: 800; color: var(--purple); margin-bottom: 1.5rem; }
+    .nav-logo span { color: var(--text); }
+    .nav-group { margin-bottom: 1.4rem; }
+    .nav-group-label { font-size: .67rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: .4rem; }
+    .nav-link { display: block; padding: .3rem .6rem; border-radius: 6px; font-size: .83rem; color: var(--muted); text-decoration: none; transition: background .12s, color .12s; }
+    .nav-link:hover { background: var(--tag); color: var(--text); }
+    .nav-link.accent { color: var(--purple); }
+    .nav-link.back { color: var(--blue); font-size: .8rem; }
+    main { max-width: 940px; margin: 0 auto; padding: 3rem 2rem 6rem; }
+    @media (max-width: 600px) { main { padding: 2rem 1rem 4rem; } }
+    .hero { border-bottom: 1px solid var(--border); margin-bottom: 3rem; padding-bottom: 2.5rem; }
+    .eyebrow { display: inline-block; font-size: .73rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--purple); background: rgba(188,140,255,.07); border: 1px solid rgba(188,140,255,.25); border-radius: 20px; padding: .22rem .75rem; margin-bottom: .9rem; }
+    .hero h1 { font-size: clamp(1.7rem,4vw,2.5rem); font-weight: 800; line-height: 1.15; letter-spacing: -.4px; margin-bottom: .9rem; }
+    .hero h1 em { font-style: normal; color: var(--purple); }
+    .hero p { color: var(--muted); font-size: 1rem; max-width: 720px; line-height: 1.75; }
+    .badges { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: 1.2rem; }
+    .badge { font-size: .76rem; font-weight: 600; padding: .25rem .75rem; border-radius: 20px; border: 1px solid; }
+    .b-ph { color: var(--purple); border-color: rgba(188,140,255,.4); background: rgba(188,140,255,.06); }
+    .b-b  { color: var(--blue);   border-color: rgba(121,192,255,.4); background: rgba(121,192,255,.06); }
+    .b-o  { color: var(--orange); border-color: rgba(247,129,102,.4); background: rgba(247,129,102,.06); }
+    .b-draft { color: var(--yellow); border-color: rgba(227,179,65,.4); background: rgba(227,179,65,.06); }
+    section { margin-bottom: 3.5rem; }
+    .sec-title { display: flex; align-items: center; gap: .6rem; font-size: 1.2rem; font-weight: 700; margin-bottom: 1.25rem; padding-bottom: .55rem; border-bottom: 1px solid var(--border); }
+    .sec-icon { width: 30px; height: 30px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: .95rem; flex-shrink: 0; }
+    .ic-g { background: rgba(86,211,100,.1); } .ic-b { background: rgba(121,192,255,.1); }
+    .ic-o { background: rgba(247,129,102,.1); } .ic-y { background: rgba(227,179,65,.1); }
+    .ic-p { background: rgba(188,140,255,.1); } .ic-c { background: rgba(86,182,212,.1); }
+    .sub-title { font-size: .95rem; font-weight: 700; margin: 1.6rem 0 .65rem; display: flex; align-items: center; gap: .5rem; }
+    .sub-title::before { content: ''; display: inline-block; width: 3px; height: 14px; background: var(--purple); border-radius: 2px; }
+    p.lead { color: var(--muted); margin-bottom: 1rem; }
+    .tbl { width: 100%; border-collapse: collapse; font-size: .84rem; background: var(--surf); border: 1px solid var(--border); border-radius: var(--r); overflow: hidden; }
+    .tbl th { background: var(--surf2); padding: .6rem 1rem; text-align: left; font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+    .tbl td { padding: .65rem 1rem; border-bottom: 1px solid var(--border); vertical-align: top; line-height: 1.55; }
+    .tbl tr:last-child td { border-bottom: none; }
+    .tbl tr:hover td { background: var(--surf2); }
+    .tbl-wrap { overflow-x: auto; }
+    .code { background: #0d1117; border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.2rem; overflow-x: auto; margin-top: .6rem; }
+    .code pre { font-family: 'Cascadia Code','Fira Code','Consolas',monospace; font-size: .8rem; line-height: 1.7; white-space: pre; }
+    .ck { color: #ff7b72; } .cs { color: #a5d6ff; } .cc { color: #6e7681; }
+    .ct { color: #ffa657; } .cfn { color: #d2a8ff; } .cv { color: #56d364; }
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; margin-top: .6rem; }
+    @media (max-width: 720px) { .two-col { grid-template-columns: 1fr; } }
+    .col-label { font-size: .68rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: .35rem; }
+    .callout { border-radius: var(--r); padding: .85rem 1.1rem; margin-top: .9rem; font-size: .86rem; display: flex; gap: .65rem; line-height: 1.65; }
+    .callout-icon { flex-shrink: 0; font-size: 1rem; margin-top: 2px; }
+    .callout p { color: var(--muted); } .callout strong { color: var(--text); display: block; margin-bottom: .15rem; }
+    .c-info { background: rgba(121,192,255,.06); border: 1px solid rgba(121,192,255,.22); }
+    .c-warn { background: rgba(227,179,65,.06);  border: 1px solid rgba(227,179,65,.22); }
+    .c-ok   { background: rgba(86,211,100,.06);  border: 1px solid rgba(86,211,100,.22); }
+    .c-danger { background: rgba(247,129,102,.06); border: 1px solid rgba(247,129,102,.22); }
+    .c-purple { background: rgba(188,140,255,.06); border: 1px solid rgba(188,140,255,.22); }
+    .story { background: var(--surf); border: 1px solid var(--border); border-left: 3px solid var(--purple); border-radius: 8px; padding: .85rem 1.1rem; margin-bottom: .7rem; }
+    .story .sid { font-size: .68rem; font-weight: 700; letter-spacing: .05em; color: var(--purple); text-transform: uppercase; }
+    .story p { margin-top: .25rem; font-size: .9rem; }
+    .story .ac { margin-top: .5rem; font-size: .82rem; color: var(--muted); }
+    .pill { display: inline-block; font-size: .68rem; font-weight: 700; padding: .1rem .5rem; border-radius: 20px; border: 1px solid; }
+    .p-ada    { color: var(--green);  border-color: rgba(86,211,100,.4);  background: rgba(86,211,100,.08); }
+    .p-parsial{ color: var(--yellow); border-color: rgba(227,179,65,.4);  background: rgba(227,179,65,.08); }
+    .p-rencana{ color: var(--blue);   border-color: rgba(121,192,255,.4); background: rgba(121,192,255,.08); }
+    ul.clean { list-style: none; display: flex; flex-direction: column; gap: .5rem; margin-top: .6rem; }
+    ul.clean li { padding-left: 1.3rem; position: relative; font-size: .88rem; color: var(--muted); }
+    ul.clean li::before { content: '▸'; position: absolute; left: 0; color: var(--purple); }
+    ul.clean li strong { color: var(--text); }
+    a.ref { color: var(--blue); text-decoration: none; border-bottom: 1px dashed rgba(121,192,255,.4); }
+    a.ref:hover { border-bottom-style: solid; }
+    code { font-family: 'Cascadia Code','Fira Code','Consolas',monospace; font-size: .8rem; background: var(--tag); border: 1px solid var(--border); border-radius: 4px; padding: .05rem .4rem; color: var(--blue); }
+    .openq { background: var(--surf); border: 1px solid rgba(227,179,65,.3); border-radius: 8px; padding: .7rem 1rem; margin-bottom: .55rem; font-size: .87rem; }
+    .openq .qn { color: var(--yellow); font-weight: 700; }
+    footer { margin-top: 4rem; padding-top: 1.25rem; border-top: 1px solid var(--border); font-size: .78rem; color: var(--muted); }
+    footer a { color: var(--blue); text-decoration: none; }
+  </style>
+</head>
+<body>
+<div class="layout">
+  <nav class="nav">
+    <div class="nav-logo">rejki<span>-backend</span></div>
+    <div class="nav-group">
+      <div class="nav-group-label">Navigasi</div>
+      <a class="nav-link back" href="../index.html">← Architecture Overview</a>
+      <a class="nav-link back" href="../prd/prd-mobile.md">← PRD Mobile</a>
+      <a class="nav-link back" href="../prd/rejki-prd.md">← PRD Payung</a>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-label">Isi Dokumen</div>
+      <a class="nav-link" href="#tujuan">Tujuan &amp; Aturan Main</a>
+      <a class="nav-link accent" href="#keputusan">Keputusan Diambil</a>
+      <a class="nav-link" href="#baseline">Titik Berangkat (Kode)</a>
+      <a class="nav-link" href="#stories">User Stories</a>
+      <a class="nav-link" href="#boundary">Batas Service</a>
+      <a class="nav-link" href="#state">State Machine Akun</a>
+      <a class="nav-link" href="#kyc">Strategi KYC</a>
+      <a class="nav-link" href="#data">Model Data</a>
+      <a class="nav-link" href="#endpoints">Rancangan Endpoint</a>
+      <a class="nav-link" href="#upload">Upload KTP &amp; Swafoto</a>
+      <a class="nav-link" href="#security">Keamanan &amp; PDP</a>
+      <a class="nav-link" href="#notif">Notifikasi Verifikasi</a>
+      <a class="nav-link" href="#suspend">Suspend Akun</a>
+      <a class="nav-link accent" href="#open">Status Pertanyaan</a>
+      <a class="nav-link accent" href="#asumsi">Asumsi Implementasi</a>
+    </div>
+  </nav>
+  <main>
+    <div class="hero">
+      <div class="eyebrow">Phase 2 — Brainstorm · User Service</div>
+      <h1>User Service — <em>Onboarding, KYC &amp; Profil</em></h1>
+      <p>Dokumen brainstorming teknikal untuk mendesain User Service Rejki di Phase 2, dibangun dari <strong>user story</strong> dan dipetakan ke standar yang sudah ditetapkan pada Phase 1.5. Fokus: alur registrasi → verifikasi OTP → kelengkapan data diri (KYC) → akun aktif, plus lupa/ubah password dan suspend.</p>
+      <div class="badges">
+        <span class="badge b-ph">Phase 2</span>
+        <span class="badge b-draft">Brainstorm / Draft</span>
+        <span class="badge b-b">User Service</span>
+        <span class="badge b-o">UU PDP</span>
+      </div>
+    </div>
+
+    <!-- TUJUAN -->
+    <section id="tujuan">
+      <h2 class="sec-title"><span class="sec-icon ic-p">🧭</span>Tujuan &amp; Aturan Main</h2>
+      <p class="lead">Dokumen ini bersifat <strong>brainstorming</strong>, bukan keputusan final. Tujuannya menyatukan user story Anda dengan praktik industri dan standar internal Rejki, agar keputusan desain diambil di atas bukti.</p>
+      <div class="tbl-wrap"><table class="tbl"><tbody>
+        <tr><td><strong>Berbasis bukti</strong></td><td>Setiap klaim "sudah ada" ditelusuri ke kode di <code>rust-services/</code>. Klaim standar ditautkan ke dokumen Phase 1.5. Hal di luar bukti ditandai sebagai <em>usulan</em>.</td></tr>
+        <tr><td><strong>Align dengan Phase 1.5</strong></td><td>Mengikuti <a class="ref" href="../api-standard.html">API Standard</a>, <a class="ref" href="../security-baseline.html">Security Baseline</a>, <a class="ref" href="../database-convention.html">Database Convention</a>, <a class="ref" href="../authorization-pattern.html">Authorization Pattern</a>, <a class="ref" href="../config-standard.html">Config Standard</a>.</td></tr>
+        <tr><td><strong>Tidak mengada-ngada</strong></td><td>Tidak ada angka/target yang dikarang. Keputusan yang butuh masukan bisnis dikumpulkan di <a class="ref" href="#open">Pertanyaan Terbuka</a>.</td></tr>
+        <tr><td><strong>Status legenda</strong></td><td><span class="pill p-ada">Ada</span> sudah di kode · <span class="pill p-parsial">Parsial</span> sebagian ada · <span class="pill p-rencana">Rencana</span> belum ada</td></tr>
+      </tbody></table></div>
+      <div class="callout c-warn"><span class="callout-icon">⚖️</span><div><strong>Catatan kepatuhan</strong><p>User story ini mengumpulkan <strong>NIK</strong>, <strong>Foto KTP</strong>, dan <strong>Swafoto dengan KTP</strong> — termasuk data pribadi yang bersifat spesifik &amp; biometrik wajah di bawah <strong>UU PDP No. 27/2022</strong>. Karena itu prinsip <em>data minimization</em>, persetujuan eksplisit, enkripsi at-rest, dan kontrol akses ketat menjadi syarat, bukan opsi. Lihat bagian <a class="ref" href="#security">Keamanan &amp; PDP</a>.</p></div></div>
+    </section>
+
+    <!-- KEPUTUSAN -->
+    <section id="keputusan">
+      <h2 class="sec-title"><span class="sec-icon ic-g">✅</span>Keputusan yang Sudah Diambil</h2>
+      <p class="lead">Hasil diskusi pemilik produk (2026-06-10). Keputusan ini mengikat desain di bagian-bagian berikutnya.</p>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>#</th><th>Topik</th><th>Keputusan</th></tr></thead>
+        <tbody>
+          <tr><td>K1</td><td>Propagasi status akun (Q1)</td><td><strong>Hybrid berbasis Redis.</strong> Status di-embed di JWT untuk kecepatan; untuk aksi sensitif (suspend, hasil KYC) ditegakkan cepat via cek ke <strong>Redis</strong> (yang sudah ada). Menghindari token "basi" tanpa query DB tiap request.</td></tr>
+          <tr><td>K2 <span class="pill p-parsial">direvisi</span></td><td>Sinkronisasi status auth ↔ KYC (Q2)</td><td><strong>Domain Client in-process</strong> (bukan Redis). Saat admin approve/reject KYC, user-service/admin memanggil <strong>trait <code>AuthClient</code> yang diperluas</strong> (mis. <code>set_account_status(user_id, status)</code>) sebagai pemanggilan fungsi langsung — sinkron &amp; konsisten kuat. Lihat <a class="ref" href="#k2-revisi">koreksi di bawah</a> untuk alasannya.</td></tr>
+          <tr><td>K3</td><td>Nama schema user-service (Q3)</td><td><strong>Ikuti kode: <code>user_svc</code></strong>. Dokumen <a class="ref" href="../database-convention.html">Database Convention</a> (yang menulis <code>user_profile</code>) akan diperbaiki agar sesuai kode — menghindari migrasi berisiko untuk perubahan kosmetik.</td></tr>
+          <tr><td>K4</td><td>Kebijakan password (Q4)</td><td><strong>Min. 8 karakter</strong> dengan kombinasi: <strong>≥1 huruf kapital, ≥1 angka, ≥1 karakter spesial</strong>. Berlaku untuk register, reset, &amp; change password.</td></tr>
+          <tr><td>K5</td><td>Ubah NIK (Q5)</td><td><strong>NIK tidak dapat diubah</strong> oleh pengguna setelah dikirim. Perubahan (bila perlu) hanya lewat proses khusus admin — di luar alur self-service.</td></tr>
+          <tr><td>K6</td><td>Data wilayah (Q6)</td><td><strong>Di backend</strong>, di-seed dari dataset open-source gratis sesuai Kepmendagri (lihat catatan di bawah).</td></tr>
+          <tr><td>K7</td><td>Storage dokumen (Q7)</td><td><strong>MinIO self-hosted</strong> (S3-compatible, presigned URL). Lihat catatan lisensi &amp; status di bawah.</td></tr>
+          <tr><td>K8</td><td>Verifikasi telepon (Q8)</td><td><strong>Nomor telepon cukup disimpan</strong>, tidak diverifikasi OTP SMS pada tahap ini.</td></tr>
+          <tr><td>K9</td><td>Retensi dokumen (Q9)</td><td><strong>Terapkan retensi</strong> sesuai prinsip <em>data minimization</em> UU PDP — gambar KTP/swafoto dihapus/diarsipkan setelah periode tertentu pasca-approval (periode pasti = <a class="ref" href="#open">masih terbuka</a>).</td></tr>
+          <tr><td>K10</td><td>Notifikasi verifikasi (Q10)</td><td><strong>Setiap perubahan status</strong> memicu notifikasi push &amp; in-app; <strong>email hanya untuk awal (submit) &amp; hasil akhir (approved/rejected)</strong> — lihat K12.</td></tr>
+          <tr><td>K11</td><td>Retensi &amp; penghapusan (O1)</td><td><strong>Disimpan selama akun aktif</strong> (sah menurut UU PDP Pasal 7 — <em>storage limitation</em>: boleh selama tujuan pemrosesan berlaku). <strong>Dihapus/dimusnahkan setelah akun ditutup</strong> + periode dispute (praktik umum ±30 hari). Tujuan retensi wajib didokumentasikan.</td></tr>
+          <tr><td>K12</td><td>Kanal email (O2)</td><td><strong>Email hanya pada event awal (KYC di-submit) &amp; hasil akhir (approved/rejected)</strong>. Transisi antara (mis. "sedang ditinjau") cukup push + in-app, agar tidak spam.</td></tr>
+          <tr><td>K13 <span class="pill p-parsial">direvisi</span></td><td>Penyimpanan, penyajian &amp; kepemilikan data wilayah (O3)</td><td><strong>Simpan di PostgreSQL</strong> sebagai tabel referensi ternormalisasi (bukan local-storage server, bukan MinIO). <strong>4 level penuh</strong>: provinsi → kabupaten/kota → kecamatan → kelurahan, plus kolom negara (default <code>ID</code>). UI cascading via <strong>API bertahap per level</strong>; validasi server-side rantai parent. <strong>Kepemilikan: domain mandiri <code>region-service</code> + <code>region-service-client</code></strong> (bukan milik user-service), karena dipakai lintas-domain. Lihat <a class="ref" href="#k13-revisi">koreksi di bawah</a>.</td></tr>
+          <tr><td>K14</td><td>Manajemen kunci enkripsi (O4)</td><td><strong>Envelope encryption</strong> (DEK + KEK). Untuk self-hosted hemat resource: KEK (master key) di <strong>environment secret</strong> (sesuai <a class="ref" href="../config-standard.html">Config Standard</a> fail-fast), tanpa KMS berbayar. Terapkan <strong>rotasi key</strong> (minimal tahunan; simpan versi lama untuk dekripsi data historis).</td></tr>
+          <tr><td>K15</td><td>Pola OTP (O5)</td><td><strong>Reuse tabel <code>otp_verifications</code> yang sudah ada</strong> — satu tabel, dibedakan kolom <code>purpose</code>, di-overwrite per <code>(user_id, purpose)</code>, OTP di-hash, TTL pendek + batas percobaan. <strong>Tidak</strong> membuat mekanisme terpisah per jenis OTP (sesuai praktik anti over-engineering).</td></tr>
+          <tr><td>K16</td><td>Cooldown re-submit KYC (O6)</td><td><strong>Cooldown 3 hari kerja</strong> sebelum pengguna <code>REJECTED</code> boleh mengajukan ulang.</td></tr>
+        </tbody>
+      </table></div>
+
+      <div class="callout c-ok"><span class="callout-icon">⚖️</span><div><strong>Catatan K11 — Retensi &amp; UU PDP (hasil riset)</strong><p>Menyimpan dokumen KYC <em>selama akun aktif</em> <strong>tidak melanggar</strong> UU PDP No. 27/2022. Pasal 7 menganut prinsip <em>pembatasan penyimpanan</em>: data boleh disimpan selama <strong>tujuan pemrosesan masih berlaku</strong> — dan identitas terverifikasi adalah dasar keberadaan akun. Kewajiban yang harus dipenuhi: (1) dokumentasikan tujuan &amp; periode retensi, (2) <strong>musnahkan data saat akun ditutup / tujuan tercapai / atas permintaan subjek data</strong>, (3) sediakan mekanisme penghapusan. Jadi yang berisiko bukan "menyimpan selama aktif", melainkan "menyimpan setelah tak ada tujuan".</p></div></div>
+
+      <div class="callout c-info"><span class="callout-icon">🗄️</span><div><strong>Catatan K13 — Mengapa database, bukan file/objek (hasil riset)</strong><p>Data wilayah bersifat <strong>relasional &amp; di-query bertingkat</strong> (pilih provinsi → tampilkan kota di provinsi itu). Local-storage server tak bisa di-JOIN/validasi; MinIO untuk file biner (KTP/foto), bukan lookup terstruktur. Praktik industri untuk cascading dropdown: tabel ternormalisasi + <strong>fetch progresif via API</strong> (memuat seluruh ±80rb+ baris ke klien membengkakkan bundle). Validasi kombinasi di server wajib karena form bisa dimanipulasi.</p></div></div>
+
+      <div class="callout c-warn"><span class="callout-icon">📦</span><div><strong>Catatan K7 — Status MinIO (hasil riset, per riset 2026)</strong><p>MinIO tetap <strong>S3-compatible &amp; mendukung presigned URL</strong> (cocok untuk alur upload kita). Namun ada perkembangan yang perlu Anda ketahui: rilis komunitas berlisensi <strong>AGPLv3</strong>; sejak Mei 2025 <strong>web console</strong> komunitas dipangkas jadi object-browser baca-saja, dan proyek memasuki <strong>maintenance mode</strong> (Des 2025, rilis komunitas terakhir 15 Okt 2025). Implikasi: MinIO tetap layak sebagai object storage S3-compatible self-hosted, tetapi pertimbangkan: (a) <strong>AGPLv3</strong> — penggunaan sebagai dependensi storage tanpa modifikasi umumnya aman, namun <em>perlu kajian legal</em> bila Anda memodifikasi MinIO dan menyajikannya sebagai layanan; (b) alternatif S3-compatible berlisensi lebih longgar bila kelak butuh: <strong>SeaweedFS</strong> (Apache-2.0), <strong>Garage</strong> (AGPLv3, ringan), <strong>RustFS</strong> (Apache-2.0, masih alpha — belum untuk produksi). Karena backend kita memakai API S3 standar (presigned URL), <strong>storage dapat ditukar tanpa mengubah kontrak aplikasi</strong>.</p></div></div>
+
+      <div class="callout c-info"><span class="callout-icon">🗺️</span><div><strong>Catatan K6 — Sumber data wilayah (hasil riset)</strong><p>Tersedia dataset open-source gratis yang mengikuti Kepmendagri terbaru (2025), a.l. <strong>cahyadsn/wilayah</strong> (kode+data SQL, mengacu Kepmendagri No 300.2.2-2430/2025), <strong>emsifa/api-wilayah-indonesia</strong>, dan <strong>wilayah.id</strong>. Rekomendasi: <strong>seed tabel referensi di <code>region-service</code></strong> (bukan memanggil API pihak ketiga saat runtime) agar tidak ada dependensi jaringan eksternal &amp; tetap konsisten. Versi dataset (tanggal Kepmendagri) perlu dicatat agar bisa di-update berkala. Lihat <a class="ref" href="#k13-revisi">Koreksi K13</a> soal kepemilikan domain.</p></div></div>
+
+      <div id="k2-revisi" class="sub-title">Koreksi K2 — Domain Client, bukan Redis Streams</div>
+      <p class="lead">Pertanyaan pemilik produk (2026-06-11) menyorot bahwa <code>auth-service</code> &amp; <code>user-service</code> <strong>dikompilasi menjadi satu binary</strong> (<code>rejki-app</code>) — berbeda dari <code>bun-notification-service</code> yang benar-benar proses terpisah. Karena itu komunikasi antar keduanya cukup lewat <strong>Domain Client in-process</strong>, dan usulan awal (event Redis Streams) adalah <em>over-engineering</em> untuk transisi status. <strong>Revisi ini benar dan diterima.</strong></p>
+      <div class="callout c-ok"><span class="callout-icon">✅</span><div><strong>Bukti dari kode</strong><p>Pola sudah tersedia: <code>auth-service-client</code> mengekspos <code>trait AuthClient { validate_token() }</code> dan <code>user-service-client</code> mengekspos <code>trait UserClient { get_user_summary(), user_exists() }</code>. Implementasi in-process (<code>AuthInProcessClient</code>) sudah di-wire di <code>rejki-app</code>. Memanggil antar-domain = pemanggilan fungsi biasa: tanpa serialisasi, tanpa kegagalan jaringan, latensi nyaris nol.</p></div></div>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Kriteria</th><th>Domain Client (dipilih)</th><th>Redis Streams (ditolak untuk kasus ini)</th></tr></thead>
+        <tbody>
+          <tr><td>Konteks tepat</td><td>Komunikasi <strong>in-process</strong> (satu binary)</td><td>Komunikasi antar-<strong>proses</strong> (mis. ke Bun)</td></tr>
+          <tr><td>Konsistensi saat approve KYC</td><td><strong>Sinkron &amp; kuat</strong> — bisa satu alur transaksi</td><td><em>Eventual</em> — sempat tak sinkron</td></tr>
+          <tr><td>Kompleksitas</td><td>Rendah — pakai trait yang sudah ada</td><td>Tinggi — consumer, retry, idempotency (tak perlu)</td></tr>
+          <tr><td>Kapan justru tepat</td><td>Sekarang (Phase 2)</td><td>Nanti, bila user-service <strong>diekstrak</strong> jadi proses terpisah (Phase 4)</td></tr>
+        </tbody>
+      </table></div>
+      <div class="callout c-info"><span class="callout-icon">🧭</span><div><strong>Pemisahan peran yang benar</strong><p><strong>Ubah status akun</strong> (approve/reject KYC, suspend) → <strong>Domain Client in-process</strong> (K2 revisi). <strong>Kirim notifikasi ke perangkat user</strong> (US-12 hasil verifikasi) → tetap <strong>Redis Streams → Bun → FCM</strong>, karena itu memang lintas-proses. K2 lama keliru mencampur dua hal ini.</p></div></div>
+      <div class="callout c-purple"><span class="callout-icon">➡️</span><div><strong>Arah dependensi (anti-siklus)</strong><p>Status akun <strong>tetap milik <code>auth-service</code></strong>. Trait <code>AuthClient</code> <strong>diperluas</strong> dengan method seperti <code>set_account_status(user_id, status)</code> &amp; <code>get_account_status(user_id)</code>, yang dipanggil oleh user-service/admin saat KYC disetujui/ditolak. Aliran satu arah: <code>user/admin → auth</code>. Tidak ada ketergantungan melingkar — auth tidak perlu memanggil balik user-service.</p></div></div>
+
+      <div id="k13-revisi" class="sub-title">Koreksi K13 — Data wilayah sebagai domain mandiri (region-service)</div>
+      <p class="lead">Pertanyaan pemilik produk (2026-06-11): data wilayah tidak hanya untuk perubahan data pengguna, tetapi dipakai <strong>banyak service</strong> — apakah perlu service &amp; domain client baru? <strong>Benar — dan diterima.</strong> Menaruhnya di user-service akan memaksa domain lain mengimpor user-service hanya untuk validasi wilayah, yaitu kebocoran batas domain yang justru dihindari (lih. semangat K2).</p>
+      <div class="callout c-ok"><span class="callout-icon">🔎</span><div><strong>Bukti konsumen lintas-domain (dari kode)</strong><p>Field <code>lokasi</code> ada di <strong>keempat service iklan</strong> (pekerjaan, pekerja, barang-bekas, pelatihan) — saat ini <code>TEXT</code> bebas. Ditambah <strong>user-service</strong> (KYC, 4 level wilayah) dan kebutuhan <strong>analytics CEO</strong> (canvassing per wilayah). Total ≥ 6 konsumen → data wilayah jelas <em>shared domain</em>, bukan milik satu service.</p></div></div>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Opsi</th><th>Konsekuensi</th><th>Putusan</th></tr></thead>
+        <tbody>
+          <tr><td><strong>region-service + region-service-client</strong></td><td>Domain mandiri; konsumen lain akses lewat <code>RegionClient</code> trait (in-process) + endpoint cascading untuk Flutter. Konsisten pola <code>AuthClient</code>/<code>UserClient</code>.</td><td><span class="pill p-ada" style="border-color:rgba(188,140,255,.4);color:var(--purple);background:rgba(188,140,255,.08)">DIPILIH</span></td></tr>
+          <tr><td>Crate library bersama saja</td><td>Paling ringan, tapi endpoint cascading HTTP tetap harus "menumpang" di suatu service &amp; tiap konsumen query manual (berpotensi duplikasi).</td><td>Cadangan</td></tr>
+          <tr><td>Taruh di user-service</td><td>Cepat, tapi domain lain bergantung ke user hanya untuk wilayah — kebocoran batas.</td><td>Ditolak</td></tr>
+        </tbody>
+      </table></div>
+      <div class="callout c-info"><span class="callout-icon">🧱</span><div><strong>Bentuk region-service (tipis, read-mostly)</strong><p>Karena data di-<em>seed</em> &amp; read-only bagi konsumen, service ini ramping — mayoritas lookup. Usulan trait <code>RegionClient</code>: <code>list_provinces()</code>, <code>list_regencies(province_id)</code>, <code>list_districts(regency_id)</code>, <code>list_villages(district_id)</code>, <code>validate_chain(province_id, regency_id, district_id, village_id) -&gt; bool</code>, <code>get_region(id)</code>. Schema sendiri (mis. <code>region</code>), menambah satu pasang crate <code>region-service</code> + <code>region-service-client</code> ke workspace. Tabel <code>region_*</code> yang sebelumnya diusulkan di <code>user_svc</code> <strong>dipindah ke schema region-service</strong>.</p></div></div>
+      <div class="callout c-warn"><span class="callout-icon">📌</span><div><strong>Di luar scope dokumen ini</strong><p>Penyelarasan field <code>lokasi</code> di 4 service iklan (dari teks bebas → <code>region_id</code> berstruktur) <strong>ditunda</strong> dan dicatat sebagai pertanyaan terbuka untuk brainstorming iklan-service / CEO. Dokumen ini tetap fokus user-service; konsumsi wilayah oleh iklan dibahas terpisah.</p></div></div>
+    </section>
+
+    <!-- BASELINE -->
+    <section id="baseline">
+      <h2 class="sec-title"><span class="sec-icon ic-g">📍</span>Titik Berangkat — Apa yang Sudah Ada di Kode</h2>
+      <p class="lead">Ringkasan jujur kondisi <code>auth-service</code> &amp; <code>user-service</code> saat ini (terverifikasi dari sumber).</p>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Kemampuan</th><th>Status</th><th>Catatan dari kode</th></tr></thead>
+        <tbody>
+          <tr><td>Register (email + password)</td><td><span class="pill p-ada">Ada</span></td><td><code>RegisterInput { email, password }</code> — belum ada <code>phone</code> &amp; persetujuan T&amp;C</td></tr>
+          <tr><td>OTP email (register/resend/verify)</td><td><span class="pill p-parsial">Parsial</span></td><td>Alur &amp; tabel <code>otp_verifications</code> ada; pengiriman masih <code>TODO</code> (baru di-<em>log</em>, belum via notification-service)</td></tr>
+          <tr><td>Login + JWT RS256 + refresh rotation</td><td><span class="pill p-ada">Ada</span></td><td>Login menolak akun belum <code>is_verified</code></td></tr>
+          <tr><td>Profil pengguna</td><td><span class="pill p-parsial">Parsial</span></td><td><code>profiles { username, full_name, avatar, bio, phone }</code> — tanpa field KYC</td></tr>
+          <tr><td>Lupa / ubah password</td><td><span class="pill p-rencana">Rencana</span></td><td>Belum ada endpoint maupun use case</td></tr>
+          <tr><td>Gating "akun belum lengkap"</td><td><span class="pill p-rencana">Rencana</span></td><td>Hanya ada boolean <code>is_verified</code>; tidak ada status berjenjang</td></tr>
+          <tr><td>Suspend (sementara/permanen)</td><td><span class="pill p-rencana">Rencana</span></td><td>Tidak ada kolom status/role; semua user setara</td></tr>
+          <tr><td>Data wilayah Indonesia berjenjang</td><td><span class="pill p-rencana">Rencana</span></td><td>Belum ada referensi provinsi/kota/kecamatan/kelurahan</td></tr>
+        </tbody>
+      </table></div>
+      <div class="callout c-info"><span class="callout-icon">ℹ️</span><div><strong>Inkonsistensi yang perlu diluruskan</strong><p><a class="ref" href="../database-convention.html">Database Convention</a> menamai schema user-service sebagai <code>user_profile</code> (DB <code>rejki_user</code>), namun kode aktual memakai schema <code>user_svc</code> dalam satu instance PostgreSQL bersama. Perlu keputusan: ikuti dokumen atau perbarui dokumen agar sesuai kode. Dicatat di <a class="ref" href="#open">Pertanyaan Terbuka</a>.</p></div></div>
+    </section>
+
+    <!-- USER STORIES -->
+    <section id="stories">
+      <h2 class="sec-title"><span class="sec-icon ic-p">📖</span>User Stories (Sumber Kebenaran Brainstorm)</h2>
+      <p class="lead">Disalin dari masukan Anda, diberi ID agar mudah dirujuk. Acceptance criteria (AC) adalah <em>usulan</em> turunan—silakan koreksi.</p>
+
+      <div class="story"><span class="sid">US-01 · Registrasi</span>
+        <p>Sebagai pengguna, saya ingin mendaftar dengan <strong>email, nomor telepon, password, dan persetujuan syarat &amp; ketentuan</strong>.</p>
+        <div class="ac">AC: email unik &amp; valid · password memenuhi kebijakan · telepon format E.164 · persetujuan T&amp;C wajib <code>true</code> + dicatat (versi + timestamp) · respons tidak membocorkan apakah email sudah terdaftar (anti-enumeration).</div>
+      </div>
+      <div class="story"><span class="sid">US-02 · Verifikasi OTP</span>
+        <p>Sebagai pengguna, untuk melanjutkan pendaftaran saya wajib <strong>verifikasi OTP yang dikirim ke email</strong> saya.</p>
+        <div class="ac">AC: OTP 6 digit, kedaluwarsa (mis. 10 menit) · dibatasi rate &amp; percobaan · sukses → akun naik status dari <code>PENDING_VERIFICATION</code>.</div>
+      </div>
+      <div class="story"><span class="sid">US-03 · Login</span>
+        <p>Sebagai pengguna, saya dapat <strong>login dengan email &amp; password</strong> yang terdaftar.</p>
+        <div class="ac">AC: kredensial salah → pesan generik · akun belum terverifikasi/suspended → ditolak dengan kode jelas · sukses → access + refresh token.</div>
+      </div>
+      <div class="story"><span class="sid">US-04 · Wajib Lengkapi Data Diri (KYC) sebelum pakai fitur</span>
+        <p>Sebagai pengguna yang baru daftar &amp; login, saya <strong>tidak dapat memakai fitur apa pun</strong> sampai melengkapi: nama lengkap, NIK, tingkat pendidikan, jenis kelamin, tanggal lahir, alamat domisili, negara (default Indonesia), provinsi, kabupaten/kota, kecamatan, kelurahan, foto KTP, swafoto dengan KTP.</p>
+        <div class="ac">AC: token/endpoint fitur menolak akun yang belum <code>ACTIVE</code> · data tersimpan bertahap · setelah lengkap → masuk antrian verifikasi → setelah disetujui admin → <code>ACTIVE</code>.</div>
+      </div>
+      <div class="story"><span class="sid">US-05 · Lupa Password</span>
+        <p>Sebagai pengguna, saya dapat <strong>lupa password</strong> dengan otorisasi <strong>OTP ke email terdaftar</strong>.</p>
+        <div class="ac">AC: minta reset selalu balas sukses (anti-enumeration) · OTP valid → boleh set password baru · semua sesi/refresh token lama dicabut.</div>
+      </div>
+      <div class="story"><span class="sid">US-06 · Ubah Password</span>
+        <p>Sebagai pengguna login, saya dapat <strong>mengubah password</strong> dengan otorisasi <strong>OTP ke email terdaftar</strong>.</p>
+        <div class="ac">AC: verifikasi password lama atau OTP · sukses → refresh token lain dicabut (kecuali sesi aktif, opsional).</div>
+      </div>
+      <div class="story"><span class="sid">US-07 · Suspend oleh Admin</span>
+        <p>Sebagai akun terdaftar, saya <strong>dapat di-suspend oleh admin</strong> secara <strong>sementara</strong> atau <strong>permanen</strong>.</p>
+        <div class="ac">AC: status suspend ditegakkan saat login &amp; saat validasi token · ada alasan &amp; (untuk sementara) masa berlaku · tercatat di audit log.</div>
+      </div>
+      <div class="story"><span class="sid">US-08 · Perbarui Profil</span>
+        <p>Sebagai pengguna, saya dapat <strong>memperbarui profil</strong> saya.</p>
+        <div class="ac">AC: hanya field profil yang boleh diubah mandiri · field KYC terverifikasi tidak boleh diubah diam-diam (perlu verifikasi ulang) — lihat <a class="ref" href="#open">Pertanyaan Terbuka</a>.</div>
+      </div>
+      <div class="story"><span class="sid">US-09 · Foto Profil</span>
+        <p>Sebagai pengguna, saya dapat <strong>menambah/memperbarui foto profil</strong>.</p>
+        <div class="ac">AC: upload via mekanisme aman (presigned) · mime &amp; ukuran divalidasi · avatar lama bisa diganti.</div>
+      </div>
+      <div class="story"><span class="sid">US-10 · Lihat Profil</span>
+        <p>Sebagai pengguna, saya dapat <strong>melihat data profil saya</strong> yang telah diperbarui.</p>
+        <div class="ac">AC: hanya pemilik melihat data lengkap (termasuk status KYC) · data sensitif (NIK) ditampilkan ter-mask.</div>
+      </div>
+      <div class="story"><span class="sid">US-11 · Update Progres Verifikasi</span>
+        <p>Sebagai pengguna, saya ingin <strong>mendapatkan update proses verifikasi</strong> data yang telah saya kirimkan.</p>
+        <div class="ac">AC: status verifikasi dapat dilihat kapan saja (mis. di <code>GET /users/me</code> &amp; layar status) · perubahan status (<code>PENDING_KYC</code> → sedang ditinjau → hasil) tercermin segera · pengguna tahu posisi dirinya dalam alur.</div>
+      </div>
+      <div class="story"><span class="sid">US-12 · Pemberitahuan Verifikasi Selesai</span>
+        <p>Sebagai pengguna, saya ingin <strong>mendapatkan pemberitahuan ketika verifikasi telah selesai</strong> (disetujui atau ditolak).</p>
+        <div class="ac">AC: saat admin menyetujui/menolak → kirim notifikasi <strong>push + in-app + email</strong> (K12: hasil akhir wajib email) berisi hasil · jika ditolak, sertakan alasan &amp; ajakan memperbaiki (hormati cooldown 3 hari kerja, K16) · pemberitahuan tercatat di daftar notifikasi in-app.</div>
+      </div>
+    </section>
+
+    <!-- BOUNDARY -->
+    <section id="boundary">
+      <h2 class="sec-title"><span class="sec-icon ic-b">🧩</span>Batas Service — Siapa Bertanggung Jawab atas Apa</h2>
+      <p class="lead">Keputusan: <strong>pisahkan auth vs user/KYC</strong> (sesuai isolasi domain yang sudah ada di kode). Suspend dikelola admin (Web Dashboard) namun <em>ditegakkan</em> di jalur auth.</p>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Domain</th><th>Tanggung jawab</th><th>Bukan tanggung jawab</th></tr></thead>
+        <tbody>
+          <tr><td><code>auth-service</code></td><td>Kredensial (email+password), OTP, sesi/JWT, refresh rotation, <strong>status akun</strong> (state machine), penegakan suspend</td><td>Data diri/KYC, dokumen, wilayah</td></tr>
+          <tr><td><code>user-service</code></td><td>Profil, <strong>data KYC</strong> (NIK, pendidikan, gender, dll), <strong>dokumen</strong> (KTP/swafoto), alamat &amp; wilayah, avatar</td><td>Password, token, OTP</td></tr>
+          <tr><td>Web Dashboard (admin)</td><td>Meninjau &amp; menyetujui/menolak KYC, melakukan suspend</td><td>Menyimpan kredensial</td></tr>
+          <tr><td><code>region-service</code> <span class="pill p-rencana">baru</span></td><td>Data wilayah Indonesia berjenjang (provinsi→kelurahan), lookup cascading, validasi rantai wilayah — dipakai user-service, iklan, &amp; analytics CEO via <code>RegionClient</code></td><td>Data pribadi · status akun</td></tr>
+          <tr><td>notification-service</td><td>Mengirim OTP &amp; notifikasi status KYC ke perangkat user (push/in-app/email via Redis Streams → Bun → FCM)</td><td>Logika verifikasi · mengubah status akun</td></tr>
+        </tbody>
+      </table></div>
+      <div class="callout c-ok"><span class="callout-icon">🔗</span><div><strong>Lintas domain via Domain Client in-process (sesuai K2 revisi)</strong><p>Status KYC hidup di <code>user-service</code>; status akun (penentu apakah token sah untuk fitur) hidup di <code>auth-service</code>. Transisi <code>PENDING_KYC → ACTIVE</code> dipropagasi dengan <strong>memanggil trait <code>AuthClient</code> yang diperluas</strong> (mis. <code>set_account_status</code>) — pemanggilan fungsi langsung dalam satu binary, <strong>sinkron &amp; konsisten</strong>, bukan JOIN antar-schema dan bukan event Redis. Lihat <a class="ref" href="#k2-revisi">Koreksi K2</a>.</p></div></div>
+    </section>
+
+    <!-- STATE MACHINE -->
+    <section id="state">
+      <h2 class="sec-title"><span class="sec-icon ic-o">🔁</span>State Machine Status Akun</h2>
+      <p class="lead">Keputusan: gunakan <strong>status bertingkat eksplisit</strong> (bukan kumpulan boolean lepas). Ini membuat gating fitur jelas, auditable, dan mudah di-extend. Pola sesuai semangat "status tunggal yang jelas" alih-alih kombinasi flag yang ambigu.</p>
+      <div class="code"><pre><span class="cc">┌────────────────────┐   verifikasi OTP    ┌─────────────────────┐</span>
+<span class="cc">│ PENDING_</span><span class="cv">VERIFICATION</span> <span class="cc">│ ──────────────────▶ │ PROFILE_</span><span class="cv">INCOMPLETE</span>  <span class="cc">│</span>
+<span class="cc">│ (US-01 daftar)     │                     │ (login OK, fitur    │</span>
+<span class="cc">└────────────────────┘                     │  TERKUNCI · US-04)  │</span>
+                                           <span class="cc">└──────────┬──────────┘</span>
+                                                      │ lengkapi semua data diri
+                                                      ▼
+<span class="cc">┌────────────────────┐   admin tolak      ┌─────────────────────┐</span>
+<span class="cc">│   </span><span class="cv">REJECTED</span><span class="cc">         │ ◀───────────────── │   PENDING_</span><span class="cv">KYC</span>       <span class="cc">│</span>
+<span class="cc">│ (boleh perbaiki &amp;  │                    │ (antri verifikasi   │</span>
+<span class="cc">│  ajukan ulang)     │ ─── ajukan ulang ─▶│  manual admin)      │</span>
+<span class="cc">└────────────────────┘                    └──────────┬──────────┘</span>
+                                                      │ admin setujui
+                                                      ▼
+                                          <span class="cc">┌─────────────────────┐</span>
+                                          <span class="cc">│      </span><span class="cv">ACTIVE</span>         <span class="cc">│ ◀── fitur terbuka penuh</span>
+                                          <span class="cc">└──────────┬──────────┘</span>
+                                                      │ admin suspend
+                                          <span class="cc">┌──────────▼──────────┐</span>
+                                          <span class="cc">│  SUSPENDED_</span><span class="cv">TEMP</span> /    <span class="cc">│  (US-07)</span>
+                                          <span class="cc">│  SUSPENDED_</span><span class="cv">PERMANENT</span> <span class="cc">│</span>
+                                          <span class="cc">└─────────────────────┘</span></pre></div>
+      <div class="tbl-wrap" style="margin-top:.9rem;"><table class="tbl">
+        <thead><tr><th>Status</th><th>Bisa login?</th><th>Bisa pakai fitur?</th><th>Pemicu transisi</th></tr></thead>
+        <tbody>
+          <tr><td><code>PENDING_VERIFICATION</code></td><td>Tidak</td><td>Tidak</td><td>OTP terverifikasi (US-02)</td></tr>
+          <tr><td><code>PROFILE_INCOMPLETE</code></td><td>Ya</td><td><strong>Tidak</strong> (terkunci, US-04)</td><td>Semua data diri terkirim</td></tr>
+          <tr><td><code>PENDING_KYC</code></td><td>Ya</td><td>Tidak (menunggu admin)</td><td>Admin setujui / tolak</td></tr>
+          <tr><td><code>REJECTED</code></td><td>Ya</td><td>Tidak (boleh perbaiki)</td><td>Ajukan ulang → <code>PENDING_KYC</code></td></tr>
+          <tr><td><code>ACTIVE</code></td><td>Ya</td><td><strong>Ya</strong></td><td>Admin suspend</td></tr>
+          <tr><td><code>SUSPENDED_TEMP</code></td><td>Tidak (s.d. kedaluwarsa)</td><td>Tidak</td><td>Masa habis → <code>ACTIVE</code></td></tr>
+          <tr><td><code>SUSPENDED_PERMANENT</code></td><td>Tidak</td><td>Tidak</td><td>—</td></tr>
+        </tbody>
+      </table></div>
+      <div class="callout c-info"><span class="callout-icon">🛡️</span><div><strong>Penegakan gating</strong><p>Gating fitur ditegakkan di <strong>middleware auth</strong> (lapisan 1 pada <a class="ref" href="../authorization-pattern.html">Authorization Pattern</a>): endpoint fitur (iklan, chat, dst.) menolak token yang status akunnya bukan <code>ACTIVE</code> dengan <code>403 FORBIDDEN</code> + kode mesin spesifik (mis. <code>ACCOUNT_NOT_ACTIVE</code>). Sesuai <strong>K1</strong>: status di-embed dalam claim JWT untuk kecepatan, dan untuk hal sensitif (suspend, hasil KYC) kesegaran dijamin lewat cek cepat ke <strong>Redis</strong> (revocation/refresh-status list). Pembacaan status saat <em>transisi</em> tetap lewat <code>AuthClient</code> in-process (K2 revisi).</p></div></div>
+    </section>
+
+    <!-- KYC -->
+    <section id="kyc">
+      <h2 class="sec-title"><span class="sec-icon ic-c">🪪</span>Strategi KYC</h2>
+      <p class="lead">Keputusan: <strong>kumpulkan + verifikasi manual oleh admin</strong> (tanpa pihak ketiga, tahap awal). Opsi lain dipaparkan agar trade-off terdokumentasi dan mudah dipilih ulang nanti.</p>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Opsi</th><th>Cara kerja</th><th>Trade-off</th><th>Pilihan</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Verifikasi manual admin</strong></td><td>User unggah KTP &amp; swafoto → antrian → admin tinjau di Dashboard → setujui/tolak</td><td>+ murah, kendali penuh, tanpa kontrak eksternal<br>− lambat, beban operasional, rentan inkonsistensi manusia</td><td><span class="pill p-ada" style="border-color:rgba(188,140,255,.4);color:var(--purple);background:rgba(188,140,255,.08)">DIPILIH</span></td></tr>
+          <tr><td>eKYC pihak ketiga</td><td>OCR KTP + face-match + liveness + cek Dukcapil otomatis (provider lokal)</td><td>+ cepat (&lt; menit), skala, kuat untuk compliance finansial<br>− biaya per verifikasi, kontrak, integrasi API eksternal</td><td>Cadangan (bila skala/regulasi menuntut)</td></tr>
+          <tr><td>Kumpulkan saja</td><td>Simpan dokumen, anggap valid tanpa tinjauan</td><td>− risiko fraud tinggi, lemah secara PDP</td><td>Tidak disarankan</td></tr>
+        </tbody>
+      </table></div>
+      <div class="callout c-purple"><span class="callout-icon">🧭</span><div><strong>Desain agar mudah upgrade</strong><p>Karena verifikasi manual dan eKYC otomatis menghasilkan keputusan yang sama (<code>approved</code>/<code>rejected</code> + alasan), modelkan KYC sebagai <em>submission</em> dengan <em>reviewer</em> yang bisa "manusia" (admin) atau "sistem" (provider). Ini membuat migrasi ke eKYC pihak ketiga di masa depan tidak membongkar skema.</p></div></div>
+    </section>
+
+    <!-- MODEL DATA -->
+    <section id="data">
+      <h2 class="sec-title"><span class="sec-icon ic-g">🗄️</span>Usulan Model Data</h2>
+      <p class="lead">Mengikuti <a class="ref" href="../database-convention.html">Database Convention</a>: tabel singular snake_case, PK <code>id</code> UUID, kolom <code>created_at/updated_at</code>, soft delete <code>deleted_at</code>, boolean <code>is_/has_</code>, FK <code>{tabel}_id</code>. Semua usulan berstatus <span class="pill p-rencana">Rencana</span>.</p>
+
+      <div class="sub-title">auth-service (schema <code>auth</code>)</div>
+      <div class="code"><pre><span class="cc">-- Tambahan pada tabel users (atau kolom baru)</span>
+<span class="ck">ALTER TABLE</span> auth.users
+  <span class="ck">ADD COLUMN</span> phone            <span class="ct">TEXT</span>,             <span class="cc">-- E.164, unik (US-01)</span>
+  <span class="ck">ADD COLUMN</span> status           <span class="ct">TEXT</span> <span class="ck">NOT NULL</span>    <span class="cc">-- state machine (enum string)</span>
+                                <span class="ck">DEFAULT</span> <span class="cs">'pending_verification'</span>,
+  <span class="ck">ADD COLUMN</span> tos_accepted_at  <span class="ct">TIMESTAMPTZ</span>,      <span class="cc">-- persetujuan T&amp;C</span>
+  <span class="ck">ADD COLUMN</span> tos_version      <span class="ct">TEXT</span>;
+
+<span class="cc">-- Suspend (US-07): bisa kolom pada users, atau tabel terpisah untuk riwayat</span>
+<span class="ck">CREATE TABLE</span> auth.account_suspension (
+  id            <span class="ct">UUID</span> <span class="ck">PRIMARY KEY DEFAULT</span> gen_random_uuid(),
+  user_id       <span class="ct">UUID</span> <span class="ck">NOT NULL</span>,        <span class="cc">-- denormalized, no cross-schema FK</span>
+  is_permanent  <span class="ct">BOOLEAN</span> <span class="ck">NOT NULL DEFAULT</span> <span class="cv">false</span>,
+  reason        <span class="ct">TEXT</span> <span class="ck">NOT NULL</span>,
+  expires_at    <span class="ct">TIMESTAMPTZ</span>,             <span class="cc">-- null = permanen</span>
+  created_by    <span class="ct">UUID</span> <span class="ck">NOT NULL</span>,        <span class="cc">-- admin (audit)</span>
+  created_at    <span class="ct">TIMESTAMPTZ</span> <span class="ck">NOT NULL DEFAULT</span> now()
+);</pre></div>
+
+      <div class="sub-title">user-service (schema <code>user_svc</code> — lihat catatan inkonsistensi)</div>
+      <div class="code"><pre><span class="cc">-- Profil diperluas dengan data diri (US-04). NIK dienkripsi (lihat Keamanan).</span>
+<span class="ck">ALTER TABLE</span> user_svc.profiles
+  <span class="ck">ADD COLUMN</span> nik_encrypted     <span class="ct">BYTEA</span>,        <span class="cc">-- AES-256-GCM, BUKAN plaintext</span>
+  <span class="ck">ADD COLUMN</span> nik_last4         <span class="ct">TEXT</span>,         <span class="cc">-- untuk tampilan ter-mask</span>
+  <span class="ck">ADD COLUMN</span> education_level   <span class="ct">TEXT</span>,         <span class="cc">-- enum: sd/smp/sma/d3/s1/...</span>
+  <span class="ck">ADD COLUMN</span> gender            <span class="ct">TEXT</span>,         <span class="cc">-- enum: male/female</span>
+  <span class="ck">ADD COLUMN</span> birth_date        <span class="ct">DATE</span>,
+  <span class="ck">ADD COLUMN</span> address_line      <span class="ct">TEXT</span>,         <span class="cc">-- alamat domisili</span>
+  <span class="ck">ADD COLUMN</span> country_code      <span class="ct">TEXT</span> <span class="ck">NOT NULL DEFAULT</span> <span class="cs">'ID'</span>,
+  <span class="ck">ADD COLUMN</span> province_id       <span class="ct">TEXT</span>,         <span class="cc">-- ref wilayah</span>
+  <span class="ck">ADD COLUMN</span> regency_id        <span class="ct">TEXT</span>,         <span class="cc">-- kabupaten/kota</span>
+  <span class="ck">ADD COLUMN</span> district_id       <span class="ct">TEXT</span>,         <span class="cc">-- kecamatan</span>
+  <span class="ck">ADD COLUMN</span> village_id        <span class="ct">TEXT</span>;         <span class="cc">-- kelurahan</span>
+
+<span class="cc">-- Submission KYC: satu baris per pengajuan, reviewer manusia/sistem</span>
+<span class="ck">CREATE TABLE</span> user_svc.kyc_submission (
+  id             <span class="ct">UUID</span> <span class="ck">PRIMARY KEY DEFAULT</span> gen_random_uuid(),
+  profile_id     <span class="ct">UUID</span> <span class="ck">NOT NULL</span>,
+  status         <span class="ct">TEXT</span> <span class="ck">NOT NULL DEFAULT</span> <span class="cs">'pending'</span>, <span class="cc">-- pending/approved/rejected</span>
+  ktp_object_key       <span class="ct">TEXT</span>,    <span class="cc">-- path objek storage (bukan URL publik)</span>
+  selfie_object_key    <span class="ct">TEXT</span>,
+  reviewed_by    <span class="ct">UUID</span>,            <span class="cc">-- admin; null jika sistem</span>
+  review_note    <span class="ct">TEXT</span>,            <span class="cc">-- alasan tolak</span>
+  reviewed_at    <span class="ct">TIMESTAMPTZ</span>,
+  created_at     <span class="ct">TIMESTAMPTZ</span> <span class="ck">NOT NULL DEFAULT</span> now(),
+  updated_at     <span class="ct">TIMESTAMPTZ</span> <span class="ck">NOT NULL DEFAULT</span> now()
+);</pre></div>
+      <div class="sub-title">Data wilayah — milik region-service (schema <code>region</code>, lihat K13 revisi)</div>
+      <div class="code"><pre><span class="cc">-- Domain region-service. 4 level, parent_id berjenjang. Di-seed dari dataset Kepmendagri.</span>
+<span class="ck">CREATE TABLE</span> region.province (
+  id    <span class="ct">TEXT</span> <span class="ck">PRIMARY KEY</span>,        <span class="cc">-- kode wilayah resmi (mis. "32")</span>
+  name  <span class="ct">TEXT</span> <span class="ck">NOT NULL</span>
+);
+<span class="ck">CREATE TABLE</span> region.regency (         <span class="cc">-- kabupaten/kota</span>
+  id           <span class="ct">TEXT</span> <span class="ck">PRIMARY KEY</span>,     <span class="cc">-- "32.04"</span>
+  province_id  <span class="ct">TEXT</span> <span class="ck">NOT NULL REFERENCES</span> region.province(id),
+  name         <span class="ct">TEXT</span> <span class="ck">NOT NULL</span>
+);
+<span class="ck">CREATE TABLE</span> region.district (        <span class="cc">-- kecamatan</span>
+  id          <span class="ct">TEXT</span> <span class="ck">PRIMARY KEY</span>,      <span class="cc">-- "32.04.05"</span>
+  regency_id  <span class="ct">TEXT</span> <span class="ck">NOT NULL REFERENCES</span> region.regency(id),
+  name        <span class="ct">TEXT</span> <span class="ck">NOT NULL</span>
+);
+<span class="ck">CREATE TABLE</span> region.village (         <span class="cc">-- kelurahan/desa</span>
+  id           <span class="ct">TEXT</span> <span class="ck">PRIMARY KEY</span>,     <span class="cc">-- "32.04.05.2001"</span>
+  district_id  <span class="ct">TEXT</span> <span class="ck">NOT NULL REFERENCES</span> region.district(id),
+  name         <span class="ct">TEXT</span> <span class="ck">NOT NULL</span>
+);
+<span class="cc">-- Index pada *_id parent untuk lookup cascading yang cepat.</span>
+<span class="cc">-- user_svc.profiles menyimpan province_id/regency_id/district_id/village_id (nilai kode),</span>
+<span class="cc">-- TANPA FK lintas-schema; validasi rantai dilakukan via RegionClient.validate_chain().</span></pre></div>
+      <div class="callout c-info"><span class="callout-icon">🔗</span><div><strong>Cascading via API bertahap (dilayani region-service)</strong><p>UI memuat tiap level saat parent dipilih: <code>GET /api/v1/regions/provinces</code> → <code>...?province_id=32</code> → <code>...?regency_id=32.04</code> → <code>...?district_id=32.04.05</code>. Negara default <code>ID</code> (kolom disimpan di profil, daftar negara lain belum didukung — K13). Saat data KYC dikirim, user-service memanggil <code>RegionClient.validate_chain(...)</code> (in-process) untuk memastikan rantai provinsi→kelurahan valid sebelum menyimpan.</p></div></div>
+    </section>
+
+    <!-- ENDPOINTS -->
+    <section id="endpoints">
+      <h2 class="sec-title"><span class="sec-icon ic-b">🔌</span>Rancangan Endpoint (Usulan)</h2>
+      <p class="lead">Mengikuti <a class="ref" href="../api-standard.html">API Standard</a>: prefix <code>/api/v1/</code>, envelope <code>{ success, data, meta, request_id }</code>, error RFC 9457-inspired (<code>code/message/fields</code>), <code>201 + Location</code>, <code>Idempotency-Key</code> untuk POST kritis. Semua <span class="pill p-rencana">Rencana</span> kecuali ditandai.</p>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Endpoint</th><th>Domain</th><th>Story</th><th>Catatan</th></tr></thead>
+        <tbody>
+          <tr><td><code>POST /api/v1/auth/register</code></td><td>auth</td><td>US-01</td><td>Perluas body: <code>+ phone, + tos_accepted</code>. <span class="pill p-parsial">Parsial</span> (perlu update)</td></tr>
+          <tr><td><code>POST /api/v1/auth/verify-otp</code></td><td>auth</td><td>US-02</td><td><span class="pill p-parsial">Parsial</span> (alur ada, kirim OTP belum)</td></tr>
+          <tr><td><code>POST /api/v1/auth/login</code></td><td>auth</td><td>US-03</td><td>Tambah cek status akun &amp; suspend. <span class="pill p-parsial">Parsial</span></td></tr>
+          <tr><td><code>POST /api/v1/auth/forgot-password</code></td><td>auth</td><td>US-05</td><td>Kirim OTP; selalu balas sukses</td></tr>
+          <tr><td><code>POST /api/v1/auth/reset-password</code></td><td>auth</td><td>US-05</td><td>OTP + password baru; cabut sesi lama</td></tr>
+          <tr><td><code>POST /api/v1/auth/change-password</code></td><td>auth</td><td>US-06</td><td>Authed + OTP</td></tr>
+          <tr><td><code>GET /api/v1/users/me</code></td><td>user</td><td>US-10</td><td>Sertakan status KYC; NIK ter-mask. <span class="pill p-ada">Ada</span> (perlu perluasan)</td></tr>
+          <tr><td><code>PATCH /api/v1/users/me</code></td><td>user</td><td>US-08</td><td>Hanya field profil non-KYC. <span class="pill p-ada">Ada</span> (perlu perluasan)</td></tr>
+          <tr><td><code>PUT /api/v1/users/me/kyc</code></td><td>user</td><td>US-04</td><td>Kirim data diri; transisi → <code>PENDING_KYC</code></td></tr>
+          <tr><td><code>POST /api/v1/users/me/documents</code></td><td>user</td><td>US-04</td><td>Minta presigned URL untuk KTP/swafoto</td></tr>
+          <tr><td><code>POST /api/v1/users/me/avatar</code></td><td>user</td><td>US-09</td><td>Presigned URL avatar</td></tr>
+          <tr><td><code>GET /api/v1/regions/provinces</code></td><td>region</td><td>US-04</td><td>Daftar provinsi (cascading level 1)</td></tr>
+          <tr><td><code>GET /api/v1/regions/regencies?province_id=</code></td><td>region</td><td>US-04</td><td>Kabupaten/kota per provinsi</td></tr>
+          <tr><td><code>GET /api/v1/regions/districts?regency_id=</code></td><td>region</td><td>US-04</td><td>Kecamatan per kota</td></tr>
+          <tr><td><code>GET /api/v1/regions/villages?district_id=</code></td><td>region</td><td>US-04</td><td>Kelurahan per kecamatan</td></tr>
+          <tr><td><code>POST /api/v1/admin/kyc/{id}/approve|reject</code></td><td>admin</td><td>US-04</td><td>Butuh RBAC (lihat PRD Dashboard)</td></tr>
+          <tr><td><code>POST /api/v1/admin/users/{id}/suspend</code></td><td>admin</td><td>US-07</td><td>Sementara/permanen + alasan</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <!-- UPLOAD -->
+    <section id="upload">
+      <h2 class="sec-title"><span class="sec-icon ic-o">📎</span>Upload KTP &amp; Swafoto</h2>
+      <p class="lead">Mengikuti pola <a class="ref" href="../api-standard.html">File Upload</a> &amp; <a class="ref" href="../security-baseline.html">File Upload Security</a> yang sudah ditetapkan: <strong>presigned URL</strong> (file tidak lewat server aplikasi), <strong>magic bytes verification</strong>, <strong>mime whitelist</strong>, <strong>batas ukuran</strong>, dan <strong>nama file dibuat server</strong>.</p>
+      <div class="code"><pre><span class="cc"># Alur 2-langkah (sesuai standar yang sudah ada)</span>
+<span class="cv">1.</span> Klien minta izin upload  → <span class="cs">POST /users/me/documents</span> { kind: "ktp", mime, size_bytes }
+   Server validasi mime + size → balas <span class="cs">presigned URL</span> + object_key
+<span class="cv">2.</span> Klien upload langsung ke storage (MinIO, S3-compatible) via presigned URL
+   Server verifikasi magic bytes saat callback/commit → simpan object_key
+
+<span class="cc"># Pola path objek (dari Security Baseline) — user_id untuk audit</span>
+uploads/dokumen/<span class="cv">{user_id}</span>/<span class="cv">{uuid}</span>.jpg</pre></div>
+      <div class="callout c-info"><span class="callout-icon">📦</span><div><strong>Storage: MinIO self-hosted (K7)</strong><p>MinIO mendukung presigned URL S3-standar, jadi pola dua-langkah di atas berlaku tanpa perubahan. Karena memakai API S3 standar, storage dapat ditukar (mis. SeaweedFS) tanpa mengubah kontrak aplikasi. Lihat catatan lisensi AGPLv3 &amp; maintenance-mode di <a class="ref" href="#keputusan">Keputusan K7</a>.</p></div></div>
+      <div class="callout c-danger"><span class="callout-icon">🔐</span><div><strong>Dokumen KYC bukan objek publik</strong><p>KTP &amp; swafoto <strong>tidak boleh</strong> dapat diakses lewat URL publik. Akses hanya untuk pemilik &amp; admin peninjau, idealnya via presigned URL <em>read</em> berumur pendek. Simpan <code>object_key</code>, bukan URL permanen.</p></div></div>
+    </section>
+
+    <!-- SECURITY -->
+    <section id="security">
+      <h2 class="sec-title"><span class="sec-icon ic-o">🛡️</span>Keamanan &amp; Kepatuhan PDP</h2>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Aspek</th><th>Aturan</th><th>Sumber</th></tr></thead>
+        <tbody>
+          <tr><td>Enkripsi NIK &amp; data sensitif at-rest</td><td><strong>AES-256-GCM</strong> sebelum simpan ke DB. Simpan <code>nik_last4</code> terpisah untuk tampilan ter-mask.</td><td><a class="ref" href="../security-baseline.html">Security Baseline</a> menyebut NIK &amp; no. HP sebagai kolom wajib enkripsi</td></tr>
+          <tr><td>Manajemen kunci (K14)</td><td><strong>Envelope encryption</strong>: KEK (master) di environment secret; KEK mengenkripsi DEK; DEK mengenkripsi data. Tanpa KMS berbayar (cocok self-hosted hemat resource). <strong>Rotasi minimal tahunan</strong>, simpan versi key lama untuk dekripsi data historis.</td><td>Keputusan K14 · praktik envelope encryption</td></tr>
+          <tr><td>Kebijakan password (K4)</td><td><strong>Min. 8 karakter + ≥1 kapital + ≥1 angka + ≥1 karakter spesial</strong>. Divalidasi di <code>RegisterInput</code>, reset, &amp; change. Saat ini kode hanya cek "min 8" → <span class="pill p-parsial">perlu update</span></td><td>Keputusan K4 (memperketat dari kode saat ini)</td></tr>
+          <tr><td>Password &amp; OTP (penyimpanan)</td><td>bcrypt untuk password; OTP &amp; refresh token di-hash SHA-256. <span class="pill p-ada">Ada</span></td><td>Security Baseline (Phase 1)</td></tr>
+          <tr><td>Data minimization &amp; retensi (K9)</td><td>Gambar KTP/swafoto <strong>dihapus/diarsipkan setelah periode tertentu pasca-approval</strong> (periode pasti masih terbuka). Setelah disetujui, utamakan menyimpan data terstruktur hasil verifikasi.</td><td>Keputusan K9 · UU PDP No. 27/2022</td></tr>
+          <tr><td>NIK immutable (K5)</td><td>NIK <strong>tidak dapat diubah</strong> via self-service setelah dikirim. <code>PATCH /users/me</code> menolak perubahan NIK; perubahan hanya lewat proses admin khusus.</td><td>Keputusan K5</td></tr>
+          <tr><td>Persetujuan eksplisit</td><td>T&amp;C wajib di-<em>accept</em> saat register; catat versi + timestamp (<code>tos_accepted_at</code>, <code>tos_version</code>).</td><td>US-01 + UU PDP</td></tr>
+          <tr><td>Kontrol akses dokumen</td><td>IDOR→404, ownership di query, dokumen non-publik. </td><td><a class="ref" href="../authorization-pattern.html">Authorization Pattern</a></td></tr>
+          <tr><td>Audit</td><td>Aksi admin (approve/reject/suspend) tercatat (aktor, objek, waktu, alasan).</td><td>Security Baseline (Audit Log, Phase 3) + PRD Dashboard</td></tr>
+          <tr><td>Anti-enumeration</td><td>Register &amp; forgot-password tidak mengungkap keberadaan email.</td><td>Praktik OWASP</td></tr>
+          <tr><td>Rate limiting OTP</td><td>Batasi frekuensi minta &amp; coba OTP (anti brute-force).</td><td>Security Baseline (Rate Limiting, Phase 3)</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <!-- NOTIFIKASI VERIFIKASI -->
+    <section id="notif">
+      <h2 class="sec-title"><span class="sec-icon ic-c">🔔</span>Notifikasi Status Verifikasi (US-11 &amp; US-12)</h2>
+      <p class="lead">Pengguna ingin tahu <em>progres</em> dan <em>hasil</em> verifikasi. Ini memanfaatkan jalur notifikasi yang <strong>sudah ada</strong>: <code>notification-service</code> sebagai publisher Redis Streams → <code>bun-notification-service</code> consumer → FCM, plus daftar in-app. <span class="pill p-parsial">Parsial</span> (jalur ada; event KYC belum).</p>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Kebutuhan</th><th>Mekanisme usulan</th><th>Story</th></tr></thead>
+        <tbody>
+          <tr><td>Lihat status kapan saja (<em>pull</em>)</td><td>Status KYC selalu tersedia di <code>GET /api/v1/users/me</code> (mis. <code>kyc_status</code>, <code>review_note</code> bila ditolak)</td><td>US-11</td></tr>
+          <tr><td>Update saat status berubah (<em>push</em>)</td><td>Saat transisi (mis. masuk <code>PENDING_KYC</code>, mulai ditinjau), user-service terbitkan event → notification-service kirim notifikasi</td><td>US-11</td></tr>
+          <tr><td>Pemberitahuan hasil akhir</td><td>Saat admin <code>approve</code>/<code>reject</code>, terbitkan event hasil → push + in-app (+ email opsional). Jika ditolak, sertakan alasan</td><td>US-12</td></tr>
+          <tr><td>Riwayat pemberitahuan</td><td>Tercatat di daftar notifikasi in-app yang sudah ada (<code>GET /api/v1/notif</code>)</td><td>US-12</td></tr>
+        </tbody>
+      </table></div>
+      <div class="code"><pre><span class="cc">// Alur hasil verifikasi (US-12)</span>
+Admin approve/reject (Dashboard)
+        │
+        ▼
+user-service: update kyc_submission.status + (jika approve) picu transisi akun
+        │  terbitkan event "kyc.reviewed" { user_id, hasil, alasan? }
+        ▼
+notification-service  ──XADD──▶  Redis Stream  ──XREADGROUP──▶  bun-consumer ──▶ FCM
+        │
+        └─ simpan notifikasi in-app  ──▶  GET /api/v1/notif</pre></div>
+      <div class="callout c-info"><span class="callout-icon">🧭</span><div><strong>Selaras dengan kontrak yang ada</strong><p>Tidak membuat jalur baru — memakai <a class="ref" href="../notification-contract.html">Notification Contract</a> (Redis Streams, idempotency, retry/DLQ). Yang baru hanya <em>jenis event</em> (mis. <code>kyc.submitted</code>, <code>kyc.reviewed</code>) dan template pesannya.</p></div></div>
+    </section>
+
+    <!-- SUSPEND -->
+    <section id="suspend">
+      <h2 class="sec-title"><span class="sec-icon ic-y">⛔</span>Suspend Akun (US-07)</h2>
+      <ul class="clean">
+        <li><strong>Sementara</strong> — <code>SUSPENDED_TEMP</code> dengan <code>expires_at</code>; otomatis kembali <code>ACTIVE</code> setelah masa habis (dicek saat login/validasi token).</li>
+        <li><strong>Permanen</strong> — <code>SUSPENDED_PERMANENT</code>, <code>expires_at = null</code>.</li>
+        <li><strong>Penegakan</strong> — login ditolak; token yang masih hidup ditolak di middleware (cek status via <code>AuthClient</code> atau klaim). Pertimbangkan <em>revoke</em> refresh token saat suspend.</li>
+        <li><strong>Akuntabilitas</strong> — wajib <code>reason</code> + <code>created_by</code> (admin) + audit log.</li>
+        <li><strong>Aktor</strong> — hanya admin via Web Dashboard (perlu RBAC; lihat <a class="ref" href="../prd/prd-dashboard.md">PRD Dashboard</a>).</li>
+      </ul>
+    </section>
+
+    <!-- OPEN QUESTIONS -->
+    <section id="open">
+      <h2 class="sec-title"><span class="sec-icon ic-g">✅</span>Status Pertanyaan Terbuka</h2>
+      <p class="lead">Seluruh pertanyaan terbuka (O1–O6) telah dijawab dan diangkat menjadi keputusan <a class="ref" href="#keputusan">K11–K16</a>. Ringkasan jejaknya:</p>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Pertanyaan</th><th>Menjadi</th><th>Inti jawaban</th></tr></thead>
+        <tbody>
+          <tr><td>O1 retensi</td><td>K11</td><td>Selama akun aktif (sah per UU PDP Ps.7); dimusnahkan saat akun ditutup + ±30 hari dispute</td></tr>
+          <tr><td>O2 kanal email</td><td>K12</td><td>Email hanya awal (submit) &amp; hasil akhir; transisi lain cukup push + in-app</td></tr>
+          <tr><td>O3 data wilayah</td><td>K13</td><td>Tabel referensi di PostgreSQL, 4 level, API cascading bertahap, default negara ID</td></tr>
+          <tr><td>O4 kunci enkripsi</td><td>K14</td><td>Envelope encryption, KEK di env secret, rotasi tahunan — tanpa KMS berbayar</td></tr>
+          <tr><td>O5 pola OTP</td><td>K15</td><td>Reuse satu tabel <code>otp_verifications</code> per <code>purpose</code> — tanpa over-engineering</td></tr>
+          <tr><td>O6 cooldown re-submit</td><td>K16</td><td>3 hari kerja</td></tr>
+        </tbody>
+      </table></div>
+      <div class="sub-title">Ditunda — di luar scope user-service</div>
+      <div class="openq"><span class="qn">X1 — Penyelarasan <code>lokasi</code> iklan ke wilayah berstruktur.</span> Keempat service iklan kini memakai <code>lokasi</code> teks bebas. Agar canvassing CEO akurat, perlu dipertimbangkan menautkannya ke <code>region_id</code> (via <code>region-service</code>). <strong>Ditunda</strong> ke brainstorming iklan-service / CEO — bukan bagian User Service Phase 2.</div>
+      <div class="callout c-ok"><span class="callout-icon">🎯</span><div><strong>Siap masuk tahap spesifikasi</strong><p>Tidak ada pertanyaan desain yang menggantung untuk User Service Phase 2 itu sendiri. Catatan: keputusan K13 melahirkan domain baru <code>region-service</code> + <code>region-service-client</code> yang perlu dimasukkan ke perencanaan workspace. Detail sisa (versi dataset Kepmendagri, periode dispute, penyelarasan lokasi iklan/X1) bersifat parameter implementasi atau scope dokumen lain.</p></div></div>
+    </section>
+
+    <!-- ASUMSI IMPLEMENTASI -->
+    <section id="asumsi">
+      <h2 class="sec-title"><span class="sec-icon ic-y">⚠️</span>Asumsi Implementasi (Perlu Ditinjau)</h2>
+      <p class="lead">Daftar keputusan yang <strong>diambil saat implementasi tanpa konfirmasi eksplisit</strong> — didokumentasikan secara transparan agar dapat dikoreksi. Kebijakan ke depan: asumsi dikumpulkan &amp; dilaporkan di akhir tiap grup, bukan dijadikan keputusan final diam-diam.</p>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>#</th><th>Asumsi</th><th>Nilai default di kode</th><th>Lokasi</th><th>Koreksi?</th></tr></thead>
+        <tbody>
+          <tr><td>A1</td><td>TTL OTP (kedaluwarsa)</td><td><code>OTP_TTL_MINUTES = 5</code> (5 menit)</td><td><code>auth-service/src/application/service.rs</code></td><td>Dapat diubah</td></tr>
+          <tr><td>A2</td><td>Maks percobaan verifikasi OTP</td><td><code>MAX_OTP_ATTEMPTS = 5</code></td><td><code>auth-service/src/application/service.rs</code></td><td>Dapat diubah</td></tr>
+          <tr><td>A3</td><td>Rate-limit permintaan OTP via Redis</td><td>Maks 3 kirim per 15 menit + window <code>WINDOW_SECS = 900</code></td><td><code>auth-service/src/infrastructure/rate_limit.rs</code></td><td>Dapat diubah</td></tr>
+          <tr><td>A4</td><td>Perilaku jika Redis tidak tersedia (rate-limit)</td><td><strong>Fail-open</strong> (izinkan permintaan tanpa batas)</td><td><code>auth-service/src/infrastructure/rate_limit.rs</code></td><td>⚠️ Keamanan</td></tr>
+          <tr><td>A5</td><td>Versi T&amp;C default</td><td><code>"v1"</code> bila <code>tos_version</code> tidak dikirim klien</td><td><code>auth-service/src/application/service.rs</code></td><td>Dapat diubah</td></tr>
+          <tr><td>A6</td><td>Nama environment variable kunci enkripsi</td><td><code>DATA_ENCRYPTION_KEY</code> (32 byte base64)</td><td><code>auth-service/src/application/crypto.rs</code></td><td>⚠️ Konvensi</td></tr>
+          <tr><td>A7</td><td>Format penyimpanan ciphertext</td><td><code>base64(nonce(12B) ‖ ciphertext)</code>, AES-256-GCM</td><td><code>auth-service/src/application/crypto.rs</code></td><td>Final</td></tr>
+          <tr><td>A8</td><td>Subject email OTP</td><td><code>"Kode OTP Rejki"</code></td><td><code>auth-service/src/application/service.rs</code></td><td>Dapat diubah</td></tr>
+          <tr><td>A9</td><td>Body template email OTP</td><td><code>"Kode OTP Anda untuk {purpose}: {otp}\nBerlaku {n} menit..."</code></td><td><code>auth-service/src/application/service.rs</code></td><td>Dapat diubah</td></tr>
+          <tr><td>A10</td><td>Backend kripto JWT</td><td><code>jsonwebtoken</code> fitur <code>rust_crypto</code> + <code>use_pem</code> (non-<code>default</code>)</td><td><code>Cargo.toml</code> workspace</td><td>⚠️ Perf/Audit</td></tr>
+          <tr><td>A11</td><td>Negara default KYC</td><td><code>country_code DEFAULT 'ID'</code></td><td>user-service migration (proposal user-kyc)</td><td>Dapat diubah</td></tr>
+          <tr><td>A12</td><td>Binary standalone ditandai unimplemented</td><td><code>panic!("... standalone belum didukung — jalankan via rejki-app")</code></td><td>6 <code>main.rs</code> standalone (auth tetap)</td><td>⚠️ Scope</td></tr>
+          <tr><td>A13</td><td>Perubahan test W8</td><td>Route chat: <code>/rooms</code>→<code>/conversations/.../messages</code>; assertion <code>email</code>→<code>username</code></td><td><code>rejki-app/tests/auth_integration_test.rs</code></td><td>⚠️ Niat</td></tr>
+          <tr><td>A14</td><td>Cooldown re-submit KYC dihitung kerja</td><td>3 hari kerja (belum diimplementasi, hanya di spec)</td><td>Proposal user-kyc</td><td>Dapat diubah</td></tr>
+          <tr><td>A15</td><td>RegionService: seed data wilayah</td><td>Manual SQL seed (dua provinsi sample); belum ada script seed otomatis dari dataset Kepmendagri</td><td><code>region-service</code> (seed manual)</td><td>Perlu script seed</td></tr>
+          <tr><td>A16</td><td>RegionService: endpoint publik</td><td>Semua endpoint regions TANPA auth; read-only untuk seluruh pengguna</td><td><code>region-service/src/interface/mod.rs</code></td><td>Final</td></tr>
+          <tr><td>A17</td><td>RegionService: get_by_id probing</td><td>Mencoba 4 tabel level berurutan (village→district→regency→province) — heuristic, tidak optimal untuk lookup massal</td><td><code>region-service/src/infrastructure/pg_repository.rs</code></td><td>Dapat dioptimasi</td></tr>
+          <tr><td>A18</td><td>UserService: enkripsi NIK</td><td>NIK disimpan sebagai byte placeholder (<code>nik.as_bytes()</code>) — enkripsi AES-256-GCM sesungguhnya menunggu utility crypto bersama</td><td><code>user-service/src/application/service.rs</code></td><td>⚠️ Keamanan</td></tr>
+          <tr><td>A19</td><td>UserService: presigned URL avatar & dokumen</td><td>Presigned URL placeholder (<code>[presigned-url-for/...]</code>) — integrasi MinIO nyata menyusul</td><td><code>user-service/src/interface/handlers.rs</code></td><td>Perlu implementasi</td></tr>
+          <tr><td>A20</td><td>UserService: review_kyc admin</td><td>Review admin mencatat keputusan tapi belum melakukan lookup <code>profile_id → auth_id</code> untuk transisi status via AuthClient — <code>set_account_status</code> dipanggil tapi belum terhubung ke auth_id yang benar</td><td><code>user-service/src/interface/handlers.rs</code></td><td>⚠️ Integrity</td></tr>
+          <tr><td>A21</td><td>UserService: get_me perbaikan bug</td><td>Handler get_me kini memanggil <code>get_profile_by_auth_id</code> (perbaikan bug pre-existing: dulu <code>get_profile</code> pakai profile.id, bukan auth_id)</td><td><code>user-service/src/interface/handlers.rs</code>, <code>application/service.rs</code></td><td>Final</td></tr>
+          <tr><td>A22</td><td>RegionClient: async_trait</td><td>Ditambah <code>#[async_trait]</code> agar dyn-compatible (Arc&lt;dyn RegionClient&gt;)</td><td><code>region-service-client/src/lib.rs</code></td><td>Final</td></tr>
+        </tbody>
+      </table></div>
+      <div class="callout c-warn"><span class="callout-icon">⚠️</span><div><strong>A4, A6, A10, A12, A13 perlu perhatian khusus</strong><p>Keempatnya punya implikasi keamanan, konvensi penamaan, performa, scope, atau niat asli yang mungkin berbeda dari yang diharapkan. Direkomendasikan ditinjau sebelum naik ke produksi.</p></div></div>
+    </section>
+
+    <footer>
+      Dokumen brainstorming Phase 2 · User Service · status <strong>Draft</strong> · 2026-06-10 ·
+      selaras dengan <a href="../api-standard.html">API Standard</a>, <a href="../security-baseline.html">Security Baseline</a>, <a href="../database-convention.html">Database Convention</a>, <a href="../authorization-pattern.html">Authorization Pattern</a>, <a href="../config-standard.html">Config Standard</a>.
+      <br>Referensi praktik eKYC/onboarding: Verihubs, Ondato, Microblink, microSave (eKYC Indonesia), UU PDP No. 27/2022.
+      <br>Referensi data wilayah: cahyadsn/wilayah, emsifa/api-wilayah-indonesia, wilayah.id (Kepmendagri 2025). Storage: minio/minio (AGPLv3), SeaweedFS, Garage, RustFS.
+      <br>Referensi retensi: UU PDP No. 27/2022 Pasal 7 (pembatasan penyimpanan). Enkripsi: pola envelope encryption (DEK/KEK). OTP: praktik single-table per-purpose, hashed + TTL + rate limit.
+    </footer>
+  </main>
+</div>
+</body>
+</html>

@@ -1,0 +1,1041 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rejki Backend — Security Baseline</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:      #0d1117;
+      --surf:    #161b22;
+      --surf2:   #1c2230;
+      --border:  #30363d;
+      --text:    #e6edf3;
+      --muted:   #8b949e;
+      --tag:     #21262d;
+      --green:   #56d364;
+      --blue:    #79c0ff;
+      --orange:  #f78166;
+      --yellow:  #e3b341;
+      --purple:  #bc8cff;
+      --red:     #ff7b72;
+      --r:       10px;
+    }
+
+    html { scroll-behavior: smooth; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; font-size: 15px; }
+
+    /* ── Layout ── */
+    .layout { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
+    @media (max-width: 840px) { .layout { grid-template-columns: 1fr; } .nav { display: none; } }
+
+    /* ── Nav ── */
+    .nav {
+      position: sticky; top: 0; height: 100vh; overflow-y: auto;
+      background: var(--surf); border-right: 1px solid var(--border);
+      padding: 1.75rem 1rem;
+    }
+    .nav-logo { font-size: 1.1rem; font-weight: 800; color: var(--orange); margin-bottom: 1.75rem; }
+    .nav-logo span { color: var(--text); }
+    .nav-group { margin-bottom: 1.5rem; }
+    .nav-group-label { font-size: 0.67rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: .4rem; }
+    .nav-link { display: block; padding: .32rem .6rem; border-radius: 6px; font-size: .85rem; color: var(--muted); text-decoration: none; transition: background .12s, color .12s; }
+    .nav-link:hover { background: var(--tag); color: var(--text); }
+    .nav-link.accent { color: var(--green); }
+    .nav-link.back { color: var(--blue); font-size: .8rem; }
+
+    /* ── Main ── */
+    main { max-width: 920px; margin: 0 auto; padding: 3rem 2rem 6rem; }
+    @media (max-width: 600px) { main { padding: 2rem 1rem 4rem; } }
+
+    /* ── Hero ── */
+    .hero { border-bottom: 1px solid var(--border); margin-bottom: 3rem; padding-bottom: 2.5rem; }
+    .eyebrow { display: inline-block; font-size: .73rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--red); background: rgba(255,123,114,.07); border: 1px solid rgba(255,123,114,.25); border-radius: 20px; padding: .22rem .75rem; margin-bottom: .9rem; }
+    .hero h1 { font-size: clamp(1.7rem,4vw,2.5rem); font-weight: 800; line-height: 1.15; letter-spacing: -.4px; margin-bottom: .9rem; }
+    .hero h1 em { font-style: normal; color: var(--red); }
+    .hero p { color: var(--muted); font-size: 1rem; max-width: 680px; line-height: 1.75; }
+    .badges { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: 1.2rem; }
+    .badge { font-size: .76rem; font-weight: 600; padding: .25rem .75rem; border-radius: 20px; border: 1px solid; }
+    .b-ph  { color: var(--purple); border-color: rgba(188,140,255,.4); background: rgba(188,140,255,.06); }
+    .b-rd  { color: var(--red);    border-color: rgba(255,123,114,.4); background: rgba(255,123,114,.06); }
+    .b-gr  { color: var(--green);  border-color: rgba(86,211,100,.4);  background: rgba(86,211,100,.06);  }
+
+    /* ── Section ── */
+    section { margin-bottom: 3.5rem; }
+    .sec-title { display: flex; align-items: center; gap: .6rem; font-size: 1.2rem; font-weight: 700; margin-bottom: 1.25rem; padding-bottom: .55rem; border-bottom: 1px solid var(--border); }
+    .sec-icon { width: 30px; height: 30px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: .95rem; flex-shrink: 0; }
+    .ic-g { background: rgba(86,211,100,.1); }
+    .ic-b { background: rgba(121,192,255,.1); }
+    .ic-o { background: rgba(247,129,102,.1); }
+    .ic-y { background: rgba(227,179,65,.1); }
+    .ic-p { background: rgba(188,140,255,.1); }
+    .ic-r { background: rgba(255,123,114,.1); }
+
+    /* ── Subsection ── */
+    .sub-title { font-size: .95rem; font-weight: 700; margin: 1.6rem 0 .65rem; color: var(--text); display: flex; align-items: center; gap: .5rem; }
+    .sub-title::before { content: ''; display: inline-block; width: 3px; height: 14px; background: var(--red); border-radius: 2px; }
+
+    /* ── Table ── */
+    .tbl { width: 100%; border-collapse: collapse; font-size: .84rem; background: var(--surf); border: 1px solid var(--border); border-radius: var(--r); overflow: hidden; }
+    .tbl th { background: var(--surf2); padding: .6rem 1rem; text-align: left; font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+    .tbl td { padding: .65rem 1rem; border-bottom: 1px solid var(--border); vertical-align: top; line-height: 1.55; }
+    .tbl tr:last-child td { border-bottom: none; }
+    .tbl tr:hover td { background: var(--surf2); }
+    .tbl-wrap { overflow-x: auto; }
+
+    /* ── Code ── */
+    .code { background: #0d1117; border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.2rem; overflow-x: auto; margin-top: .6rem; }
+    .code pre { font-family: 'Cascadia Code','Fira Code','Consolas',monospace; font-size: .8rem; line-height: 1.75; }
+    .ck  { color: #ff7b72; }
+    .cs  { color: #a5d6ff; }
+    .cc  { color: #6e7681; }
+    .ct  { color: #ffa657; }
+    .cfn { color: #d2a8ff; }
+    .cv  { color: #56d364; }
+
+    /* ── Side-by-side ── */
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; margin-top: .6rem; }
+    @media (max-width: 680px) { .two-col { grid-template-columns: 1fr; } }
+    .col-label { font-size: .68rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: .35rem; }
+
+    /* ── Callout ── */
+    .callout { border-radius: var(--r); padding: .85rem 1.1rem; margin-top: .9rem; font-size: .86rem; display: flex; gap: .65rem; line-height: 1.65; }
+    .callout-icon { flex-shrink: 0; font-size: 1rem; margin-top: 2px; }
+    .callout p { color: var(--muted); }
+    .callout strong { color: var(--text); display: block; margin-bottom: .15rem; }
+    .c-info   { background: rgba(121,192,255,.06); border: 1px solid rgba(121,192,255,.22); }
+    .c-warn   { background: rgba(227,179,65,.06);  border: 1px solid rgba(227,179,65,.22);  }
+    .c-ok     { background: rgba(86,211,100,.06);  border: 1px solid rgba(86,211,100,.22);  }
+    .c-danger { background: rgba(247,129,102,.06); border: 1px solid rgba(247,129,102,.22); }
+    .c-red    { background: rgba(255,123,114,.06); border: 1px solid rgba(255,123,114,.22); }
+
+    /* ── Phase pills ── */
+    .ph-tag { display: inline-flex; align-items: center; font-size: .68rem; font-weight: 700; padding: .08rem .45rem; border-radius: 4px; border: 1px solid; white-space: nowrap; }
+    .ph-done  { color: var(--green);  background: rgba(86,211,100,.08);  border-color: rgba(86,211,100,.3); }
+    .ph-15    { color: var(--purple); background: rgba(188,140,255,.08); border-color: rgba(188,140,255,.3); }
+    .ph-3     { color: var(--yellow); background: rgba(227,179,65,.08);  border-color: rgba(227,179,65,.3); }
+    .ph-2     { color: var(--blue);   background: rgba(121,192,255,.08); border-color: rgba(121,192,255,.3); }
+
+    /* ── Risk level ── */
+    .risk-h { color: var(--red);    font-size: .72rem; font-weight: 700; }
+    .risk-m { color: var(--yellow); font-size: .72rem; font-weight: 700; }
+    .risk-l { color: var(--green);  font-size: .72rem; font-weight: 700; }
+
+    /* ── Security cards ── */
+    .sec-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px,1fr)); gap: .9rem; }
+    .sec-card { background: var(--surf); border: 1px solid var(--border); border-radius: var(--r); padding: 1rem 1.15rem; border-left: 3px solid; }
+    .sec-card.done  { border-left-color: var(--green);  }
+    .sec-card.ph15  { border-left-color: var(--purple); }
+    .sec-card.ph3   { border-left-color: var(--yellow); }
+    .sec-card h4 { font-size: .85rem; font-weight: 700; margin-bottom: .3rem; }
+    .sec-card p  { font-size: .8rem; color: var(--muted); line-height: 1.5; }
+    .sec-card .card-phase { font-size: .68rem; font-weight: 700; margin-bottom: .4rem; }
+
+    code { font-family: 'Cascadia Code','Fira Code','Consolas',monospace; font-size: .8rem; background: var(--tag); border: 1px solid var(--border); border-radius: 4px; padding: .05rem .4rem; color: var(--blue); }
+
+    footer { margin-top: 4rem; padding-top: 1.25rem; border-top: 1px solid var(--border); font-size: .78rem; color: var(--muted); }
+  </style>
+</head>
+<body>
+<div class="layout">
+
+  <!-- ── NAV ── -->
+  <nav class="nav">
+    <div class="nav-logo">rejki<span>-backend</span></div>
+
+    <div class="nav-group">
+      <div class="nav-group-label">Navigasi</div>
+      <a class="nav-link back" href="index.html">← Architecture Overview</a>
+      <a class="nav-link back" href="phase-1-setup.html">← Phase 1 Guide</a>
+      <a class="nav-link back" href="api-standard.html">← API Standard</a>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-group-label">Overview</div>
+      <a class="nav-link" href="#peta">Peta Security</a>
+      <a class="nav-link" href="#threat-model">Threat Model</a>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-group-label">Phase 1 — Selesai</div>
+      <a class="nav-link" href="#auth-token">Auth & Token</a>
+      <a class="nav-link" href="#password">Password Hashing</a>
+      <a class="nav-link" href="#sql-injection">SQL Injection</a>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-group-label">Phase 1.5 — Baseline</div>
+      <a class="nav-link" href="#secret-mgmt">Secret Management</a>
+      <a class="nav-link" href="#input-sanitization">Input Sanitization</a>
+      <a class="nav-link" href="#file-security">File Upload Security</a>
+      <a class="nav-link" href="#security-headers">Security Headers</a>
+      <a class="nav-link" href="#error-leakage">Error Information</a>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-group-label">Phase 3 — Hardening</div>
+      <a class="nav-link" href="#rate-limiting">Rate Limiting</a>
+      <a class="nav-link" href="#cors">CORS Policy</a>
+      <a class="nav-link" href="#audit-log">Audit Log</a>
+      <a class="nav-link" href="#encryption-rest">Enkripsi at Rest</a>
+      <a class="nav-link" href="#tls">TLS & HSTS</a>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-group-label">Referensi</div>
+      <a class="nav-link accent" href="#checklist">Checklist Security</a>
+    </div>
+  </nav>
+
+  <!-- ── MAIN ── -->
+  <main>
+
+    <!-- HERO -->
+    <div class="hero">
+      <div class="eyebrow">Phase 1.5 — Security Baseline</div>
+      <h1>Security <em>Baseline</em></h1>
+      <p>Dokumen ini mendefinisikan standar keamanan Rejki Backend — apa yang sudah aman sejak Phase 1, apa yang wajib diterapkan di Phase 1.5 sebagai baseline, dan apa yang akan dikeraskan di Phase 3. Keamanan dibangun berlapis, bukan sebagai afterthought.</p>
+      <div class="badges">
+        <span class="badge b-ph">Phase 1.5</span>
+        <span class="badge b-rd">Defense in Depth</span>
+        <span class="badge b-gr">OWASP Top 10</span>
+      </div>
+    </div>
+
+    <!-- PETA SECURITY -->
+    <section id="peta">
+      <h2 class="sec-title"><span class="sec-icon ic-r">🗺️</span>Peta Security per Phase</h2>
+      <p style="color:var(--muted);font-size:.85rem;margin-bottom:1rem;">Semua area security diorganisir berdasarkan kapan harus diimplementasi:</p>
+
+      <div class="sec-cards">
+
+        <div class="sec-card done">
+          <div class="card-phase"><span class="ph-tag ph-done">✓ Phase 1 — Selesai</span></div>
+          <h4>JWT RS256 + Token Rotation</h4>
+          <p>Access token (15 mnt) + refresh token rotation. Private key hanya di auth-service. <code>AuthInProcessClient</code> sebagai bridge.</p>
+        </div>
+
+        <div class="sec-card done">
+          <div class="card-phase"><span class="ph-tag ph-done">✓ Phase 1 — Selesai</span></div>
+          <h4>Password Hashing (bcrypt)</h4>
+          <p>bcrypt dengan cost factor default. Password tidak pernah disimpan plaintext. OTP dan refresh token di-hash SHA-256 sebelum masuk DB.</p>
+        </div>
+
+        <div class="sec-card done">
+          <div class="card-phase"><span class="ph-tag ph-done">✓ Phase 1 — Selesai</span></div>
+          <h4>SQL Injection Prevention</h4>
+          <p>100% parameterized query via sqlx. Tidak ada string concatenation untuk SQL. Schema isolation mencegah cross-service data access.</p>
+        </div>
+
+        <div class="sec-card ph15">
+          <div class="card-phase"><span class="ph-tag ph-15">⬤ Phase 1.5 — Baseline</span></div>
+          <h4>Secret Management Policy</h4>
+          <p>Rules: apa yang boleh/tidak di <code>.env</code>, cara rotasi key JWT, cara handle secret di CI/CD.</p>
+        </div>
+
+        <div class="sec-card ph15">
+          <div class="card-phase"><span class="ph-tag ph-15">⬤ Phase 1.5 — Baseline</span></div>
+          <h4>Input Sanitization Rules</h4>
+          <p>Whitelist validator per field type. XSS prevention di level response. HTML stripping untuk field text bebas.</p>
+        </div>
+
+        <div class="sec-card ph15">
+          <div class="card-phase"><span class="ph-tag ph-15">⬤ Phase 1.5 — Baseline</span></div>
+          <h4>File Upload Security</h4>
+          <p>Magic bytes verification, mime whitelist, size limit, path traversal prevention, virus scan (Phase 3).</p>
+        </div>
+
+        <div class="sec-card ph15">
+          <div class="card-phase"><span class="ph-tag ph-15">⬤ Phase 1.5 — Baseline</span></div>
+          <h4>Security Response Headers</h4>
+          <p>Daftar header yang harus ada: CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy. Diterapkan di nginx.</p>
+        </div>
+
+        <div class="sec-card ph15">
+          <div class="card-phase"><span class="ph-tag ph-15">⬤ Phase 1.5 — Baseline</span></div>
+          <h4>Error Information Control</h4>
+          <p>Policy: apa yang boleh dikembalikan ke client vs yang hanya boleh ada di log. Stack trace tidak pernah ke client.</p>
+        </div>
+
+        <div class="sec-card ph3">
+          <div class="card-phase"><span class="ph-tag ph-3">◌ Phase 3 — Hardening</span></div>
+          <h4>Rate Limiting</h4>
+          <p>Per-IP dan per-user rate limit. OTP endpoint: max 5 percobaan/jam. Login endpoint: max 10 percobaan/15 menit.</p>
+        </div>
+
+        <div class="sec-card ph3">
+          <div class="card-phase"><span class="ph-tag ph-3">◌ Phase 3 — Hardening</span></div>
+          <h4>CORS Production Policy</h4>
+          <p>Restrict origin ke domain resmi. Bukan <code>allow_origin(Any)</code> di production. Credentialed requests harus explicit.</p>
+        </div>
+
+        <div class="sec-card ph3">
+          <div class="card-phase"><span class="ph-tag ph-3">◌ Phase 3 — Hardening</span></div>
+          <h4>TLS + HSTS</h4>
+          <p>HTTPS-only via Cloudflare Tunnel. HSTS header <code>max-age=31536000; includeSubDomains</code>. No HTTP fallback.</p>
+        </div>
+
+        <div class="sec-card ph3">
+          <div class="card-phase"><span class="ph-tag ph-3">◌ Phase 3 — Hardening</span></div>
+          <h4>Audit Log</h4>
+          <p>Log setiap auth event: login, logout, refresh, failed attempts. Log write ke tabel <code>auth.audit_log</code> — tidak bisa diedit.</p>
+        </div>
+
+        <div class="sec-card ph3">
+          <div class="card-phase"><span class="ph-tag ph-3">◌ Phase 3 — Hardening</span></div>
+          <h4>Enkripsi at Rest</h4>
+          <p>Kolom sensitif (NIK, no. HP) dienkripsi dengan AES-256-GCM sebelum disimpan ke DB. Key disimpan di environment secret.</p>
+        </div>
+
+        <div class="sec-card ph3">
+          <div class="card-phase"><span class="ph-tag ph-3">◌ Phase 3 — Hardening</span></div>
+          <h4>Dependency Audit</h4>
+          <p><code>cargo audit</code> di CI/CD untuk cek CVE di dependencies. <code>cargo deny</code> untuk license compliance.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- THREAT MODEL -->
+    <section id="threat-model">
+      <h2 class="sec-title"><span class="sec-icon ic-r">⚠️</span>Threat Model</h2>
+      <p style="color:var(--muted);font-size:.85rem;margin-bottom:1rem;">Ancaman yang relevan untuk aplikasi marketplace + job board di Indonesia:</p>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Ancaman</th><th>Risiko</th><th>Mitigasi</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><strong>Credential stuffing</strong><br><small style="color:var(--muted);">Bot coba ribuan kombinasi email/password</small></td>
+              <td><span class="risk-h">Tinggi</span></td>
+              <td>Rate limiting login endpoint, bcrypt slow hash, OTP 2FA</td>
+              <td><span class="ph-tag ph-3">Phase 3</span></td>
+            </tr>
+            <tr>
+              <td><strong>JWT token theft</strong><br><small style="color:var(--muted);">XSS steal access token dari localStorage</small></td>
+              <td><span class="risk-h">Tinggi</span></td>
+              <td>Access token di memory JS (bukan localStorage). Refresh token di HttpOnly cookie.</td>
+              <td><span class="ph-tag ph-done">✓ Selesai</span></td>
+            </tr>
+            <tr>
+              <td><strong>SQL Injection</strong><br><small style="color:var(--muted);">Input berbahaya di query parameter atau body</small></td>
+              <td><span class="risk-h">Tinggi</span></td>
+              <td>100% parameterized query via sqlx. Tidak ada raw string SQL.</td>
+              <td><span class="ph-tag ph-done">✓ Selesai</span></td>
+            </tr>
+            <tr>
+              <td><strong>OTP brute force</strong><br><small style="color:var(--muted);">Bot coba semua kemungkinan OTP 6 digit</small></td>
+              <td><span class="risk-h">Tinggi</span></td>
+              <td>OTP TTL pendek (5 menit), atomic consume (hapus setelah dipakai), rate limit endpoint OTP.</td>
+              <td><span class="ph-tag ph-15">Parsial</span></td>
+            </tr>
+            <tr>
+              <td><strong>IDOR</strong><br><small style="color:var(--muted);">Akses resource milik user lain via ID manipulation</small></td>
+              <td><span class="risk-m">Sedang</span></td>
+              <td>Setiap handler cek <code>owner_id == auth_claims.sub</code> sebelum return/modify data.</td>
+              <td><span class="ph-tag ph-15">Phase 1.5</span></td>
+            </tr>
+            <tr>
+              <td><strong>Mass assignment</strong><br><small style="color:var(--muted);">Client kirim field yang tidak seharusnya bisa diset</small></td>
+              <td><span class="risk-m">Sedang</span></td>
+              <td>DTO eksplisit per operasi — field seperti <code>is_admin</code>, <code>created_at</code> tidak ada di input DTO.</td>
+              <td><span class="ph-tag ph-done">✓ Selesai</span></td>
+            </tr>
+            <tr>
+              <td><strong>File upload attack</strong><br><small style="color:var(--muted);">Upload file berbahaya (executable, polyglot image)</small></td>
+              <td><span class="risk-m">Sedang</span></td>
+              <td>Magic bytes verification, mime whitelist, presigned URL (file tidak lewat server).</td>
+              <td><span class="ph-tag ph-15">Phase 1.5</span></td>
+            </tr>
+            <tr>
+              <td><strong>Refresh token replay</strong><br><small style="color:var(--muted);">Token refresh yang dicuri dipakai ulang</small></td>
+              <td><span class="risk-m">Sedang</span></td>
+              <td>Token rotation — old token direvoke sebelum issue new token. SHA-256 hash di DB.</td>
+              <td><span class="ph-tag ph-done">✓ Selesai</span></td>
+            </tr>
+            <tr>
+              <td><strong>Information disclosure</strong><br><small style="color:var(--muted);">Stack trace atau path file bocor ke client</small></td>
+              <td><span class="risk-m">Sedang</span></td>
+              <td>Error handler hanya return <code>request_id</code> untuk 500. Detail hanya di server log.</td>
+              <td><span class="ph-tag ph-15">Phase 1.5</span></td>
+            </tr>
+            <tr>
+              <td><strong>Denial of Service</strong><br><small style="color:var(--muted);">Flood request ke endpoint berat</small></td>
+              <td><span class="risk-m">Sedang</span></td>
+              <td>Rate limiting per-IP, Cloudflare DDoS protection, connection pool limit.</td>
+              <td><span class="ph-tag ph-3">Phase 3</span></td>
+            </tr>
+            <tr>
+              <td><strong>Secret leak</strong><br><small style="color:var(--muted);">.env atau private key masuk ke git repo</small></td>
+              <td><span class="risk-h">Tinggi</span></td>
+              <td>.gitignore untuk <code>.env</code>, <code>keys/</code>, <code>*.pem</code>. Git hooks pre-commit scan.</td>
+              <td><span class="ph-tag ph-done">✓ Selesai</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- PHASE 1 DONE: AUTH & TOKEN -->
+    <section id="auth-token">
+      <h2 class="sec-title"><span class="sec-icon ic-g">🔐</span>Auth &amp; Token (Phase 1 — Selesai)</h2>
+
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Komponen</th><th>Implementasi</th><th>Alasan</th></tr></thead>
+          <tbody>
+            <tr>
+              <td>Access Token</td>
+              <td>JWT RS256, TTL 15 menit</td>
+              <td>RS256 — public key bisa didistribusikan ke service lain tanpa expose private key. TTL pendek minimasi dampak jika token bocor.</td>
+            </tr>
+            <tr>
+              <td>Refresh Token</td>
+              <td>32 random bytes, hex-encoded, SHA-256 di DB, TTL 30 hari</td>
+              <td>Opaque token — tidak bisa di-decode tanpa DB lookup. Hash di DB — jika DB breach, token tidak bisa langsung dipakai.</td>
+            </tr>
+            <tr>
+              <td>Token Rotation</td>
+              <td>Old refresh token direvoke sebelum issue new</td>
+              <td>Jika token dicuri dan dipakai duluan, token lama menjadi invalid — mencegah replay attack.</td>
+            </tr>
+            <tr>
+              <td>Private Key</td>
+              <td>Hanya ada di <code>auth-service</code>, tidak pernah keluar</td>
+              <td><code>AuthInProcessClient</code> menjadi bridge — service lain hanya bisa validate via trait, tidak akses key langsung.</td>
+            </tr>
+            <tr>
+              <td>Cookie Strategy</td>
+              <td>Refresh token: <code>HttpOnly; Secure; SameSite=Strict</code></td>
+              <td>Tidak bisa diakses JavaScript — immune terhadap XSS token theft. SameSite=Strict mencegah CSRF.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- PHASE 1 DONE: PASSWORD -->
+    <section id="password">
+      <h2 class="sec-title"><span class="sec-icon ic-g">🔑</span>Password Hashing (Phase 1 — Selesai)</h2>
+
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Item</th><th>Keputusan</th><th>Keterangan</th></tr></thead>
+          <tbody>
+            <tr><td>Algoritma</td><td>bcrypt</td><td>Dengan argon2 sebagai upgrade opsional di Phase 3. bcrypt sudah proven dan cukup untuk beban Rejki saat ini.</td></tr>
+            <tr><td>Cost factor</td><td>Default bcrypt (12)</td><td>~250ms per hash di hardware modern. Cukup lambat untuk brute force, cukup cepat untuk UX normal.</td></tr>
+            <tr><td>OTP storage</td><td>SHA-256 di DB, bukan plaintext</td><td>Jika DB breach, OTP yang tersimpan tidak bisa langsung dipakai karena sudah di-hash.</td></tr>
+            <tr><td>Password reset</td><td>Via OTP — bukan email link dengan token</td><td>OTP TTL 5 menit, dikonsum atomik (DELETE), tidak bisa replay.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout c-warn">
+        <span class="callout-icon">⚠️</span>
+        <div>
+          <strong>Jangan log password</strong>
+          <p>Pastikan tidak ada <code>tracing::debug!("{:?}", body)</code> di handler register/login yang bisa mencetak password ke log. DTO harus implement <code>Debug</code> dengan password di-redact: <code>#[debug(skip)] password: String</code>.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- PHASE 1 DONE: SQL -->
+    <section id="sql-injection">
+      <h2 class="sec-title"><span class="sec-icon ic-g">🛡️</span>SQL Injection Prevention (Phase 1 — Selesai)</h2>
+
+      <div class="two-col">
+        <div>
+          <div class="col-label">Yang dilakukan (aman)</div>
+          <div class="code">
+            <pre><span class="cc">// sqlx query! macro — parameterized</span>
+<span class="cfn">sqlx::query!</span>(
+  <span class="cs">"SELECT * FROM auth.users WHERE email = $1"</span>,
+  email  <span class="cc">// escaped otomatis</span>
+).<span class="cfn">fetch_optional</span>(&amp;pool).<span class="cfn">await</span></pre>
+          </div>
+        </div>
+        <div>
+          <div class="col-label">Yang TIDAK boleh dilakukan</div>
+          <div class="code">
+            <pre><span class="cc">// ❌ JANGAN PERNAH — SQL injection</span>
+<span class="ck">let</span> q = <span class="cfn">format!</span>(
+  <span class="cs">"SELECT * FROM users WHERE email = '{}'"</span>,
+  email  <span class="cc">// tidak di-escape!</span>
+);
+<span class="cfn">sqlx::query</span>(&amp;q).<span class="cfn">fetch_optional</span>(&amp;pool).<span class="cfn">await</span></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="callout c-ok" style="margin-top:.75rem;">
+        <span class="callout-icon">✅</span>
+        <div>
+          <strong>Schema isolation sebagai defense in depth</strong>
+          <p>Setiap service hanya punya akses ke schema-nya sendiri (<code>GRANT USAGE ON SCHEMA auth TO rejki_auth_role</code>). Bahkan jika terjadi injection di satu service, service lain tidak terekspos.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- PHASE 1.5: SECRET MANAGEMENT -->
+    <section id="secret-mgmt">
+      <h2 class="sec-title"><span class="sec-icon ic-p">🗝️</span>Secret Management (Phase 1.5)</h2>
+
+      <div class="sub-title">Klasifikasi Secret</div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Secret</th><th>Development</th><th>Production</th><th>Boleh di Git?</th></tr></thead>
+          <tbody>
+            <tr>
+              <td>DATABASE_URL</td>
+              <td><code>.env</code> (lokal saja)</td>
+              <td>GitHub Actions Secret / Server env</td>
+              <td><span class="risk-h">Tidak</span></td>
+            </tr>
+            <tr>
+              <td>JWT_PRIVATE_KEY (PEM)</td>
+              <td><code>keys/private.pem</code> (di .gitignore)</td>
+              <td>GitHub Secret → file saat deploy</td>
+              <td><span class="risk-h">Tidak</span></td>
+            </tr>
+            <tr>
+              <td>JWT_PUBLIC_KEY (PEM)</td>
+              <td><code>keys/public.pem</code> (di .gitignore)</td>
+              <td>Bisa di-commit jika mau — ini public</td>
+              <td><span class="risk-l">Boleh (public key)</span></td>
+            </tr>
+            <tr>
+              <td>SMTP credentials</td>
+              <td><code>.env</code> (lokal saja)</td>
+              <td>GitHub Actions Secret</td>
+              <td><span class="risk-h">Tidak</span></td>
+            </tr>
+            <tr>
+              <td>R2/S3 credentials</td>
+              <td><code>.env</code> (lokal saja)</td>
+              <td>GitHub Actions Secret</td>
+              <td><span class="risk-h">Tidak</span></td>
+            </tr>
+            <tr>
+              <td><code>.env.example</code></td>
+              <td>Template tanpa nilai nyata</td>
+              <td>Referensi saja</td>
+              <td><span class="risk-l">Ya (tidak ada nilai)</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sub-title">Aturan Secret di .gitignore</div>
+      <div class="code">
+        <pre><span class="cc"># Semua ini sudah ada di .gitignore</span>
+.env
+.env.local
+.env.production
+keys/
+*.pem
+*.key
+*.p12
+*.pfx</pre>
+      </div>
+
+      <div class="sub-title">Rotasi JWT Key</div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Langkah</th><th>Perintah / Tindakan</th></tr></thead>
+          <tbody>
+            <tr><td>1. Generate key baru</td><td><code>openssl genrsa -out keys/private_new.pem 2048 &amp;&amp; openssl rsa -in keys/private_new.pem -pubout -out keys/public_new.pem</code></td></tr>
+            <tr><td>2. Deploy dengan dua key</td><td>Sementara support key lama (untuk token yang belum expired) + key baru untuk issue</td></tr>
+            <tr><td>3. Tunggu semua token lama expire</td><td>Max 15 menit (TTL access token)</td></tr>
+            <tr><td>4. Hapus key lama</td><td>Update server env, restart service</td></tr>
+            <tr><td>5. Revoke semua refresh token</td><td><code>DELETE FROM auth.refresh_tokens WHERE created_at &lt; now()</code> (opsional, force re-login)</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout c-danger">
+        <span class="callout-icon">🚫</span>
+        <div>
+          <strong>Jangan hardcode secret di kode</strong>
+          <p>Tidak boleh ada string seperti <code>let secret = "my-super-secret"</code> di source code. Selalu baca dari environment variable. Jika ditemukan saat code review, PR wajib ditolak.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- PHASE 1.5: INPUT SANITIZATION -->
+    <section id="input-sanitization">
+      <h2 class="sec-title"><span class="sec-icon ic-p">🧹</span>Input Sanitization (Phase 1.5)</h2>
+
+      <p style="color:var(--muted);font-size:.85rem;margin-bottom:1rem;">Input validation mencegah data tidak valid masuk ke sistem. Input sanitization mencegah data berbahaya mengeksekusi sesuatu yang tidak diinginkan.</p>
+
+      <div class="sub-title">Aturan per Tipe Field</div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Tipe Field</th><th>Validasi</th><th>Sanitasi</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><strong>Email</strong></td>
+              <td>Format RFC 5322, max 254 char</td>
+              <td>Lowercase, trim whitespace</td>
+            </tr>
+            <tr>
+              <td><strong>Password</strong></td>
+              <td>Min 8 char, max 128 char</td>
+              <td>Jangan trim (spasi di password valid)</td>
+            </tr>
+            <tr>
+              <td><strong>Text bebas</strong> (judul, deskripsi)</td>
+              <td>Max length per field, non-empty jika required</td>
+              <td>Strip HTML tags. Trim leading/trailing whitespace. Normalize Unicode (NFC).</td>
+            </tr>
+            <tr>
+              <td><strong>UUID</strong></td>
+              <td>Format UUID v4 valid</td>
+              <td>Lowercase</td>
+            </tr>
+            <tr>
+              <td><strong>Integer / amount</strong></td>
+              <td>Non-negatif, dalam range <code>i64</code></td>
+              <td>Tidak perlu — Rust type system sudah enforce</td>
+            </tr>
+            <tr>
+              <td><strong>URL</strong></td>
+              <td>Format URL valid, scheme <code>https://</code> saja</td>
+              <td>Reject <code>javascript:</code>, <code>data:</code> scheme</td>
+            </tr>
+            <tr>
+              <td><strong>Array field</strong></td>
+              <td>Max panjang per konteks, elemen non-empty</td>
+              <td>Deduplicate, trim per elemen</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sub-title">XSS Prevention</div>
+      <p style="color:var(--muted);font-size:.83rem;margin-bottom:.5rem;">Karena Rejki adalah REST API (bukan server-side render HTML), XSS prevention lebih sederhana:</p>
+
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Konteks</th><th>Tindakan</th></tr></thead>
+          <tbody>
+            <tr><td>Response Content-Type</td><td>Selalu <code>application/json</code> — browser tidak akan execute sebagai HTML</td></tr>
+            <tr><td>Field teks dari user</td><td>Strip HTML tags sebelum simpan ke DB. Library: <code>ammonia</code> crate untuk allowlist-based HTML cleaning.</td></tr>
+            <tr><td>Header <code>X-Content-Type-Options</code></td><td><code>nosniff</code> — browser tidak boleh guess content type</td></tr>
+            <tr><td>URL dari user</td><td>Reject <code>javascript:</code> dan <code>data:</code> scheme di input URL</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sub-title">IDOR Prevention</div>
+      <p style="color:var(--muted);font-size:.83rem;margin-bottom:.5rem;">Insecure Direct Object Reference — user A mengakses data user B hanya dengan mengganti ID di URL.</p>
+
+      <div class="code">
+        <pre><span class="cc">// ❌ SALAH — tidak cek ownership</span>
+<span class="ck">pub async fn</span> <span class="cfn">get_iklan</span>(<span class="ct">State</span>(s): <span class="ct">State</span>&lt;...&gt;, <span class="ct">Path</span>(id): <span class="ct">Path</span>&lt;<span class="ct">Uuid</span>&gt;) -&gt; ... {
+  <span class="ck">let</span> iklan = s.service.<span class="cfn">find_by_id</span>(id).<span class="cfn">await</span>?;
+  <span class="ct">Ok</span>(<span class="ct">Json</span>(iklan))  <span class="cc">// siapapun bisa akses!</span>
+}
+
+<span class="cc">// ✓ BENAR — cek ownership</span>
+<span class="ck">pub async fn</span> <span class="cfn">delete_iklan</span>(
+  <span class="ct">State</span>(s): <span class="ct">State</span>&lt;...&gt;,
+  <span class="ct">Extension</span>(claims): <span class="ct">Extension</span>&lt;<span class="ct">AuthClaims</span>&gt;,  <span class="cc">// dari auth middleware</span>
+  <span class="ct">Path</span>(id): <span class="ct">Path</span>&lt;<span class="ct">Uuid</span>&gt;,
+) -&gt; ... {
+  <span class="cc">// service layer cek: WHERE id = $1 AND owner_id = $2</span>
+  s.service.<span class="cfn">delete</span>(id, claims.sub).<span class="cfn">await</span>?;
+  <span class="ct">Ok</span>(<span class="ct">StatusCode</span>::<span class="cv">NO_CONTENT</span>)
+}</pre>
+      </div>
+
+      <div class="callout c-info">
+        <span class="callout-icon">💡</span>
+        <div>
+          <strong>Ownership check di application layer, bukan interface</strong>
+          <p>Handler meneruskan <code>user_id</code> dari <code>AuthClaims</code> ke service. Service layer tambahkan <code>AND owner_id = $user_id</code> ke query. Jika tidak match, service return <code>NotFound</code> (bukan <code>Forbidden</code>) — tidak membocorkan informasi bahwa resource ada tapi milik orang lain.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- PHASE 1.5: FILE UPLOAD SECURITY -->
+    <section id="file-security">
+      <h2 class="sec-title"><span class="sec-icon ic-p">📎</span>File Upload Security (Phase 1.5)</h2>
+
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Ancaman</th><th>Mitigasi</th><th>Implementasi</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><strong>Upload executable</strong><br><small style="color:var(--muted);">.exe, .sh, .php disguised as image</small></td>
+              <td>Magic bytes verification</td>
+              <td>Cek 4-8 byte pertama file, bukan ekstensi. JPEG: <code>FF D8 FF</code>. PNG: <code>89 50 4E 47</code>.</td>
+            </tr>
+            <tr>
+              <td><strong>Oversized file</strong><br><small style="color:var(--muted);">Upload 1GB untuk DoS storage</small></td>
+              <td>Size limit di presign request</td>
+              <td>Server validasi <code>size_bytes</code> sebelum issue presigned URL. R2/S3 dikonfigurasi max object size.</td>
+            </tr>
+            <tr>
+              <td><strong>Path traversal</strong><br><small style="color:var(--muted);"><code>../etc/passwd</code> sebagai filename</small></td>
+              <td>Server generate filename</td>
+              <td>Client tidak pernah menentukan filename. Server generate: <code>{context}/{user_id}/{uuid}.{ext}</code></td>
+            </tr>
+            <tr>
+              <td><strong>Polyglot file</strong><br><small style="color:var(--muted);">File valid sebagai dua format sekaligus</small></td>
+              <td>Strict mime + magic bytes</td>
+              <td>Cek magic bytes tidak cukup sendirian — kombinasikan dengan mime whitelist yang ketat.</td>
+            </tr>
+            <tr>
+              <td><strong>Malware dalam file</strong><br><small style="color:var(--muted);">Gambar mengandung malware payload</small></td>
+              <td>Virus scan (Phase 3)</td>
+              <td>ClamAV atau layanan cloud antivirus. Di Phase 1.5: flag file sebagai "pending scan" sebelum ditampilkan.</td>
+            </tr>
+            <tr>
+              <td><strong>Hotlinking</strong><br><small style="color:var(--muted);">URL file diakses tanpa autentikasi</small></td>
+              <td>CDN public untuk foto iklan</td>
+              <td>Foto iklan boleh public (CDN). Dokumen sensitif pakai signed URL yang expire.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sub-title">Format Path File di Storage</div>
+      <div class="code">
+        <pre><span class="cc"># Format: {context}/{user_id}/{uuid}.{ext}</span>
+uploads/iklan_foto/<span class="ct">a1b2c3d4</span>/<span class="cv">550e8400-e29b-41d4-a716-446655440000</span>.jpg
+uploads/avatar/<span class="ct">a1b2c3d4</span>/<span class="cv">7f3a9c2d-1e4b-4f8a-b2d5-9e0c1a2b3d4e</span>.webp
+uploads/dokumen/<span class="ct">a1b2c3d4</span>/<span class="cv">3d4e5f6a-7b8c-9d0e-1f2a-3b4c5d6e7f8a</span>.pdf
+
+<span class="cc"># User ID di path untuk mudah audit siapa upload apa</span>
+<span class="cc"># UUID unik per file untuk mencegah cache collision</span></pre>
+      </div>
+    </section>
+
+    <!-- PHASE 1.5: SECURITY HEADERS -->
+    <section id="security-headers">
+      <h2 class="sec-title"><span class="sec-icon ic-p">📋</span>Security Response Headers (Phase 1.5)</h2>
+
+      <p style="color:var(--muted);font-size:.85rem;margin-bottom:1rem;">Header berikut ditambahkan di level nginx (bukan Axum) agar berlaku untuk semua response termasuk static files:</p>
+
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Header</th><th>Nilai</th><th>Mencegah</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><code>X-Content-Type-Options</code></td>
+              <td><code>nosniff</code></td>
+              <td>Browser MIME type sniffing — browser tidak boleh mengira JSON adalah HTML</td>
+            </tr>
+            <tr>
+              <td><code>X-Frame-Options</code></td>
+              <td><code>DENY</code></td>
+              <td>Clickjacking — halaman tidak bisa di-embed dalam iframe</td>
+            </tr>
+            <tr>
+              <td><code>Referrer-Policy</code></td>
+              <td><code>strict-origin-when-cross-origin</code></td>
+              <td>Kebocoran URL (dengan token di query param) ke third-party via Referer header</td>
+            </tr>
+            <tr>
+              <td><code>Content-Security-Policy</code></td>
+              <td><code>default-src 'none'; frame-ancestors 'none'</code></td>
+              <td>XSS — untuk API, ini cukup. Frontend Flutter tidak pakai CSP di API response.</td>
+            </tr>
+            <tr>
+              <td><code>Permissions-Policy</code></td>
+              <td><code>geolocation=(), microphone=(), camera=()</code></td>
+              <td>Mencegah halaman yang embed API request mengakses sensor device</td>
+            </tr>
+            <tr>
+              <td><code>Strict-Transport-Security</code></td>
+              <td><code>max-age=31536000; includeSubDomains</code></td>
+              <td>HTTP downgrade attack. <strong>Tambahkan di Phase 3</strong> setelah HTTPS production siap.</td>
+            </tr>
+            <tr>
+              <td><code>Cache-Control</code></td>
+              <td><code>no-store</code> untuk auth endpoints</td>
+              <td>Token atau data sensitif tersimpan di cache browser / proxy</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sub-title">Konfigurasi nginx (Phase 1.5)</div>
+      <div class="code">
+        <pre><span class="cc"># nginx.dev.conf — tambahkan ke server block</span>
+add_header X-Content-Type-Options  <span class="cs">"nosniff"</span>          always;
+add_header X-Frame-Options          <span class="cs">"DENY"</span>             always;
+add_header Referrer-Policy          <span class="cs">"strict-origin-when-cross-origin"</span> always;
+add_header Content-Security-Policy  <span class="cs">"default-src 'none'; frame-ancestors 'none'"</span> always;
+add_header Permissions-Policy       <span class="cs">"geolocation=(), microphone=(), camera=()"</span> always;
+
+<span class="cc"># Untuk auth endpoints saja</span>
+location /api/v1/auth/ {
+  add_header Cache-Control <span class="cs">"no-store, no-cache, must-revalidate"</span> always;
+  proxy_pass http://rejki_backend;
+}</pre>
+      </div>
+    </section>
+
+    <!-- PHASE 1.5: ERROR INFORMATION -->
+    <section id="error-leakage">
+      <h2 class="sec-title"><span class="sec-icon ic-p">🚫</span>Error Information Control (Phase 1.5)</h2>
+
+      <p style="color:var(--muted);font-size:.85rem;margin-bottom:1rem;">Informasi yang bocor ke client dalam error response bisa membantu attacker. Atur dengan ketat apa yang boleh dan tidak boleh muncul:</p>
+
+      <div class="two-col">
+        <div>
+          <div class="col-label">Boleh dikembalikan ke client</div>
+          <div class="code">
+            <pre><span class="cv">✓</span> error code (SCREAMING_SNAKE_CASE)
+<span class="cv">✓</span> error message (human-readable)
+<span class="cv">✓</span> field errors (untuk validasi)
+<span class="cv">✓</span> request_id (untuk support ticket)
+<span class="cv">✓</span> HTTP status code yang tepat</pre>
+          </div>
+        </div>
+        <div>
+          <div class="col-label">TIDAK boleh dikembalikan ke client</div>
+          <div class="code">
+            <pre><span class="ck">✗</span> Stack trace Rust
+<span class="ck">✗</span> SQL error message (nama tabel, kolom)
+<span class="ck">✗</span> Path file di server
+<span class="ck">✗</span> Versi library/framework
+<span class="ck">✗</span> Internal IP address
+<span class="ck">✗</span> Environment variable names</pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="sub-title">Implementasi di AppError</div>
+      <div class="code">
+        <pre><span class="cc">// common/errors/src/lib.rs</span>
+<span class="ck">impl</span> <span class="ct">IntoResponse</span> <span class="ck">for</span> <span class="ct">AppError</span> {
+  <span class="ck">fn</span> <span class="cfn">into_response</span>(<span class="ck">self</span>) -&gt; <span class="ct">Response</span> {
+    <span class="ck">let</span> (status, code, message, fields) = <span class="ck">match</span> <span class="ck">self</span> {
+      <span class="ct">AppError</span>::<span class="cfn">Internal</span>(err) => {
+        <span class="cc">// Log detail HANYA di server — tidak ke client</span>
+        <span class="cfn">tracing::error!</span>(error = %err, <span class="cs">"internal server error"</span>);
+        (<span class="cv">500</span>, <span class="cs">"INTERNAL_ERROR"</span>, <span class="cs">"Terjadi kesalahan internal"</span>, <span class="ck">None</span>)
+      }
+      <span class="ct">AppError</span>::<span class="cfn">Validation</span>(fields) =>
+        (<span class="cv">422</span>, <span class="cs">"VALIDATION_ERROR"</span>, <span class="cs">"Data tidak valid"</span>, <span class="ct">Some</span>(fields)),
+      <span class="ct">AppError</span>::<span class="cfn">NotFound</span>(msg) =>
+        (<span class="cv">404</span>, <span class="cs">"NOT_FOUND"</span>, &amp;msg, <span class="ck">None</span>),
+      <span class="cc">// ... variant lain</span>
+    };
+    <span class="cc">// Build response tanpa bocorkan internal detail</span>
+  }
+}</pre>
+      </div>
+    </section>
+
+    <!-- PHASE 3: RATE LIMITING -->
+    <section id="rate-limiting">
+      <h2 class="sec-title"><span class="sec-icon ic-y">⏱️</span>Rate Limiting (Phase 3)</h2>
+
+      <p style="color:var(--muted);font-size:.83rem;margin-bottom:1rem;">Implementasi menggunakan <code>tower-governor</code> crate. Konfigurasi per-endpoint berbeda:</p>
+
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Endpoint</th><th>Limit</th><th>Window</th><th>Alasan</th></tr></thead>
+          <tbody>
+            <tr><td><code>POST /auth/login</code></td><td>10 request per IP</td><td>15 menit</td><td>Cegah credential stuffing</td></tr>
+            <tr><td><code>POST /auth/send-otp</code></td><td>5 request per IP</td><td>1 jam</td><td>Cegah SMS/email bombing</td></tr>
+            <tr><td><code>POST /auth/verify-otp</code></td><td>5 request per session</td><td>Per OTP</td><td>Cegah brute force 6-digit OTP</td></tr>
+            <tr><td><code>POST /auth/register</code></td><td>3 request per IP</td><td>1 jam</td><td>Cegah fake account factory</td></tr>
+            <tr><td>Semua endpoint lain</td><td>100 request per IP</td><td>1 menit</td><td>General DoS protection</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout c-info">
+        <span class="callout-icon">💡</span>
+        <div>
+          <strong>Response saat rate limited</strong>
+          <p>HTTP <code>429 Too Many Requests</code> dengan header <code>Retry-After: 60</code> (detik). Body menggunakan format error standar: <code>{ "success": false, "error": { "code": "RATE_LIMITED", "message": "Terlalu banyak percobaan. Coba lagi dalam 60 detik." } }</code></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- PHASE 3: CORS -->
+    <section id="cors">
+      <h2 class="sec-title"><span class="sec-icon ic-y">🌐</span>CORS Production Policy (Phase 3)</h2>
+
+      <div class="two-col">
+        <div>
+          <div class="col-label">Development (sekarang — longgar)</div>
+          <div class="code">
+            <pre><span class="cc">// rejki-app/src/main.rs</span>
+<span class="ct">CorsLayer</span>::<span class="cfn">new</span>()
+  .<span class="cfn">allow_origin</span>(<span class="ct">Any</span>)
+  .<span class="cfn">allow_methods</span>(<span class="ct">Any</span>)
+  .<span class="cfn">allow_headers</span>(<span class="ct">Any</span>)</pre>
+          </div>
+        </div>
+        <div>
+          <div class="col-label">Production (Phase 3 — ketat)</div>
+          <div class="code">
+            <pre><span class="cc">// Hanya domain resmi</span>
+<span class="ct">CorsLayer</span>::<span class="cfn">new</span>()
+  .<span class="cfn">allow_origin</span>([
+    <span class="cs">"https://rejki.id"</span>.<span class="cfn">parse</span>()?,
+    <span class="cs">"https://app.rejki.id"</span>.<span class="cfn">parse</span>()?,
+  ])
+  .<span class="cfn">allow_credentials</span>(<span class="ck">true</span>)
+  .<span class="cfn">allow_headers</span>([AUTHORIZATION, CONTENT_TYPE])</pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="callout c-warn">
+        <span class="callout-icon">⚠️</span>
+        <div>
+          <strong><code>allow_credentials(true)</code> tidak kompatibel dengan <code>allow_origin(Any)</code></strong>
+          <p>Jika menggunakan cookie (refresh token HttpOnly), CORS harus specify origin eksplisit — bukan wildcard. Ini alasan kenapa production config berbeda dari development.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- PHASE 3: AUDIT LOG -->
+    <section id="audit-log">
+      <h2 class="sec-title"><span class="sec-icon ic-y">📜</span>Audit Log (Phase 3)</h2>
+
+      <p style="color:var(--muted);font-size:.85rem;margin-bottom:1rem;">Rekam setiap event auth penting ke tabel immutable. Berguna untuk investigasi insiden dan compliance.</p>
+
+      <div class="code">
+        <pre><span class="cc">-- migrations/create_audit_log.sql</span>
+<span class="ck">CREATE TABLE</span> auth.audit_log (
+  id         <span class="ct">UUID</span>      <span class="ck">PRIMARY KEY DEFAULT</span> gen_random_uuid(),
+  user_id    <span class="ct">UUID</span>,                  <span class="cc">-- NULL untuk failed login (user tidak ada)</span>
+  event      <span class="ct">TEXT</span>      <span class="ck">NOT NULL</span>,  <span class="cc">-- 'login_success', 'login_failed', 'logout', 'token_refresh', 'otp_sent'</span>
+  ip_address <span class="ct">INET</span>,
+  user_agent <span class="ct">TEXT</span>,
+  request_id <span class="ct">TEXT</span>,
+  metadata   <span class="ct">JSONB</span>,               <span class="cc">-- data tambahan per event (jangan simpan password/token)</span>
+  created_at <span class="ct">TIMESTAMPTZ</span> <span class="ck">NOT NULL DEFAULT</span> now()
+);
+
+<span class="cc">-- Tidak ada UPDATE atau DELETE — append-only</span>
+<span class="ck">REVOKE</span> UPDATE, DELETE <span class="ck">ON</span> auth.audit_log <span class="ck">FROM</span> rejki;</pre>
+      </div>
+    </section>
+
+    <!-- PHASE 3: ENCRYPTION AT REST -->
+    <section id="encryption-rest">
+      <h2 class="sec-title"><span class="sec-icon ic-y">🔒</span>Enkripsi at Rest (Phase 3)</h2>
+
+      <p style="color:var(--muted);font-size:.85rem;margin-bottom:1rem;">Kolom yang berisi data sangat sensitif dienkripsi sebelum disimpan ke DB, bahkan jika DB breach sekalipun data tidak terbaca tanpa encryption key.</p>
+
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Kolom</th><th>Service</th><th>Alasan Dienkripsi</th></tr></thead>
+          <tbody>
+            <tr><td><code>nomor_identitas</code> (NIK/KTP)</td><td>user-service</td><td>Data pribadi sensitif — wajib dilindungi regulasi PDP Indonesia</td></tr>
+            <tr><td><code>nomor_hp</code></td><td>user-service</td><td>Potensi disalahgunakan untuk spam/phishing jika bocor</td></tr>
+            <tr><td><code>rekening_bank</code></td><td>user-service</td><td>Data finansial</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="code">
+        <pre><span class="cc">// Algoritma: AES-256-GCM (authenticated encryption)</span>
+<span class="cc">// Key: baca dari environment variable, panjang 32 byte</span>
+<span class="cc">// Nonce: 12 byte random per enkripsi (simpan bersama ciphertext)</span>
+<span class="cc">// Format di DB: base64(nonce || ciphertext || tag)</span>
+
+<span class="cc">// Crate: aes-gcm = "0.10"</span>
+<span class="ck">use</span> aes_gcm::{<span class="ct">Aes256Gcm</span>, <span class="ct">Key</span>, <span class="ct">Nonce</span>};
+
+<span class="ck">fn</span> <span class="cfn">encrypt_field</span>(plaintext: &amp;<span class="ct">str</span>, key: &amp;<span class="ct">Key</span>&lt;<span class="ct">Aes256Gcm</span>&gt;) -&gt; <span class="ct">String</span> {
+  <span class="ck">let</span> nonce = <span class="ct">Nonce</span>::<span class="cfn">from</span>(<span class="cfn">rand_nonce</span>()); <span class="cc">// 12 random bytes</span>
+  <span class="ck">let</span> ciphertext = cipher.<span class="cfn">encrypt</span>(&amp;nonce, plaintext.<span class="cfn">as_bytes</span>());
+  <span class="cfn">base64</span>(nonce + ciphertext)
+}</pre>
+      </div>
+    </section>
+
+    <!-- PHASE 3: TLS -->
+    <section id="tls">
+      <h2 class="sec-title"><span class="sec-icon ic-y">🔗</span>TLS &amp; HSTS (Phase 3)</h2>
+
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Komponen</th><th>Konfigurasi</th></tr></thead>
+          <tbody>
+            <tr><td>TLS</td><td>Cloudflare Tunnel handle TLS termination — backend Rust tidak perlu manage sertifikat. TLS 1.2 minimum, TLS 1.3 preferred.</td></tr>
+            <tr><td>HSTS</td><td><code>Strict-Transport-Security: max-age=31536000; includeSubDomains; preload</code> — tambahkan di nginx setelah HTTPS production stabil minimal 1 bulan.</td></tr>
+            <tr><td>HTTP → HTTPS redirect</td><td>Cloudflare handle otomatis. Nginx backend tidak perlu redirect (sudah behind tunnel).</td></tr>
+            <tr><td>Certificate</td><td>Cloudflare managed — otomatis renew. Tidak perlu Let's Encrypt manual.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- CHECKLIST -->
+    <section id="checklist">
+      <h2 class="sec-title"><span class="sec-icon ic-g">✅</span>Checklist Security</h2>
+
+      <div class="sub-title">Phase 1 — Sudah Selesai</div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Item</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr><td>JWT RS256 issue + validate, TTL 15 menit</td><td><span class="ph-tag ph-done">✓ Selesai</span></td></tr>
+            <tr><td>Refresh token rotation + SHA-256 hash di DB</td><td><span class="ph-tag ph-done">✓ Selesai</span></td></tr>
+            <tr><td>bcrypt password hashing</td><td><span class="ph-tag ph-done">✓ Selesai</span></td></tr>
+            <tr><td>OTP SHA-256 hash + atomic consume (DELETE)</td><td><span class="ph-tag ph-done">✓ Selesai</span></td></tr>
+            <tr><td>100% parameterized query via sqlx</td><td><span class="ph-tag ph-done">✓ Selesai</span></td></tr>
+            <tr><td>.gitignore untuk .env, keys/, *.pem</td><td><span class="ph-tag ph-done">✓ Selesai</span></td></tr>
+            <tr><td>Mass assignment prevention via eksplisit DTO</td><td><span class="ph-tag ph-done">✓ Selesai</span></td></tr>
+            <tr><td>Private key tidak pernah keluar dari auth-service</td><td><span class="ph-tag ph-done">✓ Selesai</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sub-title">Phase 1.5 — Harus Selesai Sebelum Phase 2</div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Item</th><th>Lokasi</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr><td>Dokumentasi secret management policy</td><td>Dokumen ini</td><td><span class="ph-tag ph-15">Pending</span></td></tr>
+            <tr><td>HTML stripping untuk field teks bebas (<code>ammonia</code> crate)</td><td><code>common/errors</code> atau per-service</td><td><span class="ph-tag ph-15">Pending</span></td></tr>
+            <tr><td>IDOR check pattern di semua handler yang modify resource</td><td>Semua <code>interface/handlers.rs</code></td><td><span class="ph-tag ph-15">Pending</span></td></tr>
+            <tr><td>Password field tidak di-log (<code>#[debug(skip)]</code>)</td><td><code>auth-service</code> DTO</td><td><span class="ph-tag ph-15">Pending</span></td></tr>
+            <tr><td>Security response headers di nginx config</td><td><code>nginx.dev.conf</code></td><td><span class="ph-tag ph-15">Pending</span></td></tr>
+            <tr><td>File upload: magic bytes verification + mime whitelist</td><td>Upload handler (Phase 2)</td><td><span class="ph-tag ph-15">Pending (saat Phase 2)</span></td></tr>
+            <tr><td>Server-generated filename untuk upload</td><td>Upload handler (Phase 2)</td><td><span class="ph-tag ph-15">Pending (saat Phase 2)</span></td></tr>
+            <tr><td><code>AppError::Internal</code> tidak bocorkan detail ke client</td><td><code>common/errors/src/lib.rs</code></td><td><span class="ph-tag ph-15">Pending</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sub-title">Phase 3 — Hardening</div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Item</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr><td>Rate limiting per-endpoint (tower-governor)</td><td><span class="ph-tag ph-3">Phase 3</span></td></tr>
+            <tr><td>OTP brute force protection (max 5 attempt)</td><td><span class="ph-tag ph-3">Phase 3</span></td></tr>
+            <tr><td>CORS production policy (whitelist origin)</td><td><span class="ph-tag ph-3">Phase 3</span></td></tr>
+            <tr><td>HSTS header di nginx production</td><td><span class="ph-tag ph-3">Phase 3</span></td></tr>
+            <tr><td>Audit log tabel append-only</td><td><span class="ph-tag ph-3">Phase 3</span></td></tr>
+            <tr><td>Enkripsi at rest kolom sensitif (AES-256-GCM)</td><td><span class="ph-tag ph-3">Phase 3</span></td></tr>
+            <tr><td>Virus scan file upload (ClamAV / cloud)</td><td><span class="ph-tag ph-3">Phase 3</span></td></tr>
+            <tr><td><code>cargo audit</code> di CI/CD pipeline</td><td><span class="ph-tag ph-3">Phase 3</span></td></tr>
+            <tr><td>Dependency license compliance (<code>cargo deny</code>)</td><td><span class="ph-tag ph-3">Phase 3</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <footer>
+      <p>Rejki Backend — Security Baseline · 9 Juni 2026 · Phase 1.5</p>
+      <p style="margin-top:.3rem;">Referensi: OWASP Top 10 2021 · OWASP ASVS Level 2 · PDP Indonesia</p>
+    </footer>
+
+  </main>
+</div>
+</body>
+</html>

@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE iklan_barang_bekas.iklan SET is_sold=true,updated_at=now() WHERE id=$1 AND seller_id=$2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "1bb0257db32f0f9daeb12513bdac7d48aa0d88fcf776c5969e3d2ecfad195e7b"
+}

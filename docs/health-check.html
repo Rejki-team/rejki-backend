@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rejki Backend — Health Check & Graceful Shutdown</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0d1117; --surf: #161b22; --surf2: #1c2230; --border: #30363d;
+      --text: #e6edf3; --muted: #8b949e; --tag: #21262d;
+      --green: #56d364; --blue: #79c0ff; --orange: #f78166;
+      --yellow: #e3b341; --purple: #bc8cff; --cyan: #56b6d4; --r: 10px;
+    }
+    html { scroll-behavior: smooth; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; font-size: 15px; }
+    .layout { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
+    @media (max-width: 840px) { .layout { grid-template-columns: 1fr; } .nav { display: none; } }
+    .nav { position: sticky; top: 0; height: 100vh; overflow-y: auto; background: var(--surf); border-right: 1px solid var(--border); padding: 1.75rem 1rem; }
+    .nav-logo { font-size: 1.1rem; font-weight: 800; color: var(--orange); margin-bottom: 1.75rem; }
+    .nav-logo span { color: var(--text); }
+    .nav-group { margin-bottom: 1.5rem; }
+    .nav-group-label { font-size: .67rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: .4rem; }
+    .nav-link { display: block; padding: .32rem .6rem; border-radius: 6px; font-size: .85rem; color: var(--muted); text-decoration: none; transition: background .12s, color .12s; }
+    .nav-link:hover { background: var(--tag); color: var(--text); }
+    .nav-link.accent { color: var(--green); }
+    .nav-link.back { color: var(--blue); font-size: .8rem; }
+    main { max-width: 920px; margin: 0 auto; padding: 3rem 2rem 6rem; }
+    .hero { border-bottom: 1px solid var(--border); margin-bottom: 3rem; padding-bottom: 2.5rem; }
+    .eyebrow { display: inline-block; font-size: .73rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--green); background: rgba(86,211,100,.07); border: 1px solid rgba(86,211,100,.25); border-radius: 20px; padding: .22rem .75rem; margin-bottom: .9rem; }
+    .hero h1 { font-size: clamp(1.7rem,4vw,2.5rem); font-weight: 800; line-height: 1.15; letter-spacing: -.4px; margin-bottom: .9rem; }
+    .hero h1 em { font-style: normal; color: var(--green); }
+    .hero p { color: var(--muted); font-size: 1rem; max-width: 680px; line-height: 1.75; }
+    .badges { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: 1.2rem; }
+    .badge { font-size: .76rem; font-weight: 600; padding: .25rem .75rem; border-radius: 20px; border: 1px solid; }
+    .b-g  { color: var(--green);  border-color: rgba(86,211,100,.4); background: rgba(86,211,100,.06); }
+    .b-ph { color: var(--purple); border-color: rgba(188,140,255,.4); background: rgba(188,140,255,.06); }
+    section { margin-bottom: 3.5rem; }
+    .sec-title { display: flex; align-items: center; gap: .6rem; font-size: 1.2rem; font-weight: 700; margin-bottom: 1.25rem; padding-bottom: .55rem; border-bottom: 1px solid var(--border); }
+    .sec-icon { width: 30px; height: 30px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: .95rem; flex-shrink: 0; }
+    .ic-g { background: rgba(86,211,100,.1); } .ic-b { background: rgba(121,192,255,.1); }
+    .ic-o { background: rgba(247,129,102,.1); } .ic-y { background: rgba(227,179,65,.1); }
+    .sub-title { font-size: .95rem; font-weight: 700; margin: 1.6rem 0 .65rem; display: flex; align-items: center; gap: .5rem; }
+    .sub-title::before { content: ''; display: inline-block; width: 3px; height: 14px; background: var(--green); border-radius: 2px; }
+    .tbl { width: 100%; border-collapse: collapse; font-size: .84rem; background: var(--surf); border: 1px solid var(--border); border-radius: var(--r); overflow: hidden; }
+    .tbl th { background: var(--surf2); padding: .6rem 1rem; text-align: left; font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+    .tbl td { padding: .65rem 1rem; border-bottom: 1px solid var(--border); vertical-align: top; line-height: 1.55; }
+    .tbl tr:last-child td { border-bottom: none; }
+    .tbl tr:hover td { background: var(--surf2); }
+    .tbl-wrap { overflow-x: auto; }
+    .code { background: #0d1117; border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.2rem; overflow-x: auto; margin-top: .6rem; }
+    .code pre { font-family: 'Cascadia Code','Fira Code','Consolas',monospace; font-size: .8rem; line-height: 1.75; }
+    .ck { color: #ff7b72; } .cs { color: #a5d6ff; } .cc { color: #6e7681; }
+    .ct { color: #ffa657; } .cfn { color: #d2a8ff; } .cv { color: #56d364; }
+    .callout { border-radius: var(--r); padding: .85rem 1.1rem; margin-top: .9rem; font-size: .86rem; display: flex; gap: .65rem; line-height: 1.65; }
+    .callout-icon { flex-shrink: 0; font-size: 1rem; margin-top: 2px; }
+    .callout p { color: var(--muted); } .callout strong { color: var(--text); display: block; margin-bottom: .15rem; }
+    .c-info { background: rgba(121,192,255,.06); border: 1px solid rgba(121,192,255,.22); }
+    .c-warn { background: rgba(227,179,65,.06);  border: 1px solid rgba(227,179,65,.22); }
+    .c-ok   { background: rgba(86,211,100,.06);  border: 1px solid rgba(86,211,100,.22); }
+    code { font-family: 'Cascadia Code','Fira Code','Consolas',monospace; font-size: .8rem; background: var(--tag); border: 1px solid var(--border); border-radius: 4px; padding: .05rem .4rem; color: var(--blue); }
+    footer { margin-top: 4rem; padding-top: 1.25rem; border-top: 1px solid var(--border); font-size: .78rem; color: var(--muted); }
+  </style>
+</head>
+<body>
+<div class="layout">
+  <nav class="nav">
+    <div class="nav-logo">rejki<span>-backend</span></div>
+    <div class="nav-group">
+      <div class="nav-group-label">Navigasi</div>
+      <a class="nav-link back" href="index.html">← Architecture Overview</a>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-label">Isi Dokumen</div>
+      <a class="nav-link" href="#health">Health Check Endpoint</a>
+      <a class="nav-link" href="#response">Format Response</a>
+      <a class="nav-link" href="#shutdown">Graceful Shutdown</a>
+      <a class="nav-link" href="#urutan">Urutan Shutdown</a>
+      <a class="nav-link" href="#impl">Implementasi Rust</a>
+      <a class="nav-link accent" href="#checklist">Checklist</a>
+    </div>
+  </nav>
+  <main>
+    <div class="hero">
+      <div class="eyebrow">Phase 1.5 — Health Check & Graceful Shutdown</div>
+      <h1>Health Check &amp; <em>Graceful Shutdown</em></h1>
+      <p>Standar endpoint health check, format response, dan prosedur graceful shutdown untuk semua service Rejki Backend agar deployment zero-downtime dan load balancer bisa deteksi service yang tidak sehat.</p>
+      <div class="badges">
+        <span class="badge b-ph">Phase 1.5</span>
+        <span class="badge b-g">All Services</span>
+      </div>
+    </div>
+
+    <section id="health">
+      <h2 class="sec-title"><span class="sec-icon ic-g">🏥</span>Health Check Endpoint</h2>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Aspek</th><th>Standar</th></tr></thead>
+        <tbody>
+          <tr><td>Path</td><td><code>GET /health</code> — tidak menggunakan prefix <code>/api/v1/</code>, tidak memerlukan auth.</td></tr>
+          <tr><td>Akses</td><td>Publik — nginx dan load balancer mengakses langsung tanpa header Authorization.</td></tr>
+          <tr><td>HTTP Status healthy</td><td><code>200 OK</code> — semua dependency up.</td></tr>
+          <tr><td>HTTP Status unhealthy</td><td><code>503 Service Unavailable</code> — minimal satu dependency kritis down.</td></tr>
+          <tr><td>Timeout response</td><td>Maksimum 5 detik. Jika DB check > 5 detik, return 503.</td></tr>
+          <tr><td>Di-log?</td><td>Tidak — health check tidak boleh masuk application log (terlalu noisy). Konfigurasi di nginx: <code>access_log off</code> untuk path <code>/health</code>.</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="response">
+      <h2 class="sec-title"><span class="sec-icon ic-b">📦</span>Format Response</h2>
+
+      <div class="sub-title">Status Healthy (200)</div>
+      <div class="code"><pre>{
+  <span class="cs">"status"</span>:  <span class="cs">"healthy"</span>,
+  <span class="cs">"service"</span>: <span class="cs">"auth-service"</span>,
+  <span class="cs">"version"</span>: <span class="cs">"0.1.0"</span>,             <span class="cc">// dari Cargo.toml</span>
+  <span class="cs">"checks"</span>: {
+    <span class="cs">"database"</span>: <span class="cs">"ok"</span>
+  }
+}</pre></div>
+
+      <div class="sub-title">Status Unhealthy (503)</div>
+      <div class="code"><pre>{
+  <span class="cs">"status"</span>:  <span class="cs">"unhealthy"</span>,
+  <span class="cs">"service"</span>: <span class="cs">"auth-service"</span>,
+  <span class="cs">"version"</span>: <span class="cs">"0.1.0"</span>,
+  <span class="cs">"checks"</span>: {
+    <span class="cs">"database"</span>: <span class="cs">"error: connection refused"</span>   <span class="cc">// pesan singkat, tidak detail stack trace</span>
+  }
+}</pre></div>
+
+      <div class="tbl-wrap" style="margin-top:.8rem;"><table class="tbl">
+        <thead><tr><th>Field <code>checks</code></th><th>Keterangan</th></tr></thead>
+        <tbody>
+          <tr><td><code>"database": "ok"</code></td><td>Wajib ada di semua service. Lakukan <code>SELECT 1</code> dengan timeout 3 detik.</td></tr>
+        </tbody>
+      </table></div>
+
+      <div class="callout c-warn">
+        <span class="callout-icon">⚠️</span>
+        <div>
+          <strong>Jangan bocorkan detail error di response health check</strong>
+          <p>Pesan error di field <code>checks</code> hanya boleh berupa deskripsi singkat: <code>"connection refused"</code>, <code>"timeout"</code>. Tidak boleh ada stack trace, query SQL, atau informasi internal lainnya — endpoint ini publik.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="shutdown">
+      <h2 class="sec-title"><span class="sec-icon ic-o">🛑</span>Graceful Shutdown</h2>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Aturan</th><th>Detail</th></tr></thead>
+        <tbody>
+          <tr><td>Signal yang ditangani</td><td><code>SIGTERM</code> — signal default dari Docker/systemd saat stop container. Juga tangani <code>Ctrl+C</code> (<code>SIGINT</code>) untuk development.</td></tr>
+          <tr><td>Drain timeout</td><td>Maksimum 30 detik untuk request yang sedang berjalan selesai. Setelah 30 detik, shutdown paksa.</td></tr>
+          <tr><td>Health endpoint saat shutdown</td><td>Setelah menerima SIGTERM, <code>GET /health</code> langsung return 503. Ini memberi tahu load balancer untuk berhenti kirim traffic baru.</td></tr>
+          <tr><td>New request saat shutdown</td><td>Ditolak dengan 503. Request yang sudah diterima sebelum SIGTERM tetap diselesaikan.</td></tr>
+          <tr><td>Log shutdown</td><td>Log event: <code>INFO</code> "received SIGTERM, starting graceful shutdown" dan <code>INFO</code> "shutdown complete".</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="urutan">
+      <h2 class="sec-title"><span class="sec-icon ic-y">📋</span>Urutan Shutdown</h2>
+      <div class="code"><pre><span class="cc">Urutan shutdown yang benar (penting — jangan dibalik):</span>
+
+1. Terima SIGTERM
+2. Set flag "shutting down" → /health langsung return 503
+3. Stop terima koneksi baru (close listener)
+4. Tunggu semua in-flight request selesai (max 30 detik)
+5. Tutup WebSocket connection aktif dengan close code 1012 (Service Restart)
+6. Flush log buffer yang pending
+7. Tutup DB connection pool (semua koneksi dikembalikan ke pool dulu)
+8. Exit process dengan code 0</pre></div>
+
+      <div class="callout c-info">
+        <span class="callout-icon">ℹ️</span>
+        <div>
+          <strong>Kenapa DB pool ditutup terakhir?</strong>
+          <p>Request yang sedang berjalan di langkah 4 mungkin masih butuh akses DB untuk menyelesaikan transaksi. Jika pool ditutup lebih awal, request tersebut akan error di tengah jalan dan data bisa setengah tersimpan.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="impl">
+      <h2 class="sec-title"><span class="sec-icon ic-b">⚙️</span>Implementasi Rust</h2>
+      <div class="code"><pre><span class="cc">// rejki-app/src/main.rs</span>
+<span class="ck">use</span> std::sync::atomic::{<span class="ct">AtomicBool</span>, <span class="ct">Ordering</span>};
+<span class="ck">use</span> std::sync::Arc;
+<span class="ck">use</span> tokio::signal;
+
+<span class="cc">// Handler health check — sederhana, tidak perlu Arc<AppState></span>
+<span class="ck">async fn</span> <span class="cfn">health_handler</span>(
+  <span class="ct">State</span>(pool): <span class="ct">State</span>&lt;<span class="ct">PgPool</span>&gt;,
+  <span class="ct">State</span>(shutting_down): <span class="ct">State</span>&lt;Arc&lt;<span class="ct">AtomicBool</span>&gt;&gt;,
+) -&gt; impl <span class="ct">IntoResponse</span> {
+  <span class="ck">if</span> shutting_down.<span class="cfn">load</span>(<span class="ct">Ordering</span>::<span class="cv">SeqCst</span>) {
+    <span class="ck">return</span> (<span class="ct">StatusCode</span>::<span class="cv">SERVICE_UNAVAILABLE</span>,
+      <span class="cfn">Json</span>(<span class="cfn">json!</span>({ <span class="cs">"status"</span>: <span class="cs">"unhealthy"</span>, <span class="cs">"checks"</span>: { <span class="cs">"database"</span>: <span class="cs">"shutting down"</span> } }))
+    ).<span class="cfn">into_response</span>();
+  }
+  <span class="ck">let</span> db_status = <span class="ck">match</span> sqlx::<span class="cfn">query</span>(<span class="cs">"SELECT 1"</span>).<span class="cfn">execute</span>(&amp;pool).<span class="cfn">await</span> {
+    <span class="ct">Ok</span>(_)  => <span class="cfn">json!</span>({ <span class="cs">"database"</span>: <span class="cs">"ok"</span> }),
+    <span class="ct">Err</span>(e) => <span class="cfn">json!</span>({ <span class="cs">"database"</span>: <span class="cfn">format!</span>(<span class="cs">"error: {}"</span>, e) }),
+  };
+  <span class="ck">let</span> is_healthy = db_status[<span class="cs">"database"</span>] == <span class="cs">"ok"</span>;
+  <span class="ck">let</span> status = <span class="ck">if</span> is_healthy { <span class="ct">StatusCode</span>::<span class="cv">OK</span> } <span class="ck">else</span> { <span class="ct">StatusCode</span>::<span class="cv">SERVICE_UNAVAILABLE</span> };
+  (status, <span class="cfn">Json</span>(<span class="cfn">json!</span>({
+    <span class="cs">"status"</span>:  <span class="ck">if</span> is_healthy { <span class="cs">"healthy"</span> } <span class="ck">else</span> { <span class="cs">"unhealthy"</span> },
+    <span class="cs">"service"</span>: <span class="cs">"rejki-app"</span>,
+    <span class="cs">"version"</span>: <span class="cfn">env!</span>(<span class="cs">"CARGO_PKG_VERSION"</span>),
+    <span class="cs">"checks"</span>:  db_status,
+  }))).<span class="cfn">into_response</span>()
+}
+
+<span class="cc">// Graceful shutdown di main()</span>
+<span class="ck">let</span> shutdown_flag = Arc::new(<span class="ct">AtomicBool</span>::<span class="cfn">new</span>(<span class="cv">false</span>));
+<span class="ck">let</span> flag_clone = shutdown_flag.<span class="cfn">clone</span>();
+
+<span class="ck">let</span> server = axum::<span class="cfn">serve</span>(listener, app)
+  .<span class="cfn">with_graceful_shutdown</span>(<span class="ck">async move</span> {
+    signal::ctrl_c().<span class="cfn">await</span>.<span class="cfn">ok</span>();           <span class="cc">// Ctrl+C (SIGINT)</span>
+    <span class="cc">// Untuk SIGTERM di production:</span>
+    <span class="cc">// signal::unix::signal(signal::unix::SignalKind::terminate())...</span>
+    flag_clone.<span class="cfn">store</span>(<span class="cv">true</span>, <span class="ct">Ordering</span>::<span class="cv">SeqCst</span>);
+    tracing::<span class="cfn">info!</span>(<span class="cs">"received shutdown signal, starting graceful shutdown"</span>);
+  });
+
+server.<span class="cfn">await</span>.<span class="cfn">expect</span>(<span class="cs">"server error"</span>);
+tracing::<span class="cfn">info!</span>(<span class="cs">"shutdown complete"</span>);
+pool.<span class="cfn">close</span>().<span class="cfn">await</span>;    <span class="cc">// tutup DB pool SETELAH server selesai</span></pre></div>
+    </section>
+
+    <section id="checklist">
+      <h2 class="sec-title"><span class="sec-icon ic-g">✅</span>Checklist</h2>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Item</th><th>Lokasi</th></tr></thead>
+        <tbody>
+          <tr><td>Endpoint <code>GET /health</code> tanpa auth, cek DB dengan <code>SELECT 1</code>, timeout 5 detik</td><td><code>rejki-app/src/main.rs</code> atau <code>common/health/</code></td></tr>
+          <tr><td>Response <code>/health</code>: <code>{ status, service, version, checks }</code> — 200 healthy, 503 unhealthy</td><td><code>rejki-app/src/main.rs</code></td></tr>
+          <tr><td>nginx dikonfigurasi untuk tidak log request ke <code>/health</code></td><td><code>nginx.dev.conf</code>, <code>nginx.prod.conf</code></td></tr>
+          <tr><td>Graceful shutdown: tangani SIGTERM, set flag shutting_down, drain 30 detik, tutup pool</td><td><code>rejki-app/src/main.rs</code></td></tr>
+          <tr><td><code>/health</code> return 503 segera setelah menerima SIGTERM (sebelum request selesai)</td><td><code>rejki-app/src/main.rs</code></td></tr>
+          <tr><td>DB pool ditutup (<code>pool.close().await</code>) SETELAH server selesai drain semua request</td><td><code>rejki-app/src/main.rs</code></td></tr>
+          <tr><td>Log event shutdown: "received shutdown signal" dan "shutdown complete"</td><td><code>rejki-app/src/main.rs</code></td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <footer>
+      <p>Rejki Backend — Health Check &amp; Graceful Shutdown · 9 Juni 2026 · Phase 1.5</p>
+      <p style="margin-top:.3rem;">Stack: Rust · Axum · tokio::signal</p>
+    </footer>
+  </main>
+</div>
+</body>
+</html>

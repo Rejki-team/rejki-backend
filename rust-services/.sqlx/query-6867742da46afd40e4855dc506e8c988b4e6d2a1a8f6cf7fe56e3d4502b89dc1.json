@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE auth.otp_verifications\n             SET attempts = attempts + 1\n             WHERE user_id = $1 AND purpose = $2\n             RETURNING attempts",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "attempts",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "auth.otp_verifications",
+            "name": "attempts"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "6867742da46afd40e4855dc506e8c988b4e6d2a1a8f6cf7fe56e3d4502b89dc1"
+}

@@ -1,0 +1,136 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, profile_id, status, ktp_object_key, selfie_object_key,\n                    reviewed_by, review_note, reviewed_at, created_at, updated_at\n             FROM user_svc.kyc_submission\n             WHERE profile_id = $1\n             ORDER BY created_at DESC LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "user_svc.kyc_submission",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "profile_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "user_svc.kyc_submission",
+            "name": "profile_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "status",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "user_svc.kyc_submission",
+            "name": "status"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "ktp_object_key",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "user_svc.kyc_submission",
+            "name": "ktp_object_key"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "selfie_object_key",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "user_svc.kyc_submission",
+            "name": "selfie_object_key"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "reviewed_by",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "user_svc.kyc_submission",
+            "name": "reviewed_by"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "review_note",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "user_svc.kyc_submission",
+            "name": "review_note"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "reviewed_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "user_svc.kyc_submission",
+            "name": "reviewed_at"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "user_svc.kyc_submission",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "updated_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "user_svc.kyc_submission",
+            "name": "updated_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "7bb0ba46ce87aa54e7ba55ee499df8c2b7b816aa47c129e919997b1e6a710bc8"
+}

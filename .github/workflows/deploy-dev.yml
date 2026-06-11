@@ -1,0 +1,49 @@
+name: Deploy to Dev
+
+on:
+  push:
+    branches: [develop]
+  # Trigger manual dari GitHub UI
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: true   # dev: cancel yang lama, pakai yang baru
+
+jobs:
+  deploy-dev:
+    name: Deploy to VPS (dev)
+    runs-on: ubuntu-latest
+    environment: development
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy dev via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host:     ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key:      ${{ secrets.VPS_SSH_KEY }}
+          port:     ${{ secrets.VPS_PORT || 22 }}
+          script: |
+            set -e
+
+            cd /opt/rejki/dev
+
+            echo "==> Pull latest develop"
+            git pull origin develop
+
+            echo "==> Build rejki-app image (dev)"
+            docker compose -p rejki-dev build rejki-app
+
+            echo "==> Restart services (dev)"
+            docker compose -p rejki-dev up -d
+
+            echo "==> Wait for health check"
+            sleep 10
+            docker compose -p rejki-dev ps
+
+            echo "==> Verify /health (dev nginx port 8080)"
+            curl -sf http://localhost:8080/health || (echo "Dev health check failed!" && exit 1)
+
+            echo "==> Dev deploy complete"

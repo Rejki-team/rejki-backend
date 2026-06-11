@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rejki Backend — Database Convention</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0d1117; --surf: #161b22; --surf2: #1c2230; --border: #30363d;
+      --text: #e6edf3; --muted: #8b949e; --tag: #21262d;
+      --green: #56d364; --blue: #79c0ff; --orange: #f78166;
+      --yellow: #e3b341; --purple: #bc8cff; --cyan: #56b6d4; --r: 10px;
+    }
+    html { scroll-behavior: smooth; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; font-size: 15px; }
+    .layout { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
+    @media (max-width: 840px) { .layout { grid-template-columns: 1fr; } .nav { display: none; } }
+    .nav { position: sticky; top: 0; height: 100vh; overflow-y: auto; background: var(--surf); border-right: 1px solid var(--border); padding: 1.75rem 1rem; }
+    .nav-logo { font-size: 1.1rem; font-weight: 800; color: var(--orange); margin-bottom: 1.75rem; }
+    .nav-logo span { color: var(--text); }
+    .nav-group { margin-bottom: 1.5rem; }
+    .nav-group-label { font-size: .67rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: .4rem; }
+    .nav-link { display: block; padding: .32rem .6rem; border-radius: 6px; font-size: .85rem; color: var(--muted); text-decoration: none; transition: background .12s, color .12s; }
+    .nav-link:hover { background: var(--tag); color: var(--text); }
+    .nav-link.accent { color: var(--green); }
+    .nav-link.back { color: var(--blue); font-size: .8rem; }
+    main { max-width: 920px; margin: 0 auto; padding: 3rem 2rem 6rem; }
+    @media (max-width: 600px) { main { padding: 2rem 1rem 4rem; } }
+    .hero { border-bottom: 1px solid var(--border); margin-bottom: 3rem; padding-bottom: 2.5rem; }
+    .eyebrow { display: inline-block; font-size: .73rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--green); background: rgba(86,211,100,.07); border: 1px solid rgba(86,211,100,.25); border-radius: 20px; padding: .22rem .75rem; margin-bottom: .9rem; }
+    .hero h1 { font-size: clamp(1.7rem,4vw,2.5rem); font-weight: 800; line-height: 1.15; letter-spacing: -.4px; margin-bottom: .9rem; }
+    .hero h1 em { font-style: normal; color: var(--green); }
+    .hero p { color: var(--muted); font-size: 1rem; max-width: 680px; line-height: 1.75; }
+    .badges { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: 1.2rem; }
+    .badge { font-size: .76rem; font-weight: 600; padding: .25rem .75rem; border-radius: 20px; border: 1px solid; }
+    .b-g  { color: var(--green);  border-color: rgba(86,211,100,.4); background: rgba(86,211,100,.06); }
+    .b-ph { color: var(--purple); border-color: rgba(188,140,255,.4); background: rgba(188,140,255,.06); }
+    section { margin-bottom: 3.5rem; }
+    .sec-title { display: flex; align-items: center; gap: .6rem; font-size: 1.2rem; font-weight: 700; margin-bottom: 1.25rem; padding-bottom: .55rem; border-bottom: 1px solid var(--border); }
+    .sec-icon { width: 30px; height: 30px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: .95rem; flex-shrink: 0; }
+    .ic-g { background: rgba(86,211,100,.1); } .ic-b { background: rgba(121,192,255,.1); }
+    .ic-o { background: rgba(247,129,102,.1); } .ic-y { background: rgba(227,179,65,.1); }
+    .ic-c { background: rgba(86,182,212,.1); }
+    .sub-title { font-size: .95rem; font-weight: 700; margin: 1.6rem 0 .65rem; display: flex; align-items: center; gap: .5rem; }
+    .sub-title::before { content: ''; display: inline-block; width: 3px; height: 14px; background: var(--green); border-radius: 2px; }
+    .tbl { width: 100%; border-collapse: collapse; font-size: .84rem; background: var(--surf); border: 1px solid var(--border); border-radius: var(--r); overflow: hidden; }
+    .tbl th { background: var(--surf2); padding: .6rem 1rem; text-align: left; font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+    .tbl td { padding: .65rem 1rem; border-bottom: 1px solid var(--border); vertical-align: top; line-height: 1.55; }
+    .tbl tr:last-child td { border-bottom: none; }
+    .tbl tr:hover td { background: var(--surf2); }
+    .tbl-wrap { overflow-x: auto; }
+    .code { background: #0d1117; border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.2rem; overflow-x: auto; margin-top: .6rem; }
+    .code pre { font-family: 'Cascadia Code','Fira Code','Consolas',monospace; font-size: .8rem; line-height: 1.75; }
+    .ck { color: #ff7b72; } .cs { color: #a5d6ff; } .cc { color: #6e7681; }
+    .ct { color: #ffa657; } .cfn { color: #d2a8ff; } .cv { color: #56d364; }
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; margin-top: .6rem; }
+    @media (max-width: 680px) { .two-col { grid-template-columns: 1fr; } }
+    .col-label { font-size: .68rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: .35rem; }
+    .callout { border-radius: var(--r); padding: .85rem 1.1rem; margin-top: .9rem; font-size: .86rem; display: flex; gap: .65rem; line-height: 1.65; }
+    .callout-icon { flex-shrink: 0; font-size: 1rem; margin-top: 2px; }
+    .callout p { color: var(--muted); } .callout strong { color: var(--text); display: block; margin-bottom: .15rem; }
+    .c-info { background: rgba(121,192,255,.06); border: 1px solid rgba(121,192,255,.22); }
+    .c-warn { background: rgba(227,179,65,.06);  border: 1px solid rgba(227,179,65,.22); }
+    .c-ok   { background: rgba(86,211,100,.06);  border: 1px solid rgba(86,211,100,.22); }
+    .c-danger { background: rgba(247,129,102,.06); border: 1px solid rgba(247,129,102,.22); }
+    .dos-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; margin-top: .6rem; }
+    @media (max-width: 680px) { .dos-grid { grid-template-columns: 1fr; } }
+    .do-card { background: rgba(86,211,100,.04); border: 1px solid rgba(86,211,100,.2); border-radius: var(--r); padding: 1rem; }
+    .do-card h4 { color: var(--green); font-size: .82rem; font-weight: 700; margin-bottom: .5rem; }
+    .dont-card { background: rgba(247,129,102,.04); border: 1px solid rgba(247,129,102,.2); border-radius: var(--r); padding: 1rem; }
+    .dont-card h4 { color: var(--orange); font-size: .82rem; font-weight: 700; margin-bottom: .5rem; }
+    .do-card pre, .dont-card pre { font-family: 'Cascadia Code','Fira Code',monospace; font-size: .76rem; line-height: 1.7; color: var(--muted); }
+    code { font-family: 'Cascadia Code','Fira Code','Consolas',monospace; font-size: .8rem; background: var(--tag); border: 1px solid var(--border); border-radius: 4px; padding: .05rem .4rem; color: var(--blue); }
+    footer { margin-top: 4rem; padding-top: 1.25rem; border-top: 1px solid var(--border); font-size: .78rem; color: var(--muted); }
+  </style>
+</head>
+<body>
+<div class="layout">
+  <nav class="nav">
+    <div class="nav-logo">rejki<span>-backend</span></div>
+    <div class="nav-group">
+      <div class="nav-group-label">Navigasi</div>
+      <a class="nav-link back" href="index.html">← Architecture Overview</a>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-label">Isi Dokumen</div>
+      <a class="nav-link" href="#prinsip">Prinsip</a>
+      <a class="nav-link" href="#naming">Naming Convention</a>
+      <a class="nav-link" href="#schema">Schema Service</a>
+      <a class="nav-link" href="#kolom">Kolom Mandatory</a>
+      <a class="nav-link" href="#softdelete">Soft Delete</a>
+      <a class="nav-link" href="#index">Index Strategy</a>
+      <a class="nav-link" href="#migration">Migration Rules</a>
+      <a class="nav-link" href="#impl">Contoh Lengkap</a>
+      <a class="nav-link accent" href="#checklist">Checklist</a>
+    </div>
+  </nav>
+  <main>
+    <div class="hero">
+      <div class="eyebrow">Phase 1.5 — Database Convention</div>
+      <h1>Database <em>Convention</em></h1>
+      <p>Standar penamaan, struktur schema, kolom mandatory, soft delete, strategi index, dan aturan migration untuk semua database PostgreSQL di Rejki Backend.</p>
+      <div class="badges">
+        <span class="badge b-ph">Phase 1.5</span>
+        <span class="badge b-g">PostgreSQL</span>
+        <span class="badge b-g">sqlx</span>
+      </div>
+    </div>
+
+    <section id="prinsip">
+      <h2 class="sec-title"><span class="sec-icon ic-c">🧭</span>Prinsip</h2>
+      <div class="tbl-wrap"><table class="tbl"><tbody>
+        <tr><td><strong>Satu schema per service</strong></td><td>Setiap service memiliki schema PostgreSQL sendiri (<code>auth</code>, <code>user_profile</code>, <code>chat</code>, dll). Tidak ada cross-schema JOIN — komunikasi antar service hanya via API.</td></tr>
+        <tr><td><strong>snake_case seluruhnya</strong></td><td>Nama tabel, kolom, index, constraint, dan fungsi semuanya lowercase snake_case. Tidak ada camelCase atau PascalCase.</td></tr>
+        <tr><td><strong>Kolom wajib ada di setiap tabel</strong></td><td><code>id</code> (UUID), <code>created_at</code>, <code>updated_at</code>. Tabel yang mendukung soft delete tambah <code>deleted_at</code>.</td></tr>
+        <tr><td><strong>Migration tidak destruktif</strong></td><td>Tidak ada <code>DROP COLUMN</code> atau <code>DROP TABLE</code> dalam satu migration yang sama dengan perubahan lain. Lakukan secara bertahap dengan migration terpisah.</td></tr>
+        <tr><td><strong>Tidak ada data logic di DB</strong></td><td>Trigger, stored procedure, dan computed columns dihindari — logika bisnis ada di application layer (Rust).</td></tr>
+      </tbody></table></div>
+    </section>
+
+    <section id="naming">
+      <h2 class="sec-title"><span class="sec-icon ic-y">🏷️</span>Naming Convention</h2>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Objek</th><th>Aturan</th><th>Contoh Benar</th><th>Contoh Salah</th></tr></thead>
+        <tbody>
+          <tr><td>Schema</td><td>Nama service, singular</td><td><code>auth</code>, <code>chat</code>, <code>user_profile</code></td><td><code>Auth</code>, <code>chats</code></td></tr>
+          <tr><td>Tabel</td><td>Noun singular, snake_case</td><td><code>user</code>, <code>refresh_token</code>, <code>job_listing</code></td><td><code>users</code>, <code>JobListing</code>, <code>tbl_user</code></td></tr>
+          <tr><td>Kolom</td><td>snake_case, deskriptif</td><td><code>created_at</code>, <code>phone_number</code>, <code>is_active</code></td><td><code>createdAt</code>, <code>phone</code>, <code>active</code></td></tr>
+          <tr><td>Primary Key</td><td>Selalu bernama <code>id</code></td><td><code>id UUID PRIMARY KEY</code></td><td><code>user_id</code>, <code>pk_user</code></td></tr>
+          <tr><td>Foreign Key kolom</td><td><code>{tabel_referensi}_id</code></td><td><code>user_id</code>, <code>job_listing_id</code></td><td><code>user</code>, <code>job</code>, <code>fk_user</code></td></tr>
+          <tr><td>Constraint FK</td><td><code>fk_{tabel}_{kolom}</code></td><td><code>fk_application_user_id</code></td><td><code>FK_user</code>, <code>fk1</code></td></tr>
+          <tr><td>Index</td><td><code>idx_{tabel}_{kolom(s)}</code></td><td><code>idx_user_email</code>, <code>idx_job_city_created</code></td><td><code>index1</code>, <code>user_email_idx</code></td></tr>
+          <tr><td>Unique constraint</td><td><code>uq_{tabel}_{kolom(s)}</code></td><td><code>uq_user_email</code></td><td><code>unique_email</code></td></tr>
+          <tr><td>Boolean kolom</td><td>Awalan <code>is_</code> atau <code>has_</code></td><td><code>is_active</code>, <code>has_verified_email</code></td><td><code>active</code>, <code>verified</code></td></tr>
+          <tr><td>Timestamp kolom</td><td>Akhiran <code>_at</code></td><td><code>created_at</code>, <code>deleted_at</code></td><td><code>created</code>, <code>delete_time</code></td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="schema">
+      <h2 class="sec-title"><span class="sec-icon ic-b">🗂️</span>Schema per Service</h2>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Service</th><th>Schema PostgreSQL</th><th>Database</th></tr></thead>
+        <tbody>
+          <tr><td>auth-service</td><td><code>auth</code></td><td><code>rejki_auth</code></td></tr>
+          <tr><td>user-service</td><td><code>user_profile</code></td><td><code>rejki_user</code></td></tr>
+          <tr><td>chat-service</td><td><code>chat</code></td><td><code>rejki_chat</code></td></tr>
+          <tr><td>notification-service</td><td><code>notification</code></td><td><code>rejki_notification</code></td></tr>
+          <tr><td>iklan-pekerjaan-service</td><td><code>job</code></td><td><code>rejki_job</code></td></tr>
+          <tr><td>iklan-pekerja-service</td><td><code>worker</code></td><td><code>rejki_worker</code></td></tr>
+          <tr><td>iklan-pelatihan-service</td><td><code>training</code></td><td><code>rejki_training</code></td></tr>
+          <tr><td>iklan-barang-bekas-service</td><td><code>secondhand</code></td><td><code>rejki_secondhand</code></td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="kolom">
+      <h2 class="sec-title"><span class="sec-icon ic-c">📋</span>Kolom Mandatory</h2>
+      <p style="color:var(--muted);font-size:.85rem;margin-bottom:.8rem;">Setiap tabel wajib memiliki kolom berikut — tidak ada pengecualian.</p>
+      <div class="code"><pre><span class="cc">-- Kolom mandatory untuk SETIAP tabel</span>
+id         <span class="ct">UUID</span>        <span class="ck">NOT NULL</span> <span class="ck">DEFAULT</span> <span class="cfn">gen_random_uuid</span>() <span class="ck">PRIMARY KEY</span>,
+created_at <span class="ct">TIMESTAMPTZ</span> <span class="ck">NOT NULL</span> <span class="ck">DEFAULT</span> <span class="cfn">now</span>(),
+updated_at <span class="ct">TIMESTAMPTZ</span> <span class="ck">NOT NULL</span> <span class="ck">DEFAULT</span> <span class="cfn">now</span>()
+
+<span class="cc">-- Tambahan untuk tabel yang mendukung soft delete</span>
+deleted_at <span class="ct">TIMESTAMPTZ</span>     <span class="cc">-- NULL = aktif, NOT NULL = terhapus</span></pre></div>
+
+      <div class="callout c-warn">
+        <span class="callout-icon">⚠️</span>
+        <div>
+          <strong><code>updated_at</code> tidak update otomatis di PostgreSQL</strong>
+          <p>PostgreSQL tidak punya fitur <code>ON UPDATE CURRENT_TIMESTAMP</code> seperti MySQL. Update <code>updated_at</code> wajib dilakukan di query Rust: <code>UPDATE ... SET updated_at = now() WHERE id = $1</code>. Jangan gunakan trigger.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="softdelete">
+      <h2 class="sec-title"><span class="sec-icon ic-o">🗑️</span>Soft Delete</h2>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Tabel</th><th>Soft Delete?</th><th>Alasan</th></tr></thead>
+        <tbody>
+          <tr><td>user, profile</td><td>Ya (<code>deleted_at</code>)</td><td>Data user tidak boleh hilang permanen (PDP, audit)</td></tr>
+          <tr><td>job_listing, worker_listing</td><td>Ya (<code>deleted_at</code>)</td><td>Referensi dari lamaran harus tetap valid</td></tr>
+          <tr><td>message (chat)</td><td>Ya (<code>deleted_at</code>)</td><td>Pesan dihapus tetap tampil sebagai "Pesan dihapus"</td></tr>
+          <tr><td>refresh_token, otp_code</td><td>Tidak — hard delete</td><td>Data expired/used tidak perlu disimpan. Hapus langsung.</td></tr>
+          <tr><td>notification_event (idempotency)</td><td>Tidak — TTL cleanup</td><td>Hapus otomatis setelah 7 hari via scheduled job</td></tr>
+        </tbody>
+      </table></div>
+
+      <div class="sub-title">Pola Query Soft Delete</div>
+      <div class="code"><pre><span class="cc">-- Selalu filter deleted_at di query</span>
+<span class="ck">SELECT</span> * <span class="ck">FROM</span> job.job_listing
+<span class="ck">WHERE</span> id = $1
+  <span class="ck">AND</span> deleted_at <span class="ck">IS NULL</span>;          <span class="cc">-- wajib ada ini</span>
+
+<span class="cc">-- Soft delete: set deleted_at</span>
+<span class="ck">UPDATE</span> job.job_listing
+<span class="ck">SET</span> deleted_at = <span class="cfn">now</span>(), updated_at = <span class="cfn">now</span>()
+<span class="ck">WHERE</span> id = $1
+  <span class="ck">AND</span> owner_id = $2                 <span class="cc">-- IDOR prevention</span>
+  <span class="ck">AND</span> deleted_at <span class="ck">IS NULL</span>;</pre></div>
+    </section>
+
+    <section id="index">
+      <h2 class="sec-title"><span class="sec-icon ic-y">⚡</span>Index Strategy</h2>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Tipe Index</th><th>Kapan Dibuat</th><th>Contoh</th></tr></thead>
+        <tbody>
+          <tr><td>Primary key index</td><td>Otomatis dibuat untuk <code>id UUID PRIMARY KEY</code></td><td>—</td></tr>
+          <tr><td>Foreign key index</td><td>Selalu buat index untuk kolom FK (PostgreSQL tidak buat otomatis)</td><td><code>idx_application_user_id</code> pada kolom <code>user_id</code></td></tr>
+          <tr><td>Query filter index</td><td>Kolom yang sering ada di <code>WHERE</code>: email, status, created_at</td><td><code>idx_user_email</code>, <code>idx_job_status_created</code></td></tr>
+          <tr><td>Partial index</td><td>Filter kolom boolean atau status yang nilainya dominan satu nilai</td><td><code>CREATE INDEX idx_job_active ON job_listing(created_at) WHERE deleted_at IS NULL</code></td></tr>
+          <tr><td>Composite index</td><td>Query dengan dua kondisi yang selalu muncul bersama</td><td><code>idx_job_city_created</code> untuk filter kota + sort created_at</td></tr>
+        </tbody>
+      </table></div>
+
+      <div class="callout c-info">
+        <span class="callout-icon">ℹ️</span>
+        <div>
+          <strong>Urutan kolom di composite index penting</strong>
+          <p>Letakkan kolom dengan selectivity tinggi (filter paling sering) di posisi pertama. Contoh: <code>(status, created_at)</code> lebih baik dari <code>(created_at, status)</code> jika query selalu filter <code>WHERE status = 'active' ORDER BY created_at</code>.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="migration">
+      <h2 class="sec-title"><span class="sec-icon ic-b">🔄</span>Migration Rules</h2>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Aturan</th><th>Detail</th></tr></thead>
+        <tbody>
+          <tr><td>Format nama file</td><td><code>V{nomor}_{timestamp}__{deskripsi}.sql</code> — contoh: <code>V1__create_user_table.sql</code>, <code>V2__add_phone_to_user.sql</code>. Gunakan Flyway atau sqlx-migrate.</td></tr>
+          <tr><td>Satu perubahan per migration</td><td>Jangan gabungkan create table + add index + alter column dalam satu file. Buat file terpisah per perubahan logis.</td></tr>
+          <tr><td>Migration tidak boleh diedit</td><td>Setelah migration di-apply ke staging/prod, file tidak boleh diedit. Buat migration baru untuk perbaikan.</td></tr>
+          <tr><td>Kolom baru — selalu nullable dulu</td><td>Saat menambah kolom ke tabel yang sudah ada data, buat <code>NULLABLE</code> dulu. Isi data, lalu buat migration baru untuk <code>SET NOT NULL</code>.</td></tr>
+          <tr><td>Drop column — 3 langkah</td><td>1) Deploy kode yang tidak menggunakan kolom. 2) Migration: <code>ALTER TABLE DROP COLUMN</code>. 3) Tidak perlu rollback plan jika sudah aman.</td></tr>
+          <tr><td>Tidak ada data mutation di migration</td><td>Migration hanya boleh berisi DDL (<code>CREATE</code>, <code>ALTER</code>, <code>DROP</code>). Data seeding dilakukan di script terpisah, bukan migration file.</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="impl">
+      <h2 class="sec-title"><span class="sec-icon ic-o">📄</span>Contoh Lengkap</h2>
+      <div class="code"><pre><span class="cc">-- Contoh tabel lengkap yang mengikuti konvensi</span>
+<span class="cc">-- File: V1__create_job_listing.sql</span>
+
+<span class="ck">CREATE TABLE</span> job.job_listing (
+  id           <span class="ct">UUID</span>        <span class="ck">NOT NULL</span> <span class="ck">DEFAULT</span> <span class="cfn">gen_random_uuid</span>() <span class="ck">PRIMARY KEY</span>,
+  owner_id     <span class="ct">UUID</span>        <span class="ck">NOT NULL</span>,                      <span class="cc">-- FK ke user-service (via API, bukan FK constraint)</span>
+  title        <span class="ct">TEXT</span>        <span class="ck">NOT NULL</span>,
+  description  <span class="ct">TEXT</span>        <span class="ck">NOT NULL</span>,
+  city         <span class="ct">TEXT</span>        <span class="ck">NOT NULL</span>,
+  salary_min   <span class="ct">BIGINT</span>,                                    <span class="cc">-- nullable: bisa tidak dicantumkan</span>
+  salary_max   <span class="ct">BIGINT</span>,
+  is_active    <span class="ct">BOOLEAN</span>     <span class="ck">NOT NULL</span> <span class="ck">DEFAULT</span> <span class="cv">true</span>,
+  created_at   <span class="ct">TIMESTAMPTZ</span> <span class="ck">NOT NULL</span> <span class="ck">DEFAULT</span> <span class="cfn">now</span>(),
+  updated_at   <span class="ct">TIMESTAMPTZ</span> <span class="ck">NOT NULL</span> <span class="ck">DEFAULT</span> <span class="cfn">now</span>(),
+  deleted_at   <span class="ct">TIMESTAMPTZ</span>                                <span class="cc">-- soft delete</span>
+);
+
+<span class="cc">-- Index untuk query yang sering: filter aktif, sort terbaru</span>
+<span class="ck">CREATE INDEX</span> idx_job_listing_owner   <span class="ck">ON</span> job.job_listing(owner_id);
+<span class="ck">CREATE INDEX</span> idx_job_listing_city    <span class="ck">ON</span> job.job_listing(city, created_at <span class="ck">DESC</span>);
+<span class="ck">CREATE INDEX</span> idx_job_listing_active  <span class="ck">ON</span> job.job_listing(created_at <span class="ck">DESC</span>)
+  <span class="ck">WHERE</span> deleted_at <span class="ck">IS NULL</span> <span class="ck">AND</span> is_active = <span class="cv">true</span>;    <span class="cc">-- partial index</span></pre></div>
+
+      <div class="sub-title">Do vs Don't</div>
+      <div class="dos-grid">
+        <div class="do-card">
+          <h4>✅ Benar</h4>
+          <pre>-- FK antar service: hanya via API
+-- Tidak ada REFERENCES ke schema lain
+
+-- Kolom boolean
+is_active BOOLEAN NOT NULL DEFAULT true
+
+-- Timestamp kolom
+deleted_at TIMESTAMPTZ  -- nullable
+
+-- Update query
+UPDATE ... SET
+  updated_at = now()
+WHERE id = $1
+  AND owner_id = $2</pre>
+        </div>
+        <div class="dont-card">
+          <h4>❌ Salah</h4>
+          <pre>-- Cross-schema FK
+REFERENCES auth.user(id)
+
+-- Kolom boolean tanpa is_
+active BOOLEAN
+
+-- Trigger untuk updated_at
+CREATE TRIGGER set_updated_at ...
+
+-- Update tanpa owner check
+UPDATE ... SET ...
+WHERE id = $1  -- IDOR vulnerability</pre>
+        </div>
+      </div>
+    </section>
+
+    <section id="checklist">
+      <h2 class="sec-title"><span class="sec-icon ic-g">✅</span>Checklist</h2>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Item</th><th>Diterapkan di</th></tr></thead>
+        <tbody>
+          <tr><td>Setiap tabel punya: <code>id UUID PK</code>, <code>created_at TIMESTAMPTZ</code>, <code>updated_at TIMESTAMPTZ</code></td><td>Semua migration file di semua service</td></tr>
+          <tr><td>Semua nama tabel, kolom, index menggunakan snake_case</td><td>Semua migration file di semua service</td></tr>
+          <tr><td>Tabel dengan referensi dari service lain menggunakan <code>deleted_at</code> (soft delete)</td><td><code>user</code>, <code>job_listing</code>, <code>worker_listing</code>, <code>message</code></td></tr>
+          <tr><td>Index dibuat untuk setiap kolom FK</td><td>Semua migration file</td></tr>
+          <tr><td>Semua query yang bisa terkena soft delete menyertakan <code>AND deleted_at IS NULL</code></td><td>Semua repository file Rust</td></tr>
+          <tr><td>Semua query UPDATE menyertakan <code>updated_at = now()</code> dan <code>AND owner_id = $n</code></td><td>Semua repository file Rust</td></tr>
+          <tr><td>Tidak ada cross-schema REFERENCES (FK) antar service</td><td>Semua migration file</td></tr>
+          <tr><td>Setiap service memiliki schema PostgreSQL sendiri sesuai tabel di atas</td><td>docker-compose.yml, migration setup</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <footer>
+      <p>Rejki Backend — Database Convention · 9 Juni 2026 · Phase 1.5</p>
+      <p style="margin-top:.3rem;">Stack: PostgreSQL · sqlx · Rust</p>
+    </footer>
+  </main>
+</div>
+</body>
+</html>

@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rejki Backend — Notification Contract</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0d1117; --surf: #161b22; --surf2: #1c2230; --border: #30363d;
+      --text: #e6edf3; --muted: #8b949e; --tag: #21262d;
+      --green: #56d364; --blue: #79c0ff; --orange: #f78166;
+      --yellow: #e3b341; --purple: #bc8cff; --cyan: #56b6d4; --r: 10px;
+    }
+    html { scroll-behavior: smooth; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; font-size: 15px; }
+    .layout { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
+    @media (max-width: 840px) { .layout { grid-template-columns: 1fr; } .nav { display: none; } }
+    .nav { position: sticky; top: 0; height: 100vh; overflow-y: auto; background: var(--surf); border-right: 1px solid var(--border); padding: 1.75rem 1rem; }
+    .nav-logo { font-size: 1.1rem; font-weight: 800; color: var(--orange); margin-bottom: 1.75rem; }
+    .nav-logo span { color: var(--text); }
+    .nav-group { margin-bottom: 1.5rem; }
+    .nav-group-label { font-size: .67rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: .4rem; }
+    .nav-link { display: block; padding: .32rem .6rem; border-radius: 6px; font-size: .85rem; color: var(--muted); text-decoration: none; transition: background .12s, color .12s; }
+    .nav-link:hover { background: var(--tag); color: var(--text); }
+    .nav-link.accent { color: var(--yellow); }
+    .nav-link.back { color: var(--blue); font-size: .8rem; }
+    main { max-width: 920px; margin: 0 auto; padding: 3rem 2rem 6rem; }
+    @media (max-width: 600px) { main { padding: 2rem 1rem 4rem; } }
+    .hero { border-bottom: 1px solid var(--border); margin-bottom: 3rem; padding-bottom: 2.5rem; }
+    .eyebrow { display: inline-block; font-size: .73rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--yellow); background: rgba(227,179,65,.07); border: 1px solid rgba(227,179,65,.25); border-radius: 20px; padding: .22rem .75rem; margin-bottom: .9rem; }
+    .hero h1 { font-size: clamp(1.7rem,4vw,2.5rem); font-weight: 800; line-height: 1.15; letter-spacing: -.4px; margin-bottom: .9rem; }
+    .hero h1 em { font-style: normal; color: var(--yellow); }
+    .hero p { color: var(--muted); font-size: 1rem; max-width: 680px; line-height: 1.75; }
+    .badges { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: 1.2rem; }
+    .badge { font-size: .76rem; font-weight: 600; padding: .25rem .75rem; border-radius: 20px; border: 1px solid; }
+    .b-y  { color: var(--yellow); border-color: rgba(227,179,65,.4);  background: rgba(227,179,65,.06); }
+    .b-ph { color: var(--purple); border-color: rgba(188,140,255,.4); background: rgba(188,140,255,.06); }
+    .b-g  { color: var(--green);  border-color: rgba(86,211,100,.4);  background: rgba(86,211,100,.06); }
+    .b-o  { color: var(--orange); border-color: rgba(247,129,102,.4); background: rgba(247,129,102,.06); }
+    section { margin-bottom: 3.5rem; }
+    .sec-title { display: flex; align-items: center; gap: .6rem; font-size: 1.2rem; font-weight: 700; margin-bottom: 1.25rem; padding-bottom: .55rem; border-bottom: 1px solid var(--border); }
+    .sec-icon { width: 30px; height: 30px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: .95rem; flex-shrink: 0; }
+    .ic-g { background: rgba(86,211,100,.1); } .ic-b { background: rgba(121,192,255,.1); }
+    .ic-o { background: rgba(247,129,102,.1); } .ic-y { background: rgba(227,179,65,.1); }
+    .ic-c { background: rgba(86,182,212,.1); } .ic-p { background: rgba(188,140,255,.1); }
+    .sub-title { font-size: .95rem; font-weight: 700; margin: 1.6rem 0 .65rem; display: flex; align-items: center; gap: .5rem; }
+    .sub-title::before { content: ''; display: inline-block; width: 3px; height: 14px; background: var(--yellow); border-radius: 2px; }
+    .tbl { width: 100%; border-collapse: collapse; font-size: .84rem; background: var(--surf); border: 1px solid var(--border); border-radius: var(--r); overflow: hidden; }
+    .tbl th { background: var(--surf2); padding: .6rem 1rem; text-align: left; font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+    .tbl td { padding: .65rem 1rem; border-bottom: 1px solid var(--border); vertical-align: top; line-height: 1.55; }
+    .tbl tr:last-child td { border-bottom: none; }
+    .tbl tr:hover td { background: var(--surf2); }
+    .tbl-wrap { overflow-x: auto; }
+    .code { background: #0d1117; border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.2rem; overflow-x: auto; margin-top: .6rem; }
+    .code pre { font-family: 'Cascadia Code','Fira Code','Consolas',monospace; font-size: .8rem; line-height: 1.75; }
+    .ck { color: #ff7b72; } .cs { color: #a5d6ff; } .cc { color: #6e7681; }
+    .ct { color: #ffa657; } .cfn { color: #d2a8ff; } .cv { color: #56d364; }
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; margin-top: .6rem; }
+    @media (max-width: 680px) { .two-col { grid-template-columns: 1fr; } }
+    .callout { border-radius: var(--r); padding: .85rem 1.1rem; margin-top: .9rem; font-size: .86rem; display: flex; gap: .65rem; line-height: 1.65; }
+    .callout-icon { flex-shrink: 0; font-size: 1rem; margin-top: 2px; }
+    .callout p { color: var(--muted); } .callout strong { color: var(--text); display: block; margin-bottom: .15rem; }
+    .c-info { background: rgba(121,192,255,.06); border: 1px solid rgba(121,192,255,.22); }
+    .c-warn { background: rgba(227,179,65,.06);  border: 1px solid rgba(227,179,65,.22); }
+    .c-ok   { background: rgba(86,211,100,.06);  border: 1px solid rgba(86,211,100,.22); }
+    .c-danger { background: rgba(247,129,102,.06); border: 1px solid rgba(247,129,102,.22); }
+    .ch-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: .75rem; }
+    @media (max-width: 680px) { .ch-grid { grid-template-columns: 1fr; } }
+    .ch-card { background: var(--surf); border: 1px solid var(--border); border-radius: var(--r); padding: 1rem 1.1rem; }
+    .ch-card h4 { font-size: .85rem; font-weight: 700; margin-bottom: .45rem; display: flex; align-items: center; gap: .4rem; }
+    .ch-card p { font-size: .78rem; color: var(--muted); line-height: 1.6; }
+    .arch-flow { background: var(--surf2); border: 1px solid var(--border); border-radius: var(--r); padding: 1.25rem 1.5rem; overflow-x: auto; }
+    .arch-flow pre { font-family: 'Cascadia Code','Fira Code','Consolas',monospace; font-size: .8rem; line-height: 2; color: var(--muted); }
+    .arch-flow .hi { color: var(--yellow); font-weight: 700; }
+    .arch-flow .hi2 { color: var(--green); font-weight: 700; }
+    .arch-flow .hi3 { color: var(--cyan); font-weight: 700; }
+    .arch-flow .hi4 { color: var(--purple); font-weight: 700; }
+    .role-tag { display: inline-block; font-size: .65rem; font-weight: 700; border-radius: 4px; padding: .08rem .45rem; vertical-align: middle; margin-left: .35rem; }
+    .rt-rust { background: rgba(247,129,102,.12); color: var(--orange); border: 1px solid rgba(247,129,102,.3); }
+    .rt-bun  { background: rgba(227,179,65,.12);  color: var(--yellow); border: 1px solid rgba(227,179,65,.3); }
+    .rt-db   { background: rgba(86,211,100,.12);  color: var(--green);  border: 1px solid rgba(86,211,100,.3); }
+    code { font-family: 'Cascadia Code','Fira Code','Consolas',monospace; font-size: .8rem; background: var(--tag); border: 1px solid var(--border); border-radius: 4px; padding: .05rem .4rem; color: var(--blue); }
+    .checklist { display: flex; flex-direction: column; gap: .45rem; }
+    .chk { display: flex; align-items: flex-start; gap: .75rem; background: var(--surf); border: 1px solid var(--border); border-radius: 8px; padding: .7rem .9rem; font-size: .85rem; }
+    .chk-box { width: 16px; height: 16px; border: 2px solid var(--border); border-radius: 4px; flex-shrink: 0; margin-top: 2px; }
+    .chk-text { flex: 1; line-height: 1.55; }
+    footer { margin-top: 4rem; padding-top: 1.25rem; border-top: 1px solid var(--border); font-size: .78rem; color: var(--muted); }
+  </style>
+</head>
+<body>
+<div class="layout">
+  <nav class="nav">
+    <div class="nav-logo">rejki<span>-backend</span></div>
+    <div class="nav-group">
+      <div class="nav-group-label">Navigasi</div>
+      <a class="nav-link back" href="index.html">← Architecture Overview</a>
+      <a class="nav-link back" href="websocket-contract.html">← WebSocket Contract</a>
+      <a class="nav-link" href="bun-notification-service.html">Bun.js Setup →</a>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-label">Isi Dokumen</div>
+      <a class="nav-link" href="#arsitektur">Arsitektur</a>
+      <a class="nav-link" href="#redis-stream">Redis Stream Schema</a>
+      <a class="nav-link" href="#rust-publisher">Rust — Publisher</a>
+      <a class="nav-link" href="#channels">Saluran Notifikasi</a>
+      <a class="nav-link" href="#payload">Payload Format</a>
+      <a class="nav-link" href="#types">Tipe Notifikasi</a>
+      <a class="nav-link" href="#retry">Retry &amp; DLQ</a>
+      <a class="nav-link" href="#dedup">Deduplication</a>
+      <a class="nav-link" href="#db-schema">DB Schema</a>
+      <a class="nav-link accent" href="#checklist">Checklist</a>
+    </div>
+  </nav>
+  <main>
+    <div class="hero">
+      <div class="eyebrow">Phase 1.5 — Notification Contract</div>
+      <h1>Notification <em>Contract</em></h1>
+      <p>Arsitektur pengiriman notifikasi Rejki: <strong>Rust</strong> sebagai publisher ke Redis Stream, <strong>Bun.js</strong> sebagai consumer yang dispatch ke FCM, email, dan simpan ke DB. Fire-and-forget — Rust tidak menunggu delivery selesai.</p>
+      <div class="badges">
+        <span class="badge b-ph">Phase 1.5</span>
+        <span class="badge b-o">Rust Publisher</span>
+        <span class="badge b-y">Bun.js Consumer</span>
+        <span class="badge b-g">Redis Streams</span>
+      </div>
+    </div>
+
+    <!-- ARSITEKTUR -->
+    <section id="arsitektur">
+      <h2 class="sec-title"><span class="sec-icon ic-y">🏗️</span>Arsitektur</h2>
+
+      <div class="arch-flow">
+        <pre>
+  Service Rust (auth, iklan, chat, dll)
+        │
+        │  in-process call
+        ▼
+  <span class="hi">notification-service (Rust)</span>   ← Publisher
+        │
+        │  XADD notifications_stream *
+        │     idempotency_key  "lamaran_diterima_abc_2026-06-09"
+        │     event_type       "lamaran.diterima"
+        │     recipient_id     "user-uuid"
+        │     payload          "{...}"
+        │
+        ▼
+  <span class="hi2">Redis Stream  "notifications_stream"</span>
+        │
+        │  XREADGROUP — Consumer Group "bun-consumers"
+        │
+        ▼
+  <span class="hi3">bun-notification-service (Bun.js)</span>   ← Consumer
+        │
+        ├─── Cek idempotency key (INSERT OR IGNORE ke DB)
+        │
+        ├─── <span class="hi4">FCM HTTP v1 API</span>  (firebase-admin SDK)
+        │
+        ├─── Email via SMTP / Resend
+        │
+        └─── <span class="hi2">PostgreSQL</span>  schema: notification
+                 INSERT INTO notification.notifications ...
+        </pre>
+      </div>
+
+      <div class="callout c-ok" style="margin-top:1rem;">
+        <span class="callout-icon">✅</span>
+        <div>
+          <strong>Kenapa Redis Streams, bukan HTTP langsung?</strong>
+          <p>Fire-and-forget — Rust XADD ke stream dan langsung lanjut. Jika Bun.js sedang restart, event tidak hilang karena tersimpan di Redis. Bun bisa consume setelah kembali online. Tidak ada HTTP timeout yang menghambat request user.</p>
+        </div>
+      </div>
+
+      <div class="callout c-info" style="margin-top:.65rem;">
+        <span class="callout-icon">ℹ️</span>
+        <div>
+          <strong>Satu VPS, satu Docker Compose network</strong>
+          <p>Rust app dan Bun.js service berada dalam satu Docker Compose network. Redis tidak expose port ke luar. Bun.js connect ke Redis via service name: <code>redis:6379</code>. Tidak ada latency jaringan eksternal.</p>
+        </div>
+      </div>
+
+      <div class="sub-title">Pembagian Tanggung Jawab</div>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Komponen</th><th>Tanggung Jawab</th><th>Tidak Melakukan</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>notification-service</strong> <span class="role-tag rt-rust">Rust</span></td>
+            <td>Terima event dari service lain → validasi → XADD ke Redis Stream</td>
+            <td>Tidak akses DB notification, tidak panggil FCM, tidak kirim email</td>
+          </tr>
+          <tr>
+            <td><strong>bun-notification-service</strong> <span class="role-tag rt-bun">Bun.js</span></td>
+            <td>XREADGROUP dari Redis → cek idempotency → dispatch FCM/email → tulis DB</td>
+            <td>Tidak expose REST API (kecuali health check), tidak tahu business logic Rust</td>
+          </tr>
+          <tr>
+            <td><strong>PostgreSQL</strong> <span class="role-tag rt-db">DB</span></td>
+            <td>Simpan notifikasi in-app, idempotency keys, device tokens, user preferences</td>
+            <td>Tidak diakses langsung oleh Rust untuk keperluan notifikasi delivery</td>
+          </tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <!-- REDIS STREAM SCHEMA -->
+    <section id="redis-stream">
+      <h2 class="sec-title"><span class="sec-icon ic-g">📨</span>Redis Stream Schema</h2>
+
+      <div class="sub-title">Stream Name</div>
+      <div class="code"><pre><span class="cc"># Satu stream untuk semua notifikasi</span>
+stream name  :  <span class="cv">notifications_stream</span>
+consumer group: <span class="cv">bun-consumers</span>
+consumer name : <span class="cv">bun-worker-{n}</span>   <span class="cc"># misal bun-worker-1 jika scale out</span></pre></div>
+
+      <div class="sub-title">Message Fields (XADD)</div>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Field</th><th>Type</th><th>Contoh</th><th>Keterangan</th></tr></thead>
+        <tbody>
+          <tr><td><code>idempotency_key</code></td><td>String</td><td><code>lamaran_diterima_abc_20260609</code></td><td>Dibuat oleh service pengirim. Format: <code>{event}_{entity_id}_{yyyymmdd}</code></td></tr>
+          <tr><td><code>event_type</code></td><td>String</td><td><code>lamaran.diterima</code></td><td>Lihat tabel tipe notifikasi</td></tr>
+          <tr><td><code>recipient_id</code></td><td>UUID string</td><td><code>550e8400-e29b...</code></td><td>user_id penerima notifikasi</td></tr>
+          <tr><td><code>actor_id</code></td><td>UUID string</td><td><code>550e8400-...</code></td><td>user/entity yang memicu event (opsional)</td></tr>
+          <tr><td><code>actor_name</code></td><td>String</td><td><code>PT Maju Jaya</code></td><td>Nama display actor (opsional)</td></tr>
+          <tr><td><code>data</code></td><td>JSON string</td><td><code>{"posisi":"Backend"}</code></td><td>Data bebas sesuai event_type, di-JSON.stringify</td></tr>
+          <tr><td><code>published_at</code></td><td>ISO 8601</td><td><code>2026-06-09T10:00:00Z</code></td><td>Waktu event dipublish oleh Rust</td></tr>
+        </tbody>
+      </table></div>
+
+      <div class="sub-title">Contoh XADD dari Rust</div>
+      <div class="code"><pre><span class="cc">// Rust — notification-service/src/infrastructure/redis_publisher.rs</span>
+<span class="ck">use</span> redis::AsyncCommands;
+
+<span class="ck">pub async fn</span> <span class="cfn">publish</span>(
+    redis: &<span class="ck">mut</span> impl <span class="ct">AsyncCommands</span>,
+    event: &<span class="ct">NotificationEvent</span>,
+) -> <span class="ct">Result</span>&lt;(), anyhow::Error&gt; {
+    redis.<span class="cfn">xadd</span>(
+        <span class="cs">"notifications_stream"</span>,
+        <span class="cs">"*"</span>,  <span class="cc">// auto-generate stream ID</span>
+        &[
+            (<span class="cs">"idempotency_key"</span>, &event.idempotency_key),
+            (<span class="cs">"event_type"</span>,      &event.event_type),
+            (<span class="cs">"recipient_id"</span>,    &event.recipient_id.<span class="cfn">to_string</span>()),
+            (<span class="cs">"actor_name"</span>,      event.actor_name.<span class="cfn">as_deref</span>().<span class="cfn">unwrap_or</span>(<span class="cs">""</span>)),
+            (<span class="cs">"data"</span>,           &serde_json::<span class="cfn">to_string</span>(&event.data)?),
+            (<span class="cs">"published_at"</span>,   &<span class="ct">Utc</span>::<span class="cfn">now</span>().<span class="cfn">to_rfc3339</span>()),
+        ],
+    ).<span class="cfn">await</span>?;
+    <span class="ct">Ok</span>(())
+}</pre></div>
+
+      <div class="sub-title">Consumer Group Setup (sekali saat startup)</div>
+      <div class="code"><pre><span class="cc"># Jalankan sekali — idempotent jika group sudah ada</span>
+XGROUP CREATE notifications_stream bun-consumers $ MKSTREAM
+
+<span class="cc"># Bun.js membaca dengan XREADGROUP</span>
+XREADGROUP GROUP bun-consumers bun-worker-1 COUNT 10 BLOCK 2000 STREAMS notifications_stream >
+
+<span class="cc"># ACK setelah berhasil diproses</span>
+XACK notifications_stream bun-consumers {stream-id}</pre></div>
+
+      <div class="callout c-warn">
+        <span class="callout-icon">⚠️</span>
+        <div>
+          <strong>Stream retention — jangan biarkan stream tak terbatas</strong>
+          <p>Tambahkan <code>MAXLEN ~ 10000</code> di XADD untuk memangkas stream otomatis. Event yang sudah di-ACK tidak perlu disimpan selamanya.</p>
+          <div class="code" style="margin-top:.5rem;"><pre>redis.<span class="cfn">xadd_maxlen</span>(<span class="cs">"notifications_stream"</span>, <span class="ct">StreamMaxlen</span>::<span class="cfn">Approx</span>(<span class="cv">10_000</span>), <span class="cs">"*"</span>, &fields).<span class="cfn">await</span>?;</pre></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- RUST PUBLISHER -->
+    <section id="rust-publisher">
+      <h2 class="sec-title"><span class="sec-icon ic-o">🦀</span>Rust — notification-service sebagai Publisher</h2>
+
+      <p style="color:var(--muted);font-size:.88rem;margin-bottom:1rem;">notification-service Rust berubah peran: tidak lagi menyimpan ke DB atau memanggil FCM. Tugasnya hanya <strong>menerima event dari service lain → validasi → XADD ke Redis Stream</strong>.</p>
+
+      <div class="sub-title">Struktur yang Berubah dari Sebelumnya</div>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Sebelum</th><th>Sesudah (Phase 2)</th></tr></thead>
+        <tbody>
+          <tr><td><code>infrastructure/pg_repository.rs</code> — simpan notifikasi ke DB</td><td><code>infrastructure/redis_publisher.rs</code> — XADD ke Redis Stream</td></tr>
+          <tr><td><code>application/service.rs</code> — TODO: FCM dispatch</td><td><code>application/service.rs</code> — publish ke stream, selesai</td></tr>
+          <tr><td>Tidak ada dependency Redis</td><td>Dependency: crate <code>redis</code> dengan feature <code>tokio-comp</code></td></tr>
+        </tbody>
+      </table></div>
+
+      <div class="sub-title">NotificationEvent — Struct yang Dipublish</div>
+      <div class="code"><pre><span class="cc">// notification-service/src/domain/event.rs</span>
+<span class="ck">#[derive(Debug, Serialize)]</span>
+<span class="ck">pub struct</span> <span class="ct">NotificationEvent</span> {
+    <span class="ck">pub</span> idempotency_key: String,    <span class="cc">// dibuat oleh service pengirim</span>
+    <span class="ck">pub</span> event_type:      String,    <span class="cc">// "lamaran.diterima", "chat.pesan_baru", dst.</span>
+    <span class="ck">pub</span> recipient_id:    <span class="ct">Uuid</span>,
+    <span class="ck">pub</span> actor_id:        <span class="ct">Option</span>&lt;<span class="ct">Uuid</span>&gt;,
+    <span class="ck">pub</span> actor_name:      <span class="ct">Option</span>&lt;String&gt;,
+    <span class="ck">pub</span> data:            serde_json::<span class="ct">Value</span>,  <span class="cc">// data bebas sesuai event</span>
+}
+
+<span class="cc">// Cara buat idempotency_key oleh service pengirim:</span>
+<span class="cc">// format!("lamaran_diterima_{}_{}", lamaran_id, Utc::now().format("%Y%m%d"))</span></pre></div>
+
+      <div class="sub-title">Cara Service Lain Mengirim Notifikasi</div>
+      <div class="code"><pre><span class="cc">// iklan-pekerjaan-service/src/application/service.rs</span>
+<span class="cc">// Saat lamaran diterima:</span>
+
+<span class="ck">let</span> event = <span class="ct">NotificationEvent</span> {
+    idempotency_key: <span class="cfn">format!</span>(<span class="cs">"lamaran_diterima_{}_{}"</span>,
+        lamaran_id, <span class="ct">Utc</span>::<span class="cfn">now</span>().<span class="cfn">format</span>(<span class="cs">"%Y%m%d"</span>)),
+    event_type:  <span class="cs">"lamaran.diterima"</span>.<span class="cfn">into</span>(),
+    recipient_id: pelamar_user_id,
+    actor_name:   <span class="ct">Some</span>(nama_perusahaan),
+    data: serde_json::<span class="cfn">json!</span>({
+        <span class="cs">"lamaran_id"</span>: lamaran_id,
+        <span class="cs">"posisi"</span>:     nama_posisi,
+    }),
+    ..Default::default()
+};
+
+<span class="cc">// in-process call ke notification-service</span>
+notification_svc.<span class="cfn">publish</span>(event).<span class="cfn">await</span>?;</pre></div>
+
+      <div class="callout c-info">
+        <span class="callout-icon">ℹ️</span>
+        <div>
+          <strong>notification-service tetap ada di rejki-app (tidak dihapus)</strong>
+          <p>Service lain masih memanggil notification-service via in-process call. Perubahan hanya di dalam notification-service itu sendiri: dari "simpan ke DB" menjadi "publish ke Redis". Interface publik tidak berubah.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- SALURAN -->
+    <section id="channels">
+      <h2 class="sec-title"><span class="sec-icon ic-b">📢</span>Saluran Notifikasi</h2>
+      <div class="ch-grid">
+        <div class="ch-card">
+          <h4>🔔 In-App</h4>
+          <p>Disimpan di <code>notification.notifications</code> oleh Bun.js. Dibaca client via REST API. Selalu aktif — tidak bisa dimatikan user.</p>
+        </div>
+        <div class="ch-card">
+          <h4>📱 Push (FCM)</h4>
+          <p>Firebase Cloud Messaging via <code>firebase-admin</code> SDK Node.js. HTTP v1 API. User bisa opt-out. Butuh device token yang diregistrasi saat login.</p>
+        </div>
+        <div class="ch-card">
+          <h4>📧 Email</h4>
+          <p>Via SMTP atau Resend API. Untuk event kritis: OTP, reset password, lamaran diterima. User bisa opt-out dari email non-kritis.</p>
+        </div>
+      </div>
+
+      <div class="sub-title">Matriks Saluran per Event</div>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Event</th><th>In-App</th><th>Push (FCM)</th><th>Email</th></tr></thead>
+        <tbody>
+          <tr><td><code>lamaran.diterima</code></td><td>✅</td><td>✅</td><td>✅</td></tr>
+          <tr><td><code>lamaran.ditolak</code></td><td>✅</td><td>✅</td><td>❌</td></tr>
+          <tr><td><code>chat.pesan_baru</code></td><td>✅</td><td>✅ (jika offline)</td><td>❌</td></tr>
+          <tr><td><code>iklan.pekerjaan_baru</code></td><td>✅</td><td>✅</td><td>❌</td></tr>
+          <tr><td><code>auth.otp</code></td><td>❌</td><td>❌</td><td>✅</td></tr>
+          <tr><td><code>auth.reset_password</code></td><td>❌</td><td>❌</td><td>✅</td></tr>
+          <tr><td><code>iklan.pelatihan_baru</code></td><td>✅</td><td>❌</td><td>❌</td></tr>
+          <tr><td><code>pembayaran.berhasil</code></td><td>✅</td><td>✅</td><td>✅</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <!-- PAYLOAD FORMAT -->
+    <section id="payload">
+      <h2 class="sec-title"><span class="sec-icon ic-c">📦</span>Payload Format</h2>
+
+      <div class="sub-title">Event di Redis Stream (fields)</div>
+      <div class="code"><pre><span class="cc">// Fields yang ada di setiap Redis Stream message</span>
+idempotency_key : <span class="cs">"lamaran_diterima_abc123_20260609"</span>
+event_type      : <span class="cs">"lamaran.diterima"</span>
+recipient_id    : <span class="cs">"550e8400-e29b-41d4-a716-446655440000"</span>
+actor_id        : <span class="cs">"660e8400-..."</span>       <span class="cc">// kosong jika tidak ada</span>
+actor_name      : <span class="cs">"PT Maju Jaya"</span>
+data            : <span class="cs">'{"lamaran_id":"abc123","posisi":"Frontend Developer"}'</span>
+published_at    : <span class="cs">"2026-06-09T10:00:00Z"</span></pre></div>
+
+      <div class="sub-title">Notifikasi In-App di DB (disimpan oleh Bun.js)</div>
+      <div class="code"><pre><span class="cc">// Isi tabel notification.notifications</span>
+{
+  <span class="cs">"id"</span>:           <span class="cs">"notif-uuid"</span>,
+  <span class="cs">"recipient_id"</span>: <span class="cs">"user-uuid"</span>,
+  <span class="cs">"event_type"</span>:   <span class="cs">"lamaran.diterima"</span>,
+  <span class="cs">"title"</span>:        <span class="cs">"Lamaran Anda Diterima"</span>,
+  <span class="cs">"body"</span>:         <span class="cs">"PT Maju Jaya menerima lamaran Anda sebagai Frontend Developer"</span>,
+  <span class="cs">"deep_link"</span>:    <span class="cs">"rejki://lamaran/abc123"</span>,
+  <span class="cs">"is_read"</span>:      <span class="cv">false</span>,
+  <span class="cs">"created_at"</span>:   <span class="cs">"2026-06-09T10:00:00Z"</span>
+}</pre></div>
+
+      <div class="sub-title">REST API In-App (dilayani oleh Rust notification-service)</div>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Method</th><th>Endpoint</th><th>Keterangan</th></tr></thead>
+        <tbody>
+          <tr><td><code>GET</code></td><td><code>/api/v1/notifications</code></td><td>List notifikasi milik user. Query: <code>?is_read=false&amp;limit=20&amp;cursor=</code></td></tr>
+          <tr><td><code>PATCH</code></td><td><code>/api/v1/notifications/{id}/read</code></td><td>Tandai satu notifikasi sudah dibaca. Returns 404 jika bukan milik user.</td></tr>
+          <tr><td><code>PATCH</code></td><td><code>/api/v1/notifications/read-all</code></td><td>Tandai semua notifikasi user sudah dibaca</td></tr>
+          <tr><td><code>GET</code></td><td><code>/api/v1/notifications/count</code></td><td>Unread count. Response: <code>{ "data": { "unread": 5 } }</code></td></tr>
+          <tr><td><code>POST</code></td><td><code>/api/v1/notifications/device-token</code></td><td>Register FCM device token saat login. Body: <code>{ "token": "...", "platform": "android" }</code></td></tr>
+          <tr><td><code>DELETE</code></td><td><code>/api/v1/notifications/device-token</code></td><td>Hapus device token saat logout</td></tr>
+        </tbody>
+      </table></div>
+
+      <div class="callout c-info">
+        <span class="callout-icon">ℹ️</span>
+        <div>
+          <strong>REST API tetap di Rust, bukan di Bun</strong>
+          <p>Endpoint list/read notifikasi tetap dilayani oleh notification-service Rust yang membaca dari <code>notification.notifications</code> di PostgreSQL. Bun.js hanya menulis ke DB, tidak expose REST API (kecuali <code>/health</code>).</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- TIPE NOTIFIKASI -->
+    <section id="types">
+      <h2 class="sec-title"><span class="sec-icon ic-y">🏷️</span>Tipe Notifikasi</h2>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>event_type</th><th>Title Template</th><th>Body Template</th></tr></thead>
+        <tbody>
+          <tr><td><code>lamaran.diterima</code></td><td>Lamaran Anda Diterima</td><td>{actor_name} menerima lamaran Anda sebagai {data.posisi}</td></tr>
+          <tr><td><code>lamaran.ditolak</code></td><td>Lamaran Tidak Dilanjutkan</td><td>{actor_name} tidak melanjutkan lamaran Anda sebagai {data.posisi}</td></tr>
+          <tr><td><code>chat.pesan_baru</code></td><td>Pesan dari {actor_name}</td><td>{data.preview} — maks 60 karakter</td></tr>
+          <tr><td><code>iklan.pekerjaan_baru</code></td><td>Lowongan Baru Sesuai Profil</td><td>{data.judul} di {data.perusahaan}, {data.kota}</td></tr>
+          <tr><td><code>auth.otp</code></td><td>Kode Verifikasi Rejki</td><td>Kode OTP Anda: {data.otp} — berlaku 10 menit</td></tr>
+          <tr><td><code>pembayaran.berhasil</code></td><td>Pembayaran Berhasil</td><td>Pembayaran {data.nominal} untuk {data.deskripsi} berhasil</td></tr>
+        </tbody>
+      </table></div>
+
+      <div class="callout c-warn">
+        <span class="callout-icon">⚠️</span>
+        <div>
+          <strong>Preview chat — jangan tampilkan konten penuh di push notification</strong>
+          <p><code>data.preview</code> maksimum 60 karakter. Tidak boleh berisi informasi sensitif yang bisa terbaca dari lock screen. Konten penuh hanya tampil setelah user buka aplikasi.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- RETRY & DLQ -->
+    <section id="retry">
+      <h2 class="sec-title"><span class="sec-icon ic-o">🔁</span>Retry &amp; Dead Letter</h2>
+
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Saluran</th><th>Max Retry</th><th>Backoff</th><th>Gagal Permanen</th></tr></thead>
+        <tbody>
+          <tr><td>In-App (DB write)</td><td>3x</td><td>1s → 5s → 30s</td><td>Log error, XACK (jangan block consumer)</td></tr>
+          <tr><td>Push (FCM)</td><td>3x</td><td>5s → 30s → 2m</td><td>Token invalid → hapus dari DB. Tidak retry.</td></tr>
+          <tr><td>Email (SMTP)</td><td>5x</td><td>1m → 5m → 15m → 1h → 6h</td><td>Tandai failed di DB, log, XACK.</td></tr>
+        </tbody>
+      </table></div>
+
+      <div class="sub-title">Dead Letter Queue</div>
+      <div class="code"><pre><span class="cc"># Message yang gagal setelah max retry dipindahkan ke DLQ</span>
+stream name: <span class="cv">notifications_dlq</span>
+
+<span class="cc"># Bun.js: jika semua retry gagal:</span>
+<span class="cc"># 1. XADD notifications_dlq * {fields yang sama + error_reason + failed_at}</span>
+<span class="cc"># 2. XACK notifications_stream bun-consumers {stream-id}</span>
+
+<span class="cc"># DLQ diproses manual atau via cron job untuk investigasi</span></pre></div>
+
+      <div class="callout c-info">
+        <span class="callout-icon">ℹ️</span>
+        <div>
+          <strong>XACK dilakukan setelah semua saluran selesai (berhasil atau gagal permanen)</strong>
+          <p>Jangan XACK sebelum selesai memproses — jika Bun.js crash di tengah, Redis akan otomatis re-deliver ke consumer lain via PEL (Pending Entry List). Bun membaca PEL saat startup untuk handle message yang belum di-ACK.</p>
+        </div>
+      </div>
+
+      <div class="callout c-danger" style="margin-top:.65rem;">
+        <span class="callout-icon">⚠️</span>
+        <div>
+          <strong>Retry hanya untuk error transient</strong>
+          <p>HTTP 5xx FCM, SMTP timeout → retry. FCM <code>UNREGISTERED</code> (token tidak valid), email bounce → langsung gagal permanen, hapus token/tandai email invalid, jangan retry.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- DEDUPLICATION -->
+    <section id="dedup">
+      <h2 class="sec-title"><span class="sec-icon ic-b">🛡️</span>Deduplication</h2>
+
+      <p style="color:var(--muted);font-size:.85rem;margin-bottom:.8rem;">Redis Streams dengan consumer group menjamin setiap message diproses tepat satu kali per group. Tapi jika Bun crash setelah dispatch tapi sebelum XACK, message akan di-deliver ulang. Idempotency key di DB mencegah double delivery.</p>
+
+      <div class="code"><pre><span class="cc">-- Bun.js: sebelum proses, cek dan insert idempotency key atomik</span>
+<span class="ck">INSERT INTO</span> notification.processed_events (idempotency_key, processed_at)
+<span class="ck">VALUES</span> ($1, <span class="cfn">now</span>())
+<span class="ck">ON CONFLICT</span> (idempotency_key) <span class="ck">DO NOTHING</span>;
+
+<span class="cc">-- Jika rows_affected = 0 → sudah pernah diproses → skip, XACK</span>
+<span class="cc">-- Jika rows_affected = 1 → lanjut proses</span></pre></div>
+
+      <div class="sub-title">Format Idempotency Key</div>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Event</th><th>Format Key</th><th>Contoh</th></tr></thead>
+        <tbody>
+          <tr><td><code>lamaran.diterima</code></td><td><code>lamaran_diterima_{id}_{yyyymmdd}</code></td><td><code>lamaran_diterima_abc123_20260609</code></td></tr>
+          <tr><td><code>chat.pesan_baru</code></td><td><code>chat_notif_{message_id}</code></td><td><code>chat_notif_msg456</code></td></tr>
+          <tr><td><code>auth.otp</code></td><td><code>otp_{user_id}_{yyyymmddHHMM}</code></td><td><code>otp_uuid_202606091030</code></td></tr>
+          <tr><td><code>pembayaran.berhasil</code></td><td><code>payment_success_{payment_id}</code></td><td><code>payment_success_pay789</code></td></tr>
+        </tbody>
+      </table></div>
+
+      <div class="callout c-ok">
+        <span class="callout-icon">✅</span>
+        <div>
+          <strong>Pembuat key = service Rust pengirim, bukan Bun.js</strong>
+          <p>Service yang publish event ke notification-service Rust bertanggung jawab membuat <code>idempotency_key</code> yang deterministik. Format: <code>{event_type_snake}_{entity_id}_{tanggal}</code>.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- DB SCHEMA -->
+    <section id="db-schema">
+      <h2 class="sec-title"><span class="sec-icon ic-p">🗄️</span>DB Schema</h2>
+      <p style="color:var(--muted);font-size:.85rem;margin-bottom:.8rem;">Semua tabel berada di schema <code>notification</code> di PostgreSQL yang sama. Migration dikelola oleh Bun.js menggunakan <code>node-pg-migrate</code> atau SQL files yang dijalankan saat startup.</p>
+
+      <div class="code"><pre><span class="cc">-- notification.notifications — disimpan Bun.js, dibaca Rust REST API</span>
+<span class="ck">CREATE TABLE</span> notification.notifications (
+    id           UUID        <span class="ck">PRIMARY KEY DEFAULT</span> gen_random_uuid(),
+    recipient_id UUID        <span class="ck">NOT NULL</span>,
+    event_type   TEXT        <span class="ck">NOT NULL</span>,
+    title        TEXT        <span class="ck">NOT NULL</span>,
+    body         TEXT        <span class="ck">NOT NULL</span>,
+    deep_link    TEXT,
+    is_read      BOOLEAN     <span class="ck">NOT NULL DEFAULT false</span>,
+    created_at   TIMESTAMPTZ <span class="ck">NOT NULL DEFAULT</span> <span class="cfn">now</span>()
+);
+<span class="ck">CREATE INDEX</span> ON notification.notifications (recipient_id, created_at <span class="ck">DESC</span>);
+<span class="ck">CREATE INDEX</span> ON notification.notifications (recipient_id) <span class="ck">WHERE</span> is_read = <span class="cv">false</span>;
+
+<span class="cc">-- notification.processed_events — idempotency tracking oleh Bun.js</span>
+<span class="ck">CREATE TABLE</span> notification.processed_events (
+    idempotency_key TEXT        <span class="ck">PRIMARY KEY</span>,
+    processed_at    TIMESTAMPTZ <span class="ck">NOT NULL DEFAULT</span> <span class="cfn">now</span>()
+);
+<span class="cc">-- TTL cleanup: hapus entry > 7 hari (pg_cron atau cron job di Bun.js)</span>
+
+<span class="cc">-- notification.device_tokens — FCM token per user</span>
+<span class="ck">CREATE TABLE</span> notification.device_tokens (
+    id         UUID        <span class="ck">PRIMARY KEY DEFAULT</span> gen_random_uuid(),
+    user_id    UUID        <span class="ck">NOT NULL</span>,
+    token      TEXT        <span class="ck">NOT NULL UNIQUE</span>,
+    platform   TEXT        <span class="ck">NOT NULL</span>,  <span class="cc">-- 'android' | 'ios' | 'web'</span>
+    created_at TIMESTAMPTZ <span class="ck">NOT NULL DEFAULT</span> <span class="cfn">now</span>()
+);
+<span class="ck">CREATE INDEX</span> ON notification.device_tokens (user_id);
+
+<span class="cc">-- notification.user_preferences — opt-out per saluran</span>
+<span class="ck">CREATE TABLE</span> notification.user_preferences (
+    user_id       UUID    <span class="ck">PRIMARY KEY</span>,
+    push_enabled  BOOLEAN <span class="ck">NOT NULL DEFAULT true</span>,
+    email_enabled BOOLEAN <span class="ck">NOT NULL DEFAULT true</span>,
+    updated_at    TIMESTAMPTZ <span class="ck">NOT NULL DEFAULT</span> <span class="cfn">now</span>()
+);</pre></div>
+
+      <div class="callout c-info">
+        <span class="callout-icon">ℹ️</span>
+        <div>
+          <strong>Migration dijalankan oleh Bun.js, bukan sqlx</strong>
+          <p>Karena Bun.js yang owns schema <code>notification</code> (dia yang write), Bun juga yang jalankan migration-nya saat startup. File SQL disimpan di <code>bun-notification-service/migrations/</code>. Rust notification-service hanya membaca tabel <code>notifications</code> untuk REST API.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- CHECKLIST -->
+    <section id="checklist">
+      <h2 class="sec-title"><span class="sec-icon ic-g">✅</span>Checklist Phase 1.5</h2>
+      <p style="color:var(--muted);font-size:.85rem;margin-bottom:.85rem;">Item berikut wajib selesai sebelum mulai implementasi Phase 2.</p>
+      <div class="checklist">
+        <div class="chk"><div class="chk-box"></div><div class="chk-text">Redis Stream <code>notifications_stream</code> dan consumer group <code>bun-consumers</code> terdefinisi di docker-compose.yml (dibuat saat startup Bun)</div></div>
+        <div class="chk"><div class="chk-box"></div><div class="chk-text"><code>NotificationEvent</code> struct di Rust terdefinisi dengan semua field yang diperlukan (idempotency_key, event_type, recipient_id, actor_*, data)</div></div>
+        <div class="chk"><div class="chk-box"></div><div class="chk-text"><code>RedisPublisher</code> di notification-service Rust: XADD dengan MAXLEN Approx 10_000</div></div>
+        <div class="chk"><div class="chk-box"></div><div class="chk-text">Bun.js service: consumer loop XREADGROUP dengan handling PEL saat startup (recovery dari crash)</div></div>
+        <div class="chk"><div class="chk-box"></div><div class="chk-text">Bun.js: idempotency check via <code>INSERT ... ON CONFLICT DO NOTHING</code> sebelum proses</div></div>
+        <div class="chk"><div class="chk-box"></div><div class="chk-text">Bun.js: <code>firebase-admin</code> configured dengan Service Account JSON dari env var <code>FIREBASE_SERVICE_ACCOUNT_PATH</code></div></div>
+        <div class="chk"><div class="chk-box"></div><div class="chk-text">Bun.js: DLQ — message gagal max retry di-XADD ke <code>notifications_dlq</code> sebelum XACK</div></div>
+        <div class="chk"><div class="chk-box"></div><div class="chk-text">DB schema: 4 tabel (<code>notifications</code>, <code>processed_events</code>, <code>device_tokens</code>, <code>user_preferences</code>) dengan migration SQL</div></div>
+        <div class="chk"><div class="chk-box"></div><div class="chk-text">REST API device token: POST register + DELETE saat logout (di Rust notification-service)</div></div>
+        <div class="chk"><div class="chk-box"></div><div class="chk-text">Env var <code>FIREBASE_SERVICE_ACCOUNT_PATH</code>, <code>FIREBASE_PROJECT_ID</code>, <code>REDIS_URL</code> terdokumentasi di <code>.env.example</code></div></div>
+      </div>
+    </section>
+
+    <footer>
+      <p>Rejki Backend — Notification Contract · 9 Juni 2026 · Phase 1.5</p>
+      <p style="margin-top:.3rem;">Stack: Rust (publisher) · Bun.js (consumer) · Redis Streams · FCM HTTP v1 · PostgreSQL</p>
+    </footer>
+  </main>
+</div>
+</body>
+</html>

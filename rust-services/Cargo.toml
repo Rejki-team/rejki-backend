@@ -1,0 +1,90 @@
+[workspace]
+resolver = "2"
+
+members = [
+    # ── Main binary (Modular Monolith entry point) ────────
+    "rejki-app",
+
+    # ── Application Services ──────────────────────────────
+    "region-service",
+    "storage-service",
+    "auth-service",
+    "user-service",
+    "chat-service",
+    "notification-service",
+    "iklan-pekerjaan-service",
+    "iklan-pekerja-service",
+    "iklan-barang-bekas-service",
+    "iklan-pelatihan-service",
+
+    # ── Client Domains ────────────────────────────────────
+    "region-service-client",
+    "storage-service-client",
+    "auth-service-client",
+    "user-service-client",
+    "chat-service-client",
+    "notification-service-client",
+    "iklan-pekerjaan-service-client",
+    "iklan-pekerja-service-client",
+    "iklan-barang-bekas-service-client",
+    "iklan-pelatihan-service-client",
+
+    # ── Shared Utilities ──────────────────────────────────
+    "common/crypto",
+    "common/config",
+    "common/errors",
+    "common/tracing-setup",
+    "common/auth-middleware",
+]
+
+# ── Shared dependency versions (semua member pakai ini) ───
+[workspace.dependencies]
+axum               = { version = "0.8",  features = ["ws", "macros"] }
+tokio              = { version = "1",    features = ["full"] }
+sqlx               = { version = "0.9",  features = ["postgres", "runtime-tokio", "macros", "uuid", "chrono"] }
+serde              = { version = "1",    features = ["derive"] }
+serde_json         = "1"
+uuid               = { version = "1",    features = ["v7", "serde"] }
+chrono             = { version = "0.4",  features = ["serde"] }
+tracing            = "0.1"
+tracing-subscriber = { version = "0.3",  features = ["json", "env-filter"] }
+tower-http         = { version = "0.6",  features = ["cors", "trace", "compression-gzip"] }
+thiserror          = "2"
+validator          = { version = "0.20", features = ["derive"] }
+# rust_crypto: backend kripto self-contained (RSA) tanpa perlu CryptoProvider proses-level
+# (default aws-lc-rs memicu panic "Could not determine CryptoProvider" saat sign).
+jsonwebtoken       = { version = "10", default-features = false, features = ["rust_crypto", "use_pem"] }
+bcrypt             = "0.19"
+rand               = "0.9"
+dotenvy            = "0.15"
+anyhow             = "1"
+sha2               = "0.10"
+hex                = "0.4"
+ammonia            = "4"
+redis              = { version = "0.27", features = ["tokio-comp", "connection-manager"] }
+aes-gcm            = "0.10"
+base64             = "0.22"
+aws-config         = { version = "1", features = ["behavior-version-latest"] }
+aws-sdk-s3         = "1"
+aws-credential-types = "1"
+# OpenAPI / Swagger UI — hanya disajikan saat APP_ENV=development (gated di rejki-app).
+utoipa             = { version = "5", features = ["axum_extras", "uuid", "chrono"] }
+utoipa-swagger-ui  = { version = "9", features = ["axum"] }
+
+# Internal shared crates
+common-crypto      = { path = "common/crypto" }
+region-service-client = { path = "region-service-client" }
+storage-service-client = { path = "storage-service-client" }
+common-config      = { path = "common/config" }
+common-errors      = { path = "common/errors" }
+common-tracing     = { path = "common/tracing-setup" }
+common-auth-mw     = { path = "common/auth-middleware" }
+
+[profile.release]
+opt-level = 3
+lto       = "thin"
+strip     = "symbols"
+
+[profile.dev]
+opt-level = 0
+debug     = 1

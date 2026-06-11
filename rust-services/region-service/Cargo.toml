@@ -1,0 +1,28 @@
+[package]
+name    = "region-service"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "region_service"
+path = "src/lib.rs"
+
+[[bin]]
+name = "region-service"
+path = "src/main.rs"
+
+[dependencies]
+common-errors  = { workspace = true }
+common-tracing = { workspace = true }
+region-service-client = { path = "../region-service-client" }
+
+axum        = { workspace = true }
+tokio       = { workspace = true }
+sqlx        = { workspace = true }
+serde       = { workspace = true }
+serde_json  = { workspace = true }
+uuid        = { workspace = true }
+tracing     = { workspace = true }
+dotenvy     = { workspace = true }
+anyhow      = { workspace = true }
+async-trait = "0.1"

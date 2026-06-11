@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rejki Backend — WebSocket Contract</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0d1117; --surf: #161b22; --surf2: #1c2230; --border: #30363d;
+      --text: #e6edf3; --muted: #8b949e; --tag: #21262d;
+      --green: #56d364; --blue: #79c0ff; --orange: #f78166;
+      --yellow: #e3b341; --purple: #bc8cff; --cyan: #56b6d4; --r: 10px;
+    }
+    html { scroll-behavior: smooth; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; font-size: 15px; }
+    .layout { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
+    @media (max-width: 840px) { .layout { grid-template-columns: 1fr; } .nav { display: none; } }
+    .nav { position: sticky; top: 0; height: 100vh; overflow-y: auto; background: var(--surf); border-right: 1px solid var(--border); padding: 1.75rem 1rem; }
+    .nav-logo { font-size: 1.1rem; font-weight: 800; color: var(--orange); margin-bottom: 1.75rem; }
+    .nav-logo span { color: var(--text); }
+    .nav-group { margin-bottom: 1.5rem; }
+    .nav-group-label { font-size: 0.67rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: .4rem; }
+    .nav-link { display: block; padding: .32rem .6rem; border-radius: 6px; font-size: .85rem; color: var(--muted); text-decoration: none; transition: background .12s, color .12s; }
+    .nav-link:hover { background: var(--tag); color: var(--text); }
+    .nav-link.accent { color: var(--cyan); }
+    .nav-link.back { color: var(--blue); font-size: .8rem; }
+    main { max-width: 920px; margin: 0 auto; padding: 3rem 2rem 6rem; }
+    @media (max-width: 600px) { main { padding: 2rem 1rem 4rem; } }
+    .hero { border-bottom: 1px solid var(--border); margin-bottom: 3rem; padding-bottom: 2.5rem; }
+    .eyebrow { display: inline-block; font-size: .73rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--cyan); background: rgba(86,182,212,.07); border: 1px solid rgba(86,182,212,.25); border-radius: 20px; padding: .22rem .75rem; margin-bottom: .9rem; }
+    .hero h1 { font-size: clamp(1.7rem,4vw,2.5rem); font-weight: 800; line-height: 1.15; letter-spacing: -.4px; margin-bottom: .9rem; }
+    .hero h1 em { font-style: normal; color: var(--cyan); }
+    .hero p { color: var(--muted); font-size: 1rem; max-width: 680px; line-height: 1.75; }
+    .badges { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: 1.2rem; }
+    .badge { font-size: .76rem; font-weight: 600; padding: .25rem .75rem; border-radius: 20px; border: 1px solid; }
+    .b-cy { color: var(--cyan);   border-color: rgba(86,182,212,.4); background: rgba(86,182,212,.06); }
+    .b-ph { color: var(--purple); border-color: rgba(188,140,255,.4); background: rgba(188,140,255,.06); }
+    section { margin-bottom: 3.5rem; }
+    .sec-title { display: flex; align-items: center; gap: .6rem; font-size: 1.2rem; font-weight: 700; margin-bottom: 1.25rem; padding-bottom: .55rem; border-bottom: 1px solid var(--border); }
+    .sec-icon { width: 30px; height: 30px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: .95rem; flex-shrink: 0; }
+    .ic-g { background: rgba(86,211,100,.1); } .ic-b { background: rgba(121,192,255,.1); }
+    .ic-o { background: rgba(247,129,102,.1); } .ic-y { background: rgba(227,179,65,.1); }
+    .ic-c { background: rgba(86,182,212,.1); }
+    .sub-title { font-size: .95rem; font-weight: 700; margin: 1.6rem 0 .65rem; display: flex; align-items: center; gap: .5rem; }
+    .sub-title::before { content: ''; display: inline-block; width: 3px; height: 14px; background: var(--cyan); border-radius: 2px; }
+    .tbl { width: 100%; border-collapse: collapse; font-size: .84rem; background: var(--surf); border: 1px solid var(--border); border-radius: var(--r); overflow: hidden; }
+    .tbl th { background: var(--surf2); padding: .6rem 1rem; text-align: left; font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+    .tbl td { padding: .65rem 1rem; border-bottom: 1px solid var(--border); vertical-align: top; line-height: 1.55; }
+    .tbl tr:last-child td { border-bottom: none; }
+    .tbl tr:hover td { background: var(--surf2); }
+    .tbl-wrap { overflow-x: auto; }
+    .code { background: #0d1117; border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.2rem; overflow-x: auto; margin-top: .6rem; }
+    .code pre { font-family: 'Cascadia Code','Fira Code','Consolas',monospace; font-size: .8rem; line-height: 1.75; }
+    .ck { color: #ff7b72; } .cs { color: #a5d6ff; } .cc { color: #6e7681; }
+    .ct { color: #ffa657; } .cfn { color: #d2a8ff; } .cv { color: #56d364; }
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; margin-top: .6rem; }
+    @media (max-width: 680px) { .two-col { grid-template-columns: 1fr; } }
+    .col-label { font-size: .68rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: .35rem; }
+    .callout { border-radius: var(--r); padding: .85rem 1.1rem; margin-top: .9rem; font-size: .86rem; display: flex; gap: .65rem; line-height: 1.65; }
+    .callout-icon { flex-shrink: 0; font-size: 1rem; margin-top: 2px; }
+    .callout p { color: var(--muted); } .callout strong { color: var(--text); display: block; margin-bottom: .15rem; }
+    .c-info { background: rgba(121,192,255,.06); border: 1px solid rgba(121,192,255,.22); }
+    .c-warn { background: rgba(227,179,65,.06);  border: 1px solid rgba(227,179,65,.22); }
+    .c-ok   { background: rgba(86,211,100,.06);  border: 1px solid rgba(86,211,100,.22); }
+    .c-danger { background: rgba(247,129,102,.06); border: 1px solid rgba(247,129,102,.22); }
+    .ev { display: inline-flex; font-size: .73rem; font-weight: 700; padding: .1rem .5rem; border-radius: 4px; font-family: 'Cascadia Code','Fira Code',monospace; border: 1px solid; }
+    .ev-s { color: var(--cyan);   background: rgba(86,182,212,.08); border-color: rgba(86,182,212,.3); }
+    .ev-c { color: var(--purple); background: rgba(188,140,255,.08); border-color: rgba(188,140,255,.3); }
+    .ev-e { color: var(--orange); background: rgba(247,129,102,.08); border-color: rgba(247,129,102,.3); }
+    code { font-family: 'Cascadia Code','Fira Code','Consolas',monospace; font-size: .8rem; background: var(--tag); border: 1px solid var(--border); border-radius: 4px; padding: .05rem .4rem; color: var(--blue); }
+    footer { margin-top: 4rem; padding-top: 1.25rem; border-top: 1px solid var(--border); font-size: .78rem; color: var(--muted); }
+  </style>
+</head>
+<body>
+<div class="layout">
+  <nav class="nav">
+    <div class="nav-logo">rejki<span>-backend</span></div>
+    <div class="nav-group">
+      <div class="nav-group-label">Navigasi</div>
+      <a class="nav-link back" href="index.html">← Architecture Overview</a>
+      <a class="nav-link back" href="api-standard.html">← API Standard</a>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-label">Isi Dokumen</div>
+      <a class="nav-link" href="#prinsip">Prinsip</a>
+      <a class="nav-link" href="#auth">Autentikasi Koneksi</a>
+      <a class="nav-link" href="#envelope">Message Envelope</a>
+      <a class="nav-link" href="#events">Daftar Event</a>
+      <a class="nav-link" href="#flow">Alur Lengkap</a>
+      <a class="nav-link" href="#reconnect">Reconnect Strategy</a>
+      <a class="nav-link" href="#error">Error Handling</a>
+      <a class="nav-link" href="#room">Room / Channel</a>
+      <a class="nav-link" href="#impl">Implementasi Rust</a>
+      <a class="nav-link accent" href="#checklist">Checklist</a>
+    </div>
+  </nav>
+  <main>
+    <div class="hero">
+      <div class="eyebrow">Phase 1.5 — WebSocket Contract</div>
+      <h1>WebSocket <em>Contract</em></h1>
+      <p>Standar format message, autentikasi koneksi, event naming, reconnect strategy, dan error handling untuk <code>chat-service</code> WebSocket Rejki Backend.</p>
+      <div class="badges">
+        <span class="badge b-ph">Phase 1.5</span>
+        <span class="badge b-cy">WebSocket</span>
+        <span class="badge b-cy">chat-service</span>
+      </div>
+    </div>
+
+    <section id="prinsip">
+      <h2 class="sec-title"><span class="sec-icon ic-c">🧭</span>Prinsip</h2>
+      <div class="tbl-wrap"><table class="tbl"><tbody>
+        <tr><td><strong>Envelope sama dengan REST</strong></td><td>Format <code>{ type, payload, request_id }</code> konsisten — client tidak perlu logika parsing berbeda untuk WS vs REST.</td></tr>
+        <tr><td><strong>Auth di handshake, bukan per message</strong></td><td>Token JWT divalidasi saat koneksi dibuat via query param atau header. Setelah terkoneksi, tidak perlu kirim token per pesan.</td></tr>
+        <tr><td><strong>Event-driven, bukan polling</strong></td><td>Server push event ke client saat ada update. Client tidak perlu polling — satu koneksi WS menggantikan ratusan HTTP request.</td></tr>
+        <tr><td><strong>Reconnect otomatis di client</strong></td><td>Server tidak menjamin koneksi persisten. Client wajib implementasi exponential backoff reconnect.</td></tr>
+        <tr><td><strong>Stateless server</strong></td><td>Server tidak menyimpan state koneksi di memory. Pesan di-persist ke DB, state di-recover dari DB saat reconnect.</td></tr>
+      </tbody></table></div>
+    </section>
+
+    <section id="auth">
+      <h2 class="sec-title"><span class="sec-icon ic-b">🔐</span>Autentikasi Koneksi</h2>
+      <p style="color:var(--muted);font-size:.85rem;margin-bottom:.8rem;">WebSocket tidak mendukung custom header di browser. Gunakan query parameter untuk kirim token saat handshake.</p>
+
+      <div class="sub-title">URL Koneksi</div>
+      <div class="code"><pre><span class="cc"># Format koneksi WebSocket</span>
+wss://api.rejki.id/api/v1/chat/ws?token=<span class="ct">{access_token}</span>&room=<span class="ct">{room_id}</span>
+
+<span class="cc"># Contoh</span>
+wss://api.rejki.id/api/v1/chat/ws?token=eyJhbGci...&room=550e8400-uuid</pre></div>
+
+      <div class="sub-title">Alur Autentikasi</div>
+      <div class="code"><pre><span class="cc">1. Client kirim HTTP Upgrade request dengan ?token=...</span>
+<span class="cc">2. Server validasi token via AuthClient::validate_token()</span>
+<span class="cc">3a. Token valid   → upgrade ke WebSocket, kirim event "connected"</span>
+<span class="cc">3b. Token invalid → HTTP 401, koneksi ditolak (tidak di-upgrade)</span>
+<span class="cc">4. Token expired saat koneksi aktif → server kirim event "token_expired", tutup koneksi</span>
+<span class="cc">5. Client refresh token via REST, lalu reconnect dengan token baru</span></pre></div>
+
+      <div class="callout c-warn">
+        <span class="callout-icon">⚠️</span>
+        <div>
+          <strong>Token di query param — hati-hati log server</strong>
+          <p>URL dengan <code>?token=...</code> bisa muncul di access log nginx. Pastikan nginx dikonfigurasi untuk tidak log query string pada endpoint WS: <code>log_format ws_format '$remote_addr "$request_uri_no_query"'</code>. Atau gunakan token berumur sangat pendek (30 detik) khusus untuk WS handshake.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="envelope">
+      <h2 class="sec-title"><span class="sec-icon ic-c">📦</span>Message Envelope</h2>
+      <p style="color:var(--muted);font-size:.85rem;margin-bottom:.8rem;">Semua message WS (dari client maupun dari server) menggunakan envelope JSON yang sama.</p>
+
+      <div class="two-col">
+        <div>
+          <div class="col-label">Client → Server</div>
+          <div class="code"><pre>{
+  <span class="cs">"type"</span>: <span class="cs">"chat.send"</span>,
+  <span class="cs">"request_id"</span>: <span class="cs">"req_uuid"</span>,  <span class="cc">// client generate</span>
+  <span class="cs">"payload"</span>: {
+    <span class="cs">"room_id"</span>: <span class="cs">"uuid"</span>,
+    <span class="cs">"content"</span>: <span class="cs">"Halo!"</span>
+  }
+}</pre></div>
+        </div>
+        <div>
+          <div class="col-label">Server → Client</div>
+          <div class="code"><pre>{
+  <span class="cs">"type"</span>: <span class="cs">"chat.message"</span>,
+  <span class="cs">"request_id"</span>: <span class="cs">"req_uuid"</span>,  <span class="cc">// echo dari client</span>
+  <span class="cs">"payload"</span>: {
+    <span class="cs">"message_id"</span>: <span class="cs">"uuid"</span>,
+    <span class="cs">"sender_id"</span>: <span class="cs">"uuid"</span>,
+    <span class="cs">"content"</span>: <span class="cs">"Halo!"</span>,
+    <span class="cs">"created_at"</span>: <span class="cs">"2026-06-09T10:00:00Z"</span>
+  }
+}</pre></div>
+        </div>
+      </div>
+
+      <div class="sub-title">Definisi Field Envelope</div>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Field</th><th>Tipe</th><th>Wajib?</th><th>Keterangan</th></tr></thead>
+        <tbody>
+          <tr><td><code>type</code></td><td>string</td><td>Selalu</td><td>Format: <code>{domain}.{action}</code>. Contoh: <code>chat.send</code>, <code>chat.typing</code>, <code>system.ping</code>.</td></tr>
+          <tr><td><code>request_id</code></td><td>string UUID</td><td>Selalu</td><td>Client generate untuk setiap message. Server echo-back di response. Berguna untuk korelasi ACK.</td></tr>
+          <tr><td><code>payload</code></td><td>object</td><td>Tergantung type</td><td>Data spesifik per event type. Bisa null untuk event tanpa data (ping, ack).</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="events">
+      <h2 class="sec-title"><span class="sec-icon ic-b">📡</span>Daftar Event</h2>
+
+      <div class="sub-title">Event dari Client → Server</div>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Type</th><th>Payload</th><th>Keterangan</th></tr></thead>
+        <tbody>
+          <tr><td><span class="ev ev-c">chat.send</span></td><td><code>room_id</code>, <code>content</code></td><td>Kirim pesan teks ke room. Server persist ke DB lalu broadcast.</td></tr>
+          <tr><td><span class="ev ev-c">chat.typing</span></td><td><code>room_id</code></td><td>Indikator user sedang mengetik. Server broadcast ke member lain, tidak di-persist.</td></tr>
+          <tr><td><span class="ev ev-c">chat.read</span></td><td><code>room_id</code>, <code>last_read_message_id</code></td><td>Tandai pesan sudah dibaca. Server update DB dan broadcast status.</td></tr>
+          <tr><td><span class="ev ev-c">system.ping</span></td><td>null</td><td>Keepalive dari client. Server balas <code>system.pong</code>. Kirim setiap 30 detik.</td></tr>
+        </tbody>
+      </table></div>
+
+      <div class="sub-title">Event dari Server → Client</div>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Type</th><th>Payload</th><th>Keterangan</th></tr></thead>
+        <tbody>
+          <tr><td><span class="ev ev-s">system.connected</span></td><td><code>user_id</code>, <code>room_id</code></td><td>Konfirmasi koneksi berhasil. Dikirim langsung setelah handshake.</td></tr>
+          <tr><td><span class="ev ev-s">system.pong</span></td><td>null</td><td>Response atas <code>system.ping</code> dari client.</td></tr>
+          <tr><td><span class="ev ev-s">system.token_expired</span></td><td>null</td><td>Token JWT akan expired dalam &lt;60 detik. Client harus refresh dan reconnect.</td></tr>
+          <tr><td><span class="ev ev-s">chat.message</span></td><td><code>message_id</code>, <code>sender_id</code>, <code>content</code>, <code>created_at</code></td><td>Pesan baru masuk ke room. Dikirim ke semua member aktif.</td></tr>
+          <tr><td><span class="ev ev-s">chat.message_ack</span></td><td><code>message_id</code>, <code>request_id</code></td><td>Konfirmasi pesan berhasil disimpan ke DB. Echo <code>request_id</code> dari client.</td></tr>
+          <tr><td><span class="ev ev-s">chat.typing</span></td><td><code>user_id</code>, <code>room_id</code></td><td>Broadcast: user lain sedang mengetik.</td></tr>
+          <tr><td><span class="ev ev-s">chat.read_receipt</span></td><td><code>user_id</code>, <code>last_read_message_id</code></td><td>Broadcast: user lain sudah baca sampai pesan tertentu.</td></tr>
+          <tr><td><span class="ev ev-e">error</span></td><td><code>code</code>, <code>message</code>, <code>request_id</code></td><td>Error dari server. Lihat seksi Error Handling.</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="flow">
+      <h2 class="sec-title"><span class="sec-icon ic-c">🔄</span>Alur Lengkap</h2>
+      <div class="code"><pre><span class="cc">┌─────────────┐                     ┌──────────────────┐</span>
+<span class="cc">│   Flutter   │                     │   chat-service   │</span>
+<span class="cc">└──────┬──────┘                     └────────┬─────────┘</span>
+       │                                      │
+       │  WS connect: ?token=eyJ...&room=uuid │
+       │ ─────────────────────────────────► │
+       │                                      │  validate token
+       │  ← { type: "system.connected" }      │  via AuthClient
+       │                                      │
+       │  → { type: "chat.send",              │
+       │      request_id: "req_1",            │
+       │      payload: { content: "Halo!" } } │
+       │                                      │  persist ke DB
+       │  ← { type: "chat.message_ack",       │
+       │      payload: { message_id: "m1",    │
+       │                 request_id: "req_1"}}│  broadcast ke
+       │                                      │  member lain
+       │  ← { type: "chat.message",           │
+       │      payload: { sender: "other",     │
+       │                 content: "Hai!" } }  │
+       │                                      │
+       │  → { type: "system.ping" }           │  keepalive
+       │  ← { type: "system.pong" }           │
+       │                                      │
+       │  ← { type: "system.token_expired" }  │  token akan habis
+       │  REST: POST /auth/refresh            │
+       │  WS reconnect dengan token baru      │</pre></div>
+    </section>
+
+    <section id="reconnect">
+      <h2 class="sec-title"><span class="sec-icon ic-y">🔁</span>Reconnect Strategy</h2>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Skenario</th><th>Aksi Client</th><th>Aksi Server</th></tr></thead>
+        <tbody>
+          <tr><td>Koneksi terputus (network)</td><td>Exponential backoff: 1s → 2s → 4s → 8s → max 30s. Reconnect tanpa user perlu tahu.</td><td>Tidak ada state yang perlu di-cleanup — stateless.</td></tr>
+          <tr><td>Token expired (<code>system.token_expired</code>)</td><td>Refresh token via REST dulu, lalu reconnect dengan access token baru.</td><td>Tutup koneksi dengan WS close code <code>4001</code> (custom: Unauthorized).</td></tr>
+          <tr><td>Server restart / deploy</td><td>Reconnect otomatis dengan backoff. Fetch ulang history pesan yang terlewat via REST <code>GET /chat/messages?after={last_id}</code>.</td><td>Kirim WS close code <code>1012</code> (Service Restart) sebelum shutdown.</td></tr>
+          <tr><td>Room tidak ada / akses ditolak</td><td>Tampilkan error ke user. Jangan reconnect otomatis.</td><td>Tolak koneksi dengan HTTP 404 atau 403 saat handshake.</td></tr>
+        </tbody>
+      </table></div>
+
+      <div class="sub-title">WS Close Codes</div>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Code</th><th>Arti</th><th>Aksi Client</th></tr></thead>
+        <tbody>
+          <tr><td><code>1000</code></td><td>Normal closure</td><td>Tidak perlu reconnect</td></tr>
+          <tr><td><code>1001</code></td><td>Going away (server shutdown)</td><td>Reconnect dengan backoff</td></tr>
+          <tr><td><code>1012</code></td><td>Service restart</td><td>Reconnect dengan backoff + fetch missed messages</td></tr>
+          <tr><td><code>4000</code></td><td>Custom: Bad request</td><td>Jangan reconnect, tampilkan error</td></tr>
+          <tr><td><code>4001</code></td><td>Custom: Unauthorized</td><td>Refresh token, lalu reconnect</td></tr>
+          <tr><td><code>4003</code></td><td>Custom: Forbidden (bukan member room)</td><td>Jangan reconnect, tampilkan error</td></tr>
+          <tr><td><code>4004</code></td><td>Custom: Room not found</td><td>Jangan reconnect, tampilkan error</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="error">
+      <h2 class="sec-title"><span class="sec-icon ic-o">❌</span>Error Handling</h2>
+      <p style="color:var(--muted);font-size:.85rem;margin-bottom:.8rem;">Error yang terjadi setelah koneksi terbentuk dikirim sebagai message biasa dengan type <code>error</code>.</p>
+      <div class="code"><pre><span class="cc">// Error response dari server</span>
+{
+  <span class="cs">"type"</span>: <span class="cs">"error"</span>,
+  <span class="cs">"request_id"</span>: <span class="cs">"req_1"</span>,    <span class="cc">// echo dari request client yang gagal</span>
+  <span class="cs">"payload"</span>: {
+    <span class="cs">"code"</span>:    <span class="cs">"MESSAGE_TOO_LONG"</span>,
+    <span class="cs">"message"</span>: <span class="cs">"Pesan tidak boleh lebih dari 4000 karakter"</span>
+  }
+}</pre></div>
+
+      <div class="tbl-wrap" style="margin-top:.75rem;"><table class="tbl">
+        <thead><tr><th>Error Code</th><th>Keterangan</th></tr></thead>
+        <tbody>
+          <tr><td><code>MESSAGE_TOO_LONG</code></td><td>Konten pesan melebihi 4000 karakter</td></tr>
+          <tr><td><code>ROOM_NOT_MEMBER</code></td><td>User bukan member room yang dituju</td></tr>
+          <tr><td><code>RATE_LIMITED</code></td><td>Terlalu banyak pesan dalam waktu singkat (max 10 pesan/detik)</td></tr>
+          <tr><td><code>INVALID_PAYLOAD</code></td><td>Format payload tidak sesuai (field wajib kosong, tipe salah)</td></tr>
+          <tr><td><code>UNKNOWN_TYPE</code></td><td>Event type tidak dikenal server</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="room">
+      <h2 class="sec-title"><span class="sec-icon ic-b">🏠</span>Room / Channel</h2>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Aturan</th><th>Detail</th></tr></thead>
+        <tbody>
+          <tr><td>Satu koneksi WS = satu room</td><td>Client buka koneksi WS baru untuk setiap room yang diakses. Tidak ada multiplexing dalam satu koneksi.</td></tr>
+          <tr><td>Room ID</td><td>UUID v4. Format: pasangan user diurutkan secara deterministik: <code>MIN(user_a, user_b) + "_" + MAX(user_a, user_b)</code>. Selalu room yang sama untuk dua user yang sama.</td></tr>
+          <tr><td>Histori pesan</td><td>Fetch via REST <code>GET /api/v1/chat/messages?room_id={id}&before={cursor}&limit=30</code> sebelum konek WS. WS hanya untuk realtime update.</td></tr>
+          <tr><td>Offline message</td><td>Pesan yang dikirim saat user offline disimpan di DB. Saat reconnect, client fetch pesan yang terlewat via REST dengan <code>after={last_message_id}</code>.</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="impl">
+      <h2 class="sec-title"><span class="sec-icon ic-o">⚙️</span>Implementasi Rust</h2>
+      <div class="code"><pre><span class="cc">// chat-service/src/interface/ws_handler.rs (sketch)</span>
+<span class="ck">pub async fn</span> <span class="cfn">ws_handler</span>(
+  ws: <span class="ct">WebSocketUpgrade</span>,
+  <span class="ct">Query</span>(params): <span class="ct">Query</span>&lt;<span class="ct">WsParams</span>&gt;,  <span class="cc">// { token, room_id }</span>
+  <span class="ct">State</span>(state): <span class="ct">State</span>&lt;<span class="ct">AppState</span>&gt;,
+) -&gt; <span class="ct">Response</span> {
+  <span class="cc">// 1. Validasi token SEBELUM upgrade</span>
+  <span class="ck">let</span> claims = <span class="ck">match</span> state.auth_client.<span class="cfn">validate_token</span>(&amp;params.token).<span class="cfn">await</span> {
+    <span class="ct">Ok</span>(c) => c,
+    <span class="ct">Err</span>(_) => <span class="ck">return</span> <span class="ct">StatusCode</span>::<span class="cv">UNAUTHORIZED</span>.<span class="cfn">into_response</span>(),
+  };
+  <span class="cc">// 2. Upgrade ke WS — hanya jika token valid</span>
+  ws.<span class="cfn">on_upgrade</span>(<span class="ck">move</span> |socket| <span class="cfn">handle_socket</span>(socket, claims, params.room_id, state))
+}
+
+<span class="ck">async fn</span> <span class="cfn">handle_socket</span>(mut socket: <span class="ct">WebSocket</span>, claims: <span class="ct">AuthClaims</span>, room_id: <span class="ct">Uuid</span>, state: <span class="ct">AppState</span>) {
+  <span class="cc">// Kirim konfirmasi koneksi</span>
+  <span class="cfn">send_event</span>(&amp;mut socket, <span class="cs">"system.connected"</span>, <span class="cfn">json!</span>({<span class="cs">"user_id"</span>: claims.sub})).<span class="cfn">await</span>;
+
+  <span class="ck">loop</span> {
+    <span class="cfn">tokio::select!</span> {
+      msg = socket.<span class="cfn">recv</span>() => <span class="ck">match</span> msg {
+        <span class="ct">Some</span>(<span class="ct">Ok</span>(<span class="ct">Message</span>::<span class="cfn">Text</span>(text))) => <span class="cfn">handle_message</span>(&amp;mut socket, &amp;text, &amp;claims, &amp;state).<span class="cfn">await</span>,
+        <span class="ct">Some</span>(<span class="ct">Ok</span>(<span class="ct">Message</span>::<span class="cfn">Close</span>(_))) | <span class="ct">None</span> => <span class="ck">break</span>,
+        _ => {}
+      },
+      update = state.broadcast.<span class="cfn">recv</span>() => {
+        <span class="cc">// Push realtime update ke client</span>
+        <span class="cfn">send_event</span>(&amp;mut socket, <span class="cs">"chat.message"</span>, update).<span class="cfn">await</span>;
+      }
+    }
+  }
+}</pre></div>
+    </section>
+
+    <section id="checklist">
+      <h2 class="sec-title"><span class="sec-icon ic-g">✅</span>Checklist</h2>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Item</th><th>Lokasi</th></tr></thead>
+        <tbody>
+          <tr><td>Endpoint WS: <code>GET /api/v1/chat/ws?token=&room=</code> — validasi token sebelum upgrade</td><td><code>chat-service/src/interface/ws_handler.rs</code></td></tr>
+          <tr><td>Semua message WS gunakan envelope <code>{ type, request_id, payload }</code></td><td><code>chat-service/src/interface/</code></td></tr>
+          <tr><td>Implementasi event: <code>chat.send</code>, <code>chat.typing</code>, <code>chat.read</code>, <code>system.ping/pong</code></td><td><code>chat-service/src/application/service.rs</code></td></tr>
+          <tr><td>WS close code standar: <code>4001</code> unauthorized, <code>4003</code> forbidden, <code>1012</code> restart</td><td><code>chat-service/src/interface/ws_handler.rs</code></td></tr>
+          <tr><td>Keepalive: server tutup koneksi jika tidak ada ping dalam 60 detik</td><td><code>chat-service/src/interface/ws_handler.rs</code></td></tr>
+          <tr><td>Rate limit WS: max 10 message/detik per koneksi</td><td><code>chat-service/src/interface/ws_handler.rs</code></td></tr>
+          <tr><td>Token di query param tidak muncul di nginx access log</td><td><code>nginx.dev.conf</code></td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <footer>
+      <p>Rejki Backend — WebSocket Contract · 9 Juni 2026 · Phase 1.5</p>
+      <p style="margin-top:.3rem;">Stack: Rust · Axum WebSocket · tokio broadcast channel</p>
+    </footer>
+  </main>
+</div>
+</body>
+</html>

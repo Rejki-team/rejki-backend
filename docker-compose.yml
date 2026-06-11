@@ -1,0 +1,164 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Rejki Backend — Docker Compose
+# Development  : docker compose up -d
+# Production   : docker compose -f docker-compose.yml --profile prod up -d
+#
+# Catatan:
+#   - Semua service berada di satu internal network (tidak expose port selain
+#     yang memang dibutuhkan developer di dev)
+#   - Redis TIDAK expose port ke luar di production
+#   - nginx hanya expose 80; Cloudflare Tunnel yang handle HTTPS
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  # ── PostgreSQL ─────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:17-alpine
+    container_name: rejki-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER:     rejki
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-secret}
+      POSTGRES_DB:       rejki_db
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./scripts/init-schemas.sql:/docker-entrypoint-initdb.d/01-schemas.sql:ro
+    ports:
+      - "5432:5432"   # expose ke host hanya untuk development tools (DBeaver, psql)
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rejki -d rejki_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - internal
+
+  # ── Redis ──────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: rejki-redis
+    restart: unless-stopped
+    command: redis-server --save 60 1 --loglevel warning
+    volumes:
+      - redisdata:/data
+    ports:
+      - "6379:6379"   # expose ke host hanya untuk development (redis-cli)
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - internal
+
+  # ── Rejki App (Rust — Modular Monolith) ────────────────────────────────────
+  rejki-app:
+    build:
+      context: ./rust-services
+      dockerfile: Dockerfile
+    container_name: rejki-app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      APP_ENV:               ${APP_ENV:-development}
+      DATABASE_URL:          postgres://rejki:${POSTGRES_PASSWORD:-secret}@postgres:5432/rejki_db
+      REDIS_URL:             redis://redis:6379
+      APP_PORT:              8080
+      JWT_PRIVATE_KEY_PATH:  /app/keys/private.pem
+      JWT_PUBLIC_KEY_PATH:   /app/keys/public.pem
+      JWT_ACCESS_TTL_SECS:   ${JWT_ACCESS_TTL_SECS:-900}
+      JWT_REFRESH_TTL_SECS:  ${JWT_REFRESH_TTL_SECS:-2592000}
+      RUST_LOG:              ${RUST_LOG:-info}
+    volumes:
+      - ./keys:/app/keys:ro
+    expose:
+      - "8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - internal
+
+  # ── Bun Notification Service ───────────────────────────────────────────────
+  bun-notification:
+    build:
+      context: ./bun-notification-service
+      dockerfile: Dockerfile
+    container_name: rejki-bun-notification
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      APP_ENV:                      ${APP_ENV:-development}
+      REDIS_URL:                    redis://redis:6379
+      DATABASE_URL:                 postgres://rejki:${POSTGRES_PASSWORD:-secret}@postgres:5432/rejki_db
+      FIREBASE_SERVICE_ACCOUNT_PATH: /app/keys/firebase-service-account.json
+      FIREBASE_PROJECT_ID:          ${FIREBASE_PROJECT_ID}
+      SMTP_HOST:                    ${SMTP_HOST}
+      SMTP_PORT:                    ${SMTP_PORT:-587}
+      SMTP_USERNAME:                ${SMTP_USERNAME}
+      SMTP_PASSWORD:                ${SMTP_PASSWORD}
+      EMAIL_FROM:                   ${EMAIL_FROM}
+      PORT:                         9000
+    volumes:
+      - ./keys:/app/keys:ro
+    expose:
+      - "9000"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9000/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    networks:
+      - internal
+
+  # ── Nginx (Reverse Proxy) ──────────────────────────────────────────────────
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: rejki-nginx
+    restart: unless-stopped
+    depends_on:
+      - rejki-app
+    volumes:
+      - ./nginx.dev.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "80:80"
+    networks:
+      - internal
+
+  # ── Cloudflare Tunnel (production only) ────────────────────────────────────
+  cloudflare-tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: rejki-cloudflare-tunnel
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN}
+    depends_on:
+      - nginx
+    networks:
+      - internal
+    profiles:
+      - prod   # hanya aktif dengan: docker compose --profile prod up
+
+# ── Volumes ────────────────────────────────────────────────────────────────
+volumes:
+  pgdata:
+  redisdata:
+
+# ── Networks ───────────────────────────────────────────────────────────────
+networks:
+  internal:
+    driver: bridge

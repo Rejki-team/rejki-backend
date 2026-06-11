@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE user_svc.profiles SET\n                full_name = $2, nik_encrypted = $3, nik_last4 = $4,\n                education_level = $5, gender = $6, birth_date = $7,\n                address_line = $8, country_code = $9,\n                province_id = $10, regency_id = $11, district_id = $12, village_id = $13,\n                updated_at = now()\n             WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Bytea",
+        "Text",
+        "Text",
+        "Text",
+        "Date",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "dddcc613006c9d12aef8fa5634e2f378536231e88a0b90afa5cc219655952f90"
+}

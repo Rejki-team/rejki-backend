@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO auth.refresh_tokens (id, user_id, token_hash, expires_at)\n             VALUES (gen_random_uuid(), $1, $2, $3)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "d60fb23efcfb90a0f70984f534780b7e5e01859d02008b99529fd624d96adf75"
+}

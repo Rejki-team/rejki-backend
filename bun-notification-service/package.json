@@ -1,0 +1,20 @@
+{
+  "name": "bun-notification-service",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "start": "bun run src/index.ts",
+    "dev":   "bun --watch src/index.ts"
+  },
+  "dependencies": {
+    "firebase-admin": "^12",
+    "ioredis":        "^5",
+    "nodemailer":     "^6",
+    "pg":             "^8"
+  },
+  "devDependencies": {
+    "@types/nodemailer": "^6",
+    "@types/pg":         "^8",
+    "typescript":        "^5"
+  }
+}

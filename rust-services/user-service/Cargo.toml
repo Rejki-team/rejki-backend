@@ -1,0 +1,37 @@
+[package]
+name    = "user-service"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "user_service"
+path = "src/lib.rs"
+
+[[bin]]
+name = "user-service"
+path = "src/main.rs"
+
+[dependencies]
+common-errors  = { workspace = true }
+common-tracing = { workspace = true }
+common-auth-mw = { workspace = true }
+common-crypto  = { workspace = true }
+user-service-client  = { path = "../user-service-client" }
+auth-service-client  = { path = "../auth-service-client" }
+region-service-client = { path = "../region-service-client" }
+storage-service-client = { path = "../storage-service-client" }
+
+axum        = { workspace = true }
+tokio       = { workspace = true }
+sqlx        = { workspace = true }
+serde       = { workspace = true }
+serde_json  = { workspace = true }
+uuid        = { workspace = true }
+chrono      = { workspace = true }
+tracing     = { workspace = true }
+tower-http  = { workspace = true }
+thiserror   = { workspace = true }
+validator   = { workspace = true }
+dotenvy     = { workspace = true }
+anyhow      = { workspace = true }
+async-trait = "0.1"

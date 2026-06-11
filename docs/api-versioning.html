@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rejki Backend — API Versioning & Deprecation</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0d1117; --surf: #161b22; --surf2: #1c2230; --border: #30363d;
+      --text: #e6edf3; --muted: #8b949e; --tag: #21262d;
+      --green: #56d364; --blue: #79c0ff; --orange: #f78166;
+      --yellow: #e3b341; --purple: #bc8cff; --cyan: #56b6d4; --r: 10px;
+    }
+    html { scroll-behavior: smooth; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; font-size: 15px; }
+    .layout { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
+    @media (max-width: 840px) { .layout { grid-template-columns: 1fr; } .nav { display: none; } }
+    .nav { position: sticky; top: 0; height: 100vh; overflow-y: auto; background: var(--surf); border-right: 1px solid var(--border); padding: 1.75rem 1rem; }
+    .nav-logo { font-size: 1.1rem; font-weight: 800; color: var(--orange); margin-bottom: 1.75rem; }
+    .nav-logo span { color: var(--text); }
+    .nav-group { margin-bottom: 1.5rem; }
+    .nav-group-label { font-size: .67rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: .4rem; }
+    .nav-link { display: block; padding: .32rem .6rem; border-radius: 6px; font-size: .85rem; color: var(--muted); text-decoration: none; transition: background .12s, color .12s; }
+    .nav-link:hover { background: var(--tag); color: var(--text); }
+    .nav-link.accent { color: var(--blue); }
+    .nav-link.back { color: var(--blue); font-size: .8rem; }
+    main { max-width: 920px; margin: 0 auto; padding: 3rem 2rem 6rem; }
+    .hero { border-bottom: 1px solid var(--border); margin-bottom: 3rem; padding-bottom: 2.5rem; }
+    .eyebrow { display: inline-block; font-size: .73rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--blue); background: rgba(121,192,255,.07); border: 1px solid rgba(121,192,255,.25); border-radius: 20px; padding: .22rem .75rem; margin-bottom: .9rem; }
+    .hero h1 { font-size: clamp(1.7rem,4vw,2.5rem); font-weight: 800; line-height: 1.15; letter-spacing: -.4px; margin-bottom: .9rem; }
+    .hero h1 em { font-style: normal; color: var(--blue); }
+    .hero p { color: var(--muted); font-size: 1rem; max-width: 680px; line-height: 1.75; }
+    .badges { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: 1.2rem; }
+    .badge { font-size: .76rem; font-weight: 600; padding: .25rem .75rem; border-radius: 20px; border: 1px solid; }
+    .b-b  { color: var(--blue);   border-color: rgba(121,192,255,.4); background: rgba(121,192,255,.06); }
+    .b-ph { color: var(--purple); border-color: rgba(188,140,255,.4); background: rgba(188,140,255,.06); }
+    section { margin-bottom: 3.5rem; }
+    .sec-title { display: flex; align-items: center; gap: .6rem; font-size: 1.2rem; font-weight: 700; margin-bottom: 1.25rem; padding-bottom: .55rem; border-bottom: 1px solid var(--border); }
+    .sec-icon { width: 30px; height: 30px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: .95rem; flex-shrink: 0; }
+    .ic-g { background: rgba(86,211,100,.1); } .ic-b { background: rgba(121,192,255,.1); }
+    .ic-o { background: rgba(247,129,102,.1); } .ic-y { background: rgba(227,179,65,.1); }
+    .sub-title { font-size: .95rem; font-weight: 700; margin: 1.6rem 0 .65rem; display: flex; align-items: center; gap: .5rem; }
+    .sub-title::before { content: ''; display: inline-block; width: 3px; height: 14px; background: var(--blue); border-radius: 2px; }
+    .tbl { width: 100%; border-collapse: collapse; font-size: .84rem; background: var(--surf); border: 1px solid var(--border); border-radius: var(--r); overflow: hidden; }
+    .tbl th { background: var(--surf2); padding: .6rem 1rem; text-align: left; font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+    .tbl td { padding: .65rem 1rem; border-bottom: 1px solid var(--border); vertical-align: top; line-height: 1.55; }
+    .tbl tr:last-child td { border-bottom: none; }
+    .tbl tr:hover td { background: var(--surf2); }
+    .tbl-wrap { overflow-x: auto; }
+    .code { background: #0d1117; border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.2rem; overflow-x: auto; margin-top: .6rem; }
+    .code pre { font-family: 'Cascadia Code','Fira Code','Consolas',monospace; font-size: .8rem; line-height: 1.75; }
+    .ck { color: #ff7b72; } .cs { color: #a5d6ff; } .cc { color: #6e7681; }
+    .ct { color: #ffa657; } .cfn { color: #d2a8ff; } .cv { color: #56d364; }
+    .callout { border-radius: var(--r); padding: .85rem 1.1rem; margin-top: .9rem; font-size: .86rem; display: flex; gap: .65rem; line-height: 1.65; }
+    .callout-icon { flex-shrink: 0; font-size: 1rem; margin-top: 2px; }
+    .callout p { color: var(--muted); } .callout strong { color: var(--text); display: block; margin-bottom: .15rem; }
+    .c-info { background: rgba(121,192,255,.06); border: 1px solid rgba(121,192,255,.22); }
+    .c-warn { background: rgba(227,179,65,.06);  border: 1px solid rgba(227,179,65,.22); }
+    .c-ok   { background: rgba(86,211,100,.06);  border: 1px solid rgba(86,211,100,.22); }
+    .c-danger { background: rgba(247,129,102,.06); border: 1px solid rgba(247,129,102,.22); }
+    .tag-break { font-size: .72rem; font-weight: 700; padding: .1rem .45rem; border-radius: 4px; color: var(--orange); background: rgba(247,129,102,.1); border: 1px solid rgba(247,129,102,.3); }
+    .tag-safe  { font-size: .72rem; font-weight: 700; padding: .1rem .45rem; border-radius: 4px; color: var(--green);  background: rgba(86,211,100,.1);  border: 1px solid rgba(86,211,100,.3);  }
+    code { font-family: 'Cascadia Code','Fira Code','Consolas',monospace; font-size: .8rem; background: var(--tag); border: 1px solid var(--border); border-radius: 4px; padding: .05rem .4rem; color: var(--blue); }
+    footer { margin-top: 4rem; padding-top: 1.25rem; border-top: 1px solid var(--border); font-size: .78rem; color: var(--muted); }
+  </style>
+</head>
+<body>
+<div class="layout">
+  <nav class="nav">
+    <div class="nav-logo">rejki<span>-backend</span></div>
+    <div class="nav-group">
+      <div class="nav-group-label">Navigasi</div>
+      <a class="nav-link back" href="index.html">← Architecture Overview</a>
+      <a class="nav-link back" href="api-standard.html">← API Standard</a>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-label">Isi Dokumen</div>
+      <a class="nav-link" href="#prinsip">Prinsip Versioning</a>
+      <a class="nav-link" href="#breaking">Breaking vs Non-Breaking</a>
+      <a class="nav-link" href="#kapan-v2">Kapan Buat /v2/</a>
+      <a class="nav-link" href="#deprecation">Deprecation Flow</a>
+      <a class="nav-link" href="#header">Deprecation Header</a>
+      <a class="nav-link" href="#sunset">Sunset Timeline</a>
+      <a class="nav-link" href="#impl">Implementasi Rust</a>
+      <a class="nav-link accent" href="#checklist">Checklist</a>
+    </div>
+  </nav>
+  <main>
+    <div class="hero">
+      <div class="eyebrow">Phase 1.5 — API Versioning & Deprecation</div>
+      <h1>API Versioning &amp; <em>Deprecation</em></h1>
+      <p>Policy lengkap tentang apa yang dianggap breaking change, kapan membuat versi baru, alur deprecation, dan berapa lama versi lama didukung untuk API Rejki Backend.</p>
+      <div class="badges">
+        <span class="badge b-ph">Phase 1.5</span>
+        <span class="badge b-b">API Evolution</span>
+      </div>
+    </div>
+
+    <section id="prinsip">
+      <h2 class="sec-title"><span class="sec-icon ic-b">🧭</span>Prinsip Versioning</h2>
+      <div class="tbl-wrap"><table class="tbl"><tbody>
+        <tr><td><strong>URL path versioning</strong></td><td>Versi dinyatakan di URL: <code>/api/v1/</code>, <code>/api/v2/</code>. Bukan di header (<code>Accept-Version: v2</code>) dan bukan di query param (<code>?version=2</code>). URL versioning paling eksplisit dan mudah di-debug.</td></tr>
+        <tr><td><strong>Saat ini: hanya /v1/</strong></td><td>Seluruh Phase 2 dan 3 menggunakan <code>/api/v1/</code>. Tidak ada <code>/v2/</code> kecuali ada breaking change yang tidak bisa dihindari.</td></tr>
+        <tr><td><strong>Additive change tidak butuh versi baru</strong></td><td>Menambah field baru di response, menambah endpoint baru, menambah query parameter opsional — semua ini <strong>tidak</strong> butuh versi baru.</td></tr>
+        <tr><td><strong>Versi lama tetap berjalan selama sunset</strong></td><td>Saat <code>/v2/</code> diluncurkan, <code>/v1/</code> tetap berjalan sampai sunset date yang diumumkan. Tidak ada breaking removal tanpa pemberitahuan.</td></tr>
+      </tbody></table></div>
+    </section>
+
+    <section id="breaking">
+      <h2 class="sec-title"><span class="sec-icon ic-o">⚠️</span>Breaking vs Non-Breaking Change</h2>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Perubahan</th><th>Breaking?</th><th>Contoh</th></tr></thead>
+        <tbody>
+          <tr><td>Hapus field dari response</td><td><span class="tag-break">Breaking</span></td><td>Menghapus <code>phone_number</code> dari response user</td></tr>
+          <tr><td>Ubah tipe field</td><td><span class="tag-break">Breaking</span></td><td><code>"id": 123</code> → <code>"id": "uuid-string"</code></td></tr>
+          <tr><td>Ubah nama field</td><td><span class="tag-break">Breaking</span></td><td><code>"created_at"</code> → <code>"created_on"</code></td></tr>
+          <tr><td>Hapus endpoint</td><td><span class="tag-break">Breaking</span></td><td>Hapus <code>GET /api/v1/users/me</code></td></tr>
+          <tr><td>Ubah HTTP method</td><td><span class="tag-break">Breaking</span></td><td><code>POST /login</code> → <code>PUT /login</code></td></tr>
+          <tr><td>Field request jadi wajib (dari opsional)</td><td><span class="tag-break">Breaking</span></td><td><code>phone_number</code> dulunya opsional, sekarang wajib</td></tr>
+          <tr><td>Ubah format error code</td><td><span class="tag-break">Breaking</span></td><td><code>INVALID_EMAIL</code> → <code>EMAIL_FORMAT_INVALID</code></td></tr>
+          <tr><td>Tambah field ke response</td><td><span class="tag-safe">Non-Breaking</span></td><td>Tambah <code>"avatar_url"</code> ke response user</td></tr>
+          <tr><td>Tambah endpoint baru</td><td><span class="tag-safe">Non-Breaking</span></td><td>Tambah <code>GET /api/v1/users/me/preferences</code></td></tr>
+          <tr><td>Tambah query param opsional</td><td><span class="tag-safe">Non-Breaking</span></td><td>Tambah <code>?include_deleted=true</code></td></tr>
+          <tr><td>Tambah nilai enum baru</td><td><span class="tag-safe">Non-Breaking*</span></td><td>Status iklan: tambah <code>EXPIRED</code> di samping <code>ACTIVE</code> dan <code>INACTIVE</code></td></tr>
+          <tr><td>Perketat validasi</td><td><span class="tag-break">Breaking</span></td><td>Max length password dari 128 → 64 karakter</td></tr>
+        </tbody>
+      </table></div>
+      <p style="color:var(--muted);font-size:.79rem;margin-top:.5rem;">* Nilai enum baru bisa breaking jika client melakukan exhaustive check (switch tanpa default). Dokumentasikan di release notes.</p>
+    </section>
+
+    <section id="kapan-v2">
+      <h2 class="sec-title"><span class="sec-icon ic-y">🆕</span>Kapan Membuat /v2/</h2>
+      <div class="tbl-wrap"><table class="tbl"><tbody>
+        <tr><td><strong>Ada breaking change yang tidak bisa dihindari</strong></td><td>Coba redesign tanpa breaking change terlebih dahulu. Jika tidak bisa (misalnya perubahan fundamental di autentikasi), baru buat <code>/v2/</code>.</td></tr>
+        <tr><td><strong>Prosedur sebelum membuat /v2/</strong></td><td>1) Pastikan benar-benar tidak ada cara non-breaking. 2) Diskusikan dengan tim frontend/mobile. 3) Tentukan sunset date untuk <code>/v1/</code>. 4) Baru implementasi <code>/v2/</code>.</td></tr>
+        <tr><td><strong>/v1/ dan /v2/ berjalan bersamaan</strong></td><td>Kedua versi berjalan di binary yang sama. Kode <code>/v1/</code> tidak dihapus — hanya ditandai deprecated. Tidak ada server terpisah untuk <code>/v1/</code>.</td></tr>
+      </tbody></table></div>
+    </section>
+
+    <section id="deprecation">
+      <h2 class="sec-title"><span class="sec-icon ic-b">📢</span>Deprecation Flow</h2>
+      <div class="code"><pre><span class="cc">Timeline minimal deprecation sebelum endpoint dihapus:</span>
+
+T+0   Endpoint baru di /v2/ diluncurkan
+      Response /v1/ endpoint ditambah header: Deprecation, Sunset
+      Release notes diupdate dengan informasi migrasi
+
+T+3 bulan  Pengingat ke tim frontend/mobile
+           Monitoring traffic /v1/ — apakah sudah berkurang?
+
+T+6 bulan  Sunset date
+           /v1/ endpoint return 410 Gone
+           Body: { "error": { "code": "ENDPOINT_GONE", "message": "...", "migrate_to": "/api/v2/..." } }</pre></div>
+
+      <div class="callout c-warn">
+        <span class="callout-icon">⚠️</span>
+        <div>
+          <strong>Minimum 3 bulan antara deprecation dan removal</strong>
+          <p>Mobile app tidak bisa force-update semua user sekaligus. User yang tidak update app masih menggunakan versi lama. 3 bulan adalah minimum — pertimbangkan lebih lama jika user base besar.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="header">
+      <h2 class="sec-title"><span class="sec-icon ic-b">📋</span>Deprecation Header</h2>
+      <p style="color:var(--muted);font-size:.85rem;margin-bottom:.8rem;">Setiap response dari endpoint yang deprecated wajib menyertakan header berikut.</p>
+      <div class="code"><pre><span class="cc"># HTTP Response headers untuk endpoint deprecated</span>
+Deprecation: true
+Sunset: Sat, 31 Dec 2026 23:59:59 GMT          <span class="cc"># tanggal endpoint akan dihapus (RFC 7231 date)</span>
+Link: &lt;/api/v2/auth/login&gt;; rel="successor-version"  <span class="cc"># URL versi pengganti</span></pre></div>
+
+      <div class="sub-title">Response 410 Gone (setelah sunset)</div>
+      <div class="code"><pre>{
+  <span class="cs">"success"</span>: <span class="cv">false</span>,
+  <span class="cs">"error"</span>: {
+    <span class="cs">"code"</span>:       <span class="cs">"ENDPOINT_GONE"</span>,
+    <span class="cs">"message"</span>:    <span class="cs">"Endpoint ini sudah tidak tersedia. Gunakan versi baru."</span>,
+    <span class="cs">"migrate_to"</span>: <span class="cs">"/api/v2/auth/login"</span>
+  }
+}</pre></div>
+    </section>
+
+    <section id="sunset">
+      <h2 class="sec-title"><span class="sec-icon ic-o">🌅</span>Sunset Timeline</h2>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Jenis Perubahan</th><th>Minimum Sunset Period</th><th>Alasan</th></tr></thead>
+        <tbody>
+          <tr><td>Endpoint yang jarang dipakai</td><td>3 bulan</td><td>Traffic rendah, dampak migrasi kecil.</td></tr>
+          <tr><td>Endpoint inti (auth, profil, iklan)</td><td>6 bulan</td><td>Semua service dan mobile app bergantung, butuh waktu migrasi lebih lama.</td></tr>
+          <tr><td>Format response fundamental (envelope, error)</td><td>12 bulan</td><td>Semua client perlu update sekaligus — sangat disruptif.</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="impl">
+      <h2 class="sec-title"><span class="sec-icon ic-b">⚙️</span>Implementasi Rust</h2>
+      <div class="code"><pre><span class="cc">// Middleware sederhana untuk tambah header Deprecation</span>
+<span class="ck">pub fn</span> <span class="cfn">deprecated_endpoint</span>(sunset: &amp;<span class="ck">str</span>, successor: &amp;<span class="ck">str</span>) -&gt; <span class="ct">HeaderMap</span> {
+  <span class="ck">let mut</span> headers = <span class="ct">HeaderMap</span>::<span class="cfn">new</span>();
+  headers.<span class="cfn">insert</span>(<span class="cs">"Deprecation"</span>, <span class="cs">"true"</span>.<span class="cfn">parse</span>().<span class="cfn">unwrap</span>());
+  headers.<span class="cfn">insert</span>(<span class="cs">"Sunset"</span>, sunset.<span class="cfn">parse</span>().<span class="cfn">unwrap</span>());
+  headers.<span class="cfn">insert</span>(<span class="cs">"Link"</span>, <span class="cfn">format!</span>(<span class="cs">"&lt;{}&gt;; rel=\"successor-version\""</span>, successor).<span class="cfn">parse</span>().<span class="cfn">unwrap</span>());
+  headers
+}
+
+<span class="cc">// Penggunaan di handler yang deprecated</span>
+<span class="ck">pub async fn</span> <span class="cfn">old_login_handler</span>(...) -&gt; impl <span class="ct">IntoResponse</span> {
+  <span class="ck">let</span> headers = <span class="cfn">deprecated_endpoint</span>(
+    <span class="cs">"Sat, 31 Dec 2026 23:59:59 GMT"</span>,
+    <span class="cs">"/api/v2/auth/login"</span>,
+  );
+  <span class="cc">// ... existing handler logic ...</span>
+  (headers, <span class="cfn">existing_response</span>)
+}</pre></div>
+    </section>
+
+    <section id="checklist">
+      <h2 class="sec-title"><span class="sec-icon ic-g">✅</span>Checklist</h2>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Item</th><th>Kapan Berlaku</th></tr></thead>
+        <tbody>
+          <tr><td>Semua endpoint Phase 2 menggunakan prefix <code>/api/v1/</code></td><td>Saat implementasi Phase 2</td></tr>
+          <tr><td>Sebelum melakukan perubahan API: tentukan dulu apakah breaking atau non-breaking berdasarkan tabel di dokumen ini</td><td>Setiap kali ada perubahan API</td></tr>
+          <tr><td>Breaking change WAJIB diimplementasi di path <code>/api/v2/</code> — tidak boleh langsung ubah <code>/v1/</code></td><td>Saat ada breaking change</td></tr>
+          <tr><td>Endpoint yang deprecated wajib tambahkan header: <code>Deprecation: true</code>, <code>Sunset</code>, <code>Link: successor</code></td><td>Saat deprecation dimulai</td></tr>
+          <tr><td>Minimum sunset period: 3 bulan (endpoint biasa), 6 bulan (endpoint inti), 12 bulan (format fundamental)</td><td>Saat menentukan sunset date</td></tr>
+          <tr><td>Setelah sunset date: endpoint return <code>410 Gone</code> dengan body <code>{ error: { code: "ENDPOINT_GONE", migrate_to: "..." } }</code></td><td>Setelah sunset date</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <footer>
+      <p>Rejki Backend — API Versioning &amp; Deprecation · 9 Juni 2026 · Phase 1.5</p>
+      <p style="margin-top:.3rem;">Stack: Rust · Axum · URL path versioning</p>
+    </footer>
+  </main>
+</div>
+</body>
+</html>

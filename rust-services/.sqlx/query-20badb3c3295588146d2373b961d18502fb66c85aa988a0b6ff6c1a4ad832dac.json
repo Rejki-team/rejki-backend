@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE user_svc.kyc_submission\n             SET status = $2, reviewed_by = $3, review_note = $4, reviewed_at = now(), updated_at = now()\n             WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "20badb3c3295588146d2373b961d18502fb66c85aa988a0b6ff6c1a4ad832dac"
+}

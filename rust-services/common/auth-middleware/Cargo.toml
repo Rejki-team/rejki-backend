@@ -1,0 +1,11 @@
+[package]
+name    = "common-auth-mw"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+axum                = { workspace = true }
+tracing             = { workspace = true }
+common-errors       = { workspace = true }
+auth-service-client = { path = "../../auth-service-client" }
+async-trait         = "0.1"

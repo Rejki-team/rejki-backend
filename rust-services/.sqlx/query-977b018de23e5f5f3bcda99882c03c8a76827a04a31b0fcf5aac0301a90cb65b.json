@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM iklan_pekerjaan.iklan WHERE id=$1 AND poster_id=$2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "977b018de23e5f5f3bcda99882c03c8a76827a04a31b0fcf5aac0301a90cb65b"
+}

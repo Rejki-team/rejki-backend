@@ -1,0 +1,1094 @@
+﻿<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rejki Backend — Architecture</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:      #0d1117;
+      --surf:    #161b22;
+      --surf2:   #1c2230;
+      --border:  #30363d;
+      --text:    #e6edf3;
+      --muted:   #8b949e;
+      --tag:     #21262d;
+      --green:   #56d364;
+      --blue:    #79c0ff;
+      --orange:  #f78166;
+      --yellow:  #e3b341;
+      --purple:  #bc8cff;
+      --r:       10px;
+    }
+
+    html { scroll-behavior: smooth; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; font-size: 15px; }
+
+    /* ── Layout ── */
+    .layout { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
+    @media (max-width: 840px) { .layout { grid-template-columns: 1fr; } .nav { display: none; } }
+
+    /* ── Nav ── */
+    .nav {
+      position: sticky; top: 0; height: 100vh; overflow-y: auto;
+      background: var(--surf); border-right: 1px solid var(--border);
+      padding: 1.75rem 1rem;
+    }
+    .nav-logo { font-size: 1.1rem; font-weight: 800; color: var(--orange); margin-bottom: 1.75rem; }
+    .nav-logo span { color: var(--text); }
+    .nav-group { margin-bottom: 1.5rem; }
+    .nav-group-label { font-size: 0.67rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: .4rem; }
+    .nav-link { display: block; padding: .32rem .6rem; border-radius: 6px; font-size: .85rem; color: var(--muted); text-decoration: none; transition: background .12s, color .12s; }
+    .nav-link:hover { background: var(--tag); color: var(--text); }
+    .nav-link.accent { color: var(--green); }
+
+    /* ── Main ── */
+    main { max-width: 900px; margin: 0 auto; padding: 3rem 2rem 6rem; }
+    @media (max-width: 600px) { main { padding: 2rem 1rem 4rem; } }
+
+    /* ── Hero ── */
+    .hero { border-bottom: 1px solid var(--border); margin-bottom: 3rem; padding-bottom: 2.5rem; }
+    .eyebrow { display: inline-block; font-size: .73rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--green); background: rgba(86,211,100,.07); border: 1px solid rgba(86,211,100,.25); border-radius: 20px; padding: .22rem .75rem; margin-bottom: .9rem; }
+    .hero h1 { font-size: clamp(1.9rem,4vw,2.8rem); font-weight: 800; line-height: 1.15; letter-spacing: -.4px; margin-bottom: .9rem; }
+    .hero h1 em { font-style: normal; color: var(--orange); }
+    .hero p { color: var(--muted); font-size: 1rem; max-width: 660px; line-height: 1.75; }
+    .badges { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: 1.2rem; }
+    .badge { font-size: .76rem; font-weight: 600; padding: .25rem .75rem; border-radius: 20px; border: 1px solid; }
+    .b-rust   { color: var(--orange); border-color: rgba(247,129,102,.4); background: rgba(247,129,102,.06); }
+    .b-pg     { color: var(--blue);   border-color: rgba(121,192,255,.4); background: rgba(121,192,255,.06); }
+    .b-mod    { color: var(--purple); border-color: rgba(188,140,255,.4); background: rgba(188,140,255,.06); }
+    .b-sl     { color: var(--green);  border-color: rgba(86,211,100,.4);  background: rgba(86,211,100,.06);  }
+
+    /* ── Section ── */
+    section { margin-bottom: 3.5rem; }
+    .sec-title { display: flex; align-items: center; gap: .6rem; font-size: 1.25rem; font-weight: 700; margin-bottom: 1.25rem; padding-bottom: .55rem; border-bottom: 1px solid var(--border); }
+    .sec-icon { width: 30px; height: 30px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: .95rem; flex-shrink: 0; }
+    .ic-g { background: rgba(86,211,100,.1); }
+    .ic-b { background: rgba(121,192,255,.1); }
+    .ic-o { background: rgba(247,129,102,.1); }
+    .ic-y { background: rgba(227,179,65,.1); }
+    .ic-p { background: rgba(188,140,255,.1); }
+
+    /* ── Cards ── */
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px,1fr)); gap: 1.1rem; }
+    .card { background: var(--surf); border: 1px solid var(--border); border-radius: var(--r); padding: 1.1rem 1.25rem; transition: border-color .18s; }
+    .card:hover { border-color: var(--blue); }
+    .card-icon { font-size: 1.5rem; margin-bottom: .5rem; }
+    .card h3 { font-size: .9rem; font-weight: 700; margin-bottom: .3rem; }
+    .card p { font-size: .82rem; color: var(--muted); line-height: 1.55; }
+    .tags { display: flex; flex-wrap: wrap; gap: .35rem; margin-top: .6rem; }
+    .tag { font-size: .7rem; font-weight: 600; padding: .12rem .5rem; border-radius: 4px; background: var(--tag); border: 1px solid var(--border); color: var(--muted); }
+
+    /* ── Architecture Diagram ── */
+    .arch { background: var(--surf); border: 1px solid var(--border); border-radius: var(--r); padding: 1.75rem; overflow-x: auto; }
+    .arch-layer { margin-bottom: 1.25rem; }
+    .arch-layer:last-child { margin-bottom: 0; }
+    .arch-label { font-size: .68rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: .5rem; }
+    .arch-row { display: flex; flex-wrap: wrap; gap: .6rem; }
+    .arch-box { border-radius: 7px; border: 1px solid; padding: .55rem 1rem; font-size: .82rem; font-weight: 600; display: flex; flex-direction: column; gap: .15rem; }
+    .arch-box small { font-size: .7rem; font-weight: 400; opacity: .6; }
+    .ab-edge   { color: var(--orange); border-color: rgba(247,129,102,.4); background: rgba(247,129,102,.06); }
+    .ab-gate   { color: var(--yellow); border-color: rgba(227,179,65,.4);  background: rgba(227,179,65,.06);  }
+    .ab-app    { color: var(--blue);   border-color: rgba(121,192,255,.35);background: rgba(121,192,255,.05); }
+    .ab-db     { color: var(--green);  border-color: rgba(86,211,100,.35); background: rgba(86,211,100,.05);  }
+    .ab-comp   { color: var(--purple); border-color: rgba(188,140,255,.35);background: rgba(188,140,255,.05); }
+    .arch-arrow { text-align: center; color: var(--border); font-size: 1.3rem; margin: .35rem 0; }
+
+    /* ── Dependency flow ── */
+    .dep-flow { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; background: var(--surf); border: 1px solid var(--border); border-radius: var(--r); padding: 1rem 1.25rem; }
+    .dep-node { font-size: .8rem; font-weight: 600; padding: .3rem .75rem; border-radius: 6px; border: 1px solid; }
+    .dn-g { color: var(--green);  border-color: rgba(86,211,100,.4);  background: rgba(86,211,100,.07);  }
+    .dn-b { color: var(--blue);   border-color: rgba(121,192,255,.4); background: rgba(121,192,255,.07); }
+    .dn-y { color: var(--yellow); border-color: rgba(227,179,65,.4);  background: rgba(227,179,65,.07);  }
+    .dn-p { color: var(--purple); border-color: rgba(188,140,255,.4); background: rgba(188,140,255,.07); }
+    .dn-m { color: var(--muted);  border-color: var(--border);         background: var(--tag);            }
+    .dep-arrow { color: var(--border); }
+
+    /* ── Table ── */
+    .tbl { width: 100%; border-collapse: collapse; font-size: .85rem; background: var(--surf); border: 1px solid var(--border); border-radius: var(--r); overflow: hidden; }
+    .tbl th { background: var(--surf2); padding: .6rem 1rem; text-align: left; font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+    .tbl td { padding: .65rem 1rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+    .tbl tr:last-child td { border-bottom: none; }
+    .tbl tr:hover td { background: var(--surf2); }
+
+    /* ── Principle list ── */
+    .principles { display: flex; flex-direction: column; gap: .65rem; }
+    .principle { display: flex; gap: 1rem; background: var(--surf); border: 1px solid var(--border); border-radius: var(--r); padding: 1rem 1.2rem; }
+    .p-num { font-size: .73rem; font-weight: 700; color: var(--purple); min-width: 22px; padding-top: 2px; }
+    .p-body h4 { font-size: .88rem; font-weight: 700; margin-bottom: .2rem; }
+    .p-body p { font-size: .82rem; color: var(--muted); line-height: 1.55; }
+
+    /* ── File tree ── */
+    .filetree { font-family: 'Cascadia Code','Fira Code','Consolas',monospace; font-size: .82rem; line-height: 1.85; background: var(--surf); border: 1px solid var(--border); border-radius: var(--r); padding: 1.2rem 1.5rem; overflow-x: auto; }
+    .ft-dir  { color: var(--blue); font-weight: 600; }
+    .ft-f    { color: var(--text); }
+    .ft-note { color: #6e7681; }
+    .ft-hi   { color: var(--green); font-weight: 600; }
+    .ft-new  { color: var(--yellow); }
+
+    /* ── Code ── */
+    .code { background: var(--surf); border: 1px solid var(--border); border-radius: 8px; padding: .9rem 1.1rem; overflow-x: auto; margin-top: .6rem; }
+    .code pre { font-family: 'Cascadia Code','Fira Code','Consolas',monospace; font-size: .8rem; line-height: 1.7; }
+    .ck  { color: #ff7b72; } /* keyword */
+    .cs  { color: #a5d6ff; } /* string */
+    .cc  { color: #6e7681; } /* comment */
+    .ct  { color: #ffa657; } /* type */
+    .cfn { color: #d2a8ff; } /* fn */
+
+    /* ── Callout ── */
+    .callout { border-radius: var(--r); padding: .85rem 1.1rem; margin-top: 1rem; font-size: .86rem; display: flex; gap: .65rem; line-height: 1.65; }
+    .callout-icon { flex-shrink: 0; font-size: 1rem; margin-top: 1px; }
+    .callout p { color: var(--muted); }
+    .callout strong { color: var(--text); display: block; margin-bottom: .15rem; }
+    .c-info   { background: rgba(121,192,255,.06); border: 1px solid rgba(121,192,255,.22); }
+    .c-warn   { background: rgba(227,179,65,.06);  border: 1px solid rgba(227,179,65,.22);  }
+    .c-ok     { background: rgba(86,211,100,.06);  border: 1px solid rgba(86,211,100,.22);  }
+    .c-danger { background: rgba(247,129,102,.06); border: 1px solid rgba(247,129,102,.22); }
+
+    /* ── Roadmap ── */
+    .roadmap { display: flex; flex-direction: column; }
+    .rm { display: flex; gap: 1.1rem; }
+    .rm-left { display: flex; flex-direction: column; align-items: center; }
+    .rm-dot { width: 13px; height: 13px; border-radius: 50%; border: 2px solid; flex-shrink: 0; margin-top: 3px; }
+    .rm-line { width: 2px; flex: 1; background: var(--border); margin: 4px 0; min-height: 1.5rem; }
+    .rm:last-child .rm-line { display: none; }
+    .rm-body { padding-bottom: 1.5rem; flex: 1; }
+    .rm-phase { font-size: .68rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); margin-bottom: .2rem; }
+    .rm-title { font-size: .93rem; font-weight: 700; margin-bottom: .25rem; }
+    .rm-desc { font-size: .82rem; color: var(--muted); line-height: 1.55; }
+    .rm-done { display: inline-flex; align-items: center; gap: .35rem; font-size: .7rem; font-weight: 700; color: var(--green); background: rgba(86,211,100,.1); border: 1px solid rgba(86,211,100,.25); border-radius: 20px; padding: .12rem .55rem; margin-top: .45rem; }
+    .rm-pills { display: flex; flex-wrap: wrap; gap: .35rem; margin-top: .5rem; }
+    .rm-pill { font-size: .69rem; font-weight: 600; padding: .1rem .45rem; border-radius: 4px; background: var(--tag); border: 1px solid var(--border); color: var(--muted); }
+    .ph1 .rm-dot { border-color: var(--green);  background: rgba(86,211,100,.2);  }
+    .ph2 .rm-dot { border-color: var(--blue);   background: rgba(121,192,255,.2); }
+    .ph3 .rm-dot { border-color: var(--yellow); background: rgba(227,179,65,.2);  }
+    .ph4 .rm-dot { border-color: var(--purple); background: rgba(188,140,255,.2); }
+
+    /* ── Composition Root callout grid ── */
+    .comp-callouts { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; margin-top: .85rem; }
+    @media (max-width: 600px) { .comp-callouts { grid-template-columns: 1fr; } }
+
+    /* ── Checklist status badges ── */
+    .cl-done td:nth-child(1)::before { content: "✓ "; color: var(--green); font-weight: 800; }
+    .cl-done td { color: var(--muted); }
+    .cl-status-done { font-size: .7rem; font-weight: 700; color: var(--green); background: rgba(86,211,100,.1); border: 1px solid rgba(86,211,100,.25); border-radius: 20px; padding: .1rem .5rem; white-space: nowrap; }
+    .cl-status-todo { font-size: .7rem; font-weight: 700; color: var(--muted); background: var(--tag); border: 1px solid var(--border); border-radius: 20px; padding: .1rem .5rem; white-space: nowrap; }
+
+    /* ── Checklist table ── */
+    .cl-1 td:first-child { border-left: 3px solid var(--green);  }
+    .cl-2 td:first-child { border-left: 3px solid var(--blue);   }
+    .cl-3 td:first-child { border-left: 3px solid var(--orange); }
+    .cl-4 td:first-child { border-left: 3px solid var(--yellow); }
+    .cl-5 td:first-child { border-left: 3px solid var(--purple); }
+
+    code { font-family: 'Cascadia Code','Fira Code','Consolas',monospace; font-size: .8rem; background: var(--tag); border: 1px solid var(--border); border-radius: 4px; padding: .05rem .4rem; color: var(--blue); }
+
+    footer { margin-top: 4rem; padding-top: 1.25rem; border-top: 1px solid var(--border); font-size: .78rem; color: var(--muted); }
+  </style>
+</head>
+<body>
+<div class="layout">
+
+  <!-- ── NAV ── -->
+  <nav class="nav">
+    <div class="nav-logo">rejki<span>-backend</span></div>
+    <div class="nav-group">
+      <div class="nav-group-label">Overview</div>
+      <a class="nav-link" href="#overview">Visi Arsitektur</a>
+      <a class="nav-link" href="#structure">Struktur Proyek</a>
+      <a class="nav-link" href="#dep-graph">Dependency Graph</a>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-label">Keputusan Teknis</div>
+      <a class="nav-link" href="#tech-stack">Tech Stack</a>
+      <a class="nav-link" href="#framework">Framework Rust</a>
+      <a class="nav-link" href="#protocol">Protocol</a>
+      <a class="nav-link" href="#stateless">Stateless Design</a>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-label">Pola Arsitektur</div>
+      <a class="nav-link" href="#composition-root">Composition Root</a>
+      <a class="nav-link" href="#client-domain">Client Domain</a>
+      <a class="nav-link" href="#database">Database Strategy</a>
+      <a class="nav-link" href="#principles">Prinsip Desain</a>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-label">Setup & Roadmap</div>
+      <a class="nav-link accent" href="phase-1-setup.html">⚙ Phase 1 — Detail Guide</a>
+      <a class="nav-link accent" href="api-standard.html">📋 Phase 1.5 — API Standard</a>
+      <a class="nav-link accent" href="security-baseline.html">🔒 Phase 1.5 — Security</a>
+      <a class="nav-link accent" href="logging-standard.html">🪵 Phase 1.5 — Logging</a>
+      <a class="nav-link accent" href="websocket-contract.html">🔄 Phase 1.5 — WebSocket</a>
+      <a class="nav-link accent" href="notification-contract.html">🔔 Phase 1.5 — Notification</a>
+      <a class="nav-link accent" href="bun-notification-service.html">🟡 Phase 1.5 — Bun Setup</a>
+      <a class="nav-link accent" href="infrastructure-setup.html">🐳 Phase 1.5 — Infrastructure</a>
+      <a class="nav-link accent" href="vps-deployment.html">🖥️ Phase 1.5 — VPS Deployment</a>
+      <a class="nav-link accent" href="cicd-setup.html">⚙️ Phase 1.5 — CI/CD</a>
+      <a class="nav-link accent" href="database-convention.html">🐘 Phase 1.5 — DB Convention</a>
+      <a class="nav-link accent" href="testing-standard.html">🧪 Phase 1.5 — Testing</a>
+      <a class="nav-link accent" href="config-standard.html">⚙️ Phase 1.5 — Config</a>
+      <a class="nav-link accent" href="health-check.html">🏥 Phase 1.5 — Health Check</a>
+      <a class="nav-link accent" href="api-versioning.html">🔢 Phase 1.5 — API Versioning</a>
+      <a class="nav-link accent" href="authorization-pattern.html">🔐 Phase 1.5 — Authorization</a>
+      <a class="nav-link" href="#roadmap">Roadmap</a>
+      <a class="nav-link" href="#checklist">Master Checklist</a>
+    </div>
+  </nav>
+
+  <!-- ── MAIN ── -->
+  <main>
+
+    <!-- HERO -->
+    <div class="hero" id="overview">
+      <div class="eyebrow">Architecture Document · Juni 2026</div>
+      <h1>Rejki Backend<br/><em>Modular Monolith</em></h1>
+      <p>Sistem backend yang didesain sebagai <strong>Modular Monolith</strong> — semua service berjalan dalam satu process, namun setiap domain terisolasi penuh dan siap diekstrak menjadi microservice tanpa perubahan pada business logic.</p>
+      <div class="badges">
+        <span class="badge b-rust">🦀 Rust</span>
+        <span class="badge b-pg">🐘 PostgreSQL</span>
+        <span class="badge b-mod">📦 Modular Monolith</span>
+        <span class="badge b-sl">⚡ Stateless</span>
+      </div>
+    </div>
+
+    <!-- ARCHITECTURE DIAGRAM -->
+    <section>
+      <h2 class="sec-title"><span class="sec-icon ic-b">🗺️</span>Arsitektur Sistem</h2>
+      <div class="arch">
+        <div class="arch-layer">
+          <div class="arch-label">Edge / Ingress</div>
+          <div class="arch-row">
+            <div class="arch-box ab-edge">Cloudflare Tunnel<small>Zero-trust · no open ports</small></div>
+          </div>
+        </div>
+        <div class="arch-arrow">↓</div>
+        <div class="arch-layer">
+          <div class="arch-label">API Gateway</div>
+          <div class="arch-row">
+            <div class="arch-box ab-gate">nginx-proxy<small>Reverse proxy · TLS termination · rate limit</small></div>
+          </div>
+        </div>
+        <div class="arch-arrow">↓</div>
+        <div class="arch-layer">
+          <div class="arch-label">Composition Root (rejki-app) — wire semua dependency & router</div>
+          <div class="arch-row">
+            <div class="arch-box ab-comp">rejki-app<small>Binary utama · gabungkan semua service</small></div>
+          </div>
+        </div>
+        <div class="arch-arrow">↓ mount router</div>
+        <div class="arch-layer">
+          <div class="arch-label">Application Services (Rust · Axum) — masing-masing expose router()</div>
+          <div class="arch-row">
+            <div class="arch-box ab-app">auth-service<small>/api/auth/*</small></div>
+            <div class="arch-box ab-app">user-service<small>/api/users/*</small></div>
+            <div class="arch-box ab-app">chat-service<small>/api/chat/* · WS</small></div>
+            <div class="arch-box ab-app">notification-service<small>/api/notif/*</small></div>
+            <div class="arch-box ab-app">iklan-pekerjaan-service<small>/api/pekerjaan/*</small></div>
+            <div class="arch-box ab-app">iklan-pekerja-service<small>/api/pekerja/*</small></div>
+            <div class="arch-box ab-app">iklan-barang-bekas-service<small>/api/barang/*</small></div>
+            <div class="arch-box ab-app">iklan-pelatihan-service<small>/api/pelatihan/*</small></div>
+          </div>
+        </div>
+        <div class="arch-arrow">↓</div>
+        <div class="arch-layer">
+          <div class="arch-label">Shared Database (schema terisolasi per service · no cross-service FK)</div>
+          <div class="arch-row">
+            <div class="arch-box ab-db">PostgreSQL<small>Shared instance · isolated schema per service</small></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- STRUKTUR PROYEK -->
+    <section id="structure">
+      <h2 class="sec-title"><span class="sec-icon ic-y">🗂️</span>Struktur Proyek</h2>
+      <div class="filetree">
+<span class="ft-dir">rejki-backend/</span>
+├── <span class="ft-hi">Cargo.toml</span>                        <span class="ft-note"># Workspace root — 20 members</span>
+├── <span class="ft-hi">Cargo.lock</span>                        <span class="ft-note"># Commit ini — reproducible builds</span>
+├── .gitignore
+├── docker-compose.yml
+├── nginx.dev.conf
+├── nginx.prod.conf
+│
+├── <span class="ft-hi">rejki-app/</span>                        <span class="ft-note"># ← Composition Root, binary utama</span>
+│   ├── rust-services/Cargo.toml                    <span class="ft-note"># import semua *-service</span>
+│   └── src/main.rs                   <span class="ft-note"># wire deps → gabung router → serve</span>
+│
+├── <span class="ft-dir">common/</span>                           <span class="ft-note"># Shared library crates</span>
+│   ├── errors/src/lib.rs             <span class="ft-note"># AppError + IntoResponse</span>
+│   ├── tracing-setup/src/lib.rs      <span class="ft-note"># init_tracing()</span>
+│   └── auth-middleware/src/lib.rs    <span class="ft-note"># Tower JWT layer (diisi setelah auth-service)</span>
+│
+├── <span class="ft-dir">auth-service/</span>                     <span class="ft-note"># [lib] + [[bin]]</span>
+│   ├── rust-services/Cargo.toml
+│   ├── rust-services/Dockerfile
+│   ├── migrations/
+│   └── src/
+│       ├── lib.rs                    <span class="ft-note"># pub use interface::router</span>
+│       ├── main.rs                   <span class="ft-note"># standalone binary (future extraction)</span>
+│       ├── domain/                   <span class="ft-note"># entity · value object · repo trait</span>
+│       ├── application/              <span class="ft-note"># use case</span>
+│       ├── infrastructure/           <span class="ft-note"># PgAuthRepository · impl konkret</span>
+│       └── interface/                <span class="ft-note"># Axum handler · router() · DTO</span>
+│
+├── <span class="ft-dir">auth-service-client/</span>              <span class="ft-note"># Trait publik auth domain</span>
+│   └── src/lib.rs                    <span class="ft-note"># trait AuthClient · AuthClaims</span>
+│
+<span class="ft-note"># ... pola [lib]+[[bin]] dan *-client identik untuk semua service lain</span>
+├── user-service/          user-service-client/
+├── chat-service/          chat-service-client/
+├── notification-service/  notification-service-client/
+├── iklan-pekerjaan-service/  iklan-pekerjaan-service-client/
+├── iklan-pekerja-service/    iklan-pekerja-service-client/
+├── iklan-barang-bekas-service/  iklan-barang-bekas-service-client/
+└── iklan-pelatihan-service/     iklan-pelatihan-service-client/</div>
+    </section>
+
+    <!-- DEPENDENCY GRAPH -->
+    <section id="dep-graph">
+      <h2 class="sec-title"><span class="sec-icon ic-p">🔗</span>Dependency Graph</h2>
+
+      <p style="color:var(--muted);font-size:.88rem;margin-bottom:1rem;">Siapa import apa. Baca dari kiri ke kanan.</p>
+
+      <div style="display:flex;flex-direction:column;gap:.75rem;">
+
+        <div class="dep-flow">
+          <span style="font-size:.75rem;font-weight:700;color:var(--muted);min-width:110px;">rejki-app</span>
+          <span class="dep-arrow">imports</span>
+          <div class="dep-node dn-y">auth-service</div>
+          <div class="dep-node dn-y">user-service</div>
+          <div class="dep-node dn-y">chat-service</div>
+          <div class="dep-node dn-m">... semua service</div>
+        </div>
+
+        <div class="dep-flow">
+          <span style="font-size:.75rem;font-weight:700;color:var(--muted);min-width:110px;">user-service</span>
+          <span class="dep-arrow">imports</span>
+          <div class="dep-node dn-b">auth-service-client</div>
+          <div class="dep-node dn-g">common-errors</div>
+          <div class="dep-node dn-g">common-auth-mw</div>
+        </div>
+
+        <div class="dep-flow">
+          <span style="font-size:.75rem;font-weight:700;color:var(--muted);min-width:110px;">chat-service</span>
+          <span class="dep-arrow">imports</span>
+          <div class="dep-node dn-b">auth-service-client</div>
+          <div class="dep-node dn-b">user-service-client</div>
+          <div class="dep-node dn-g">common-auth-mw</div>
+        </div>
+
+        <div class="dep-flow">
+          <span style="font-size:.75rem;font-weight:700;color:var(--muted);min-width:110px;">iklan-*-service</span>
+          <span class="dep-arrow">imports</span>
+          <div class="dep-node dn-b">auth-service-client</div>
+          <div class="dep-node dn-b">user-service-client</div>
+          <div class="dep-node dn-b">notification-service-client</div>
+        </div>
+
+        <div class="dep-flow">
+          <span style="font-size:.75rem;font-weight:700;color:var(--muted);min-width:110px;">auth-service</span>
+          <span class="dep-arrow">imports</span>
+          <div class="dep-node dn-g">common-errors</div>
+          <div class="dep-node dn-g">common-tracing</div>
+          <div class="dep-node dn-m">tidak import service lain</div>
+        </div>
+
+      </div>
+
+      <div class="callout c-danger" style="margin-top:1rem;">
+        <span class="callout-icon">🚫</span>
+        <div><strong>Aturan yang tidak boleh dilanggar</strong>
+        <p>Service tidak boleh import service lain secara langsung. Komunikasi antar domain hanya boleh melalui <code>*-service-client</code> (trait). <code>common/</code> crates tidak boleh import dari service manapun.</p></div>
+      </div>
+    </section>
+
+    <!-- TECH STACK -->
+    <section id="tech-stack">
+      <h2 class="sec-title"><span class="sec-icon ic-o">🧰</span>Tech Stack</h2>
+      <div style="overflow-x:auto;">
+        <table class="tbl">
+          <thead><tr><th>Crate</th><th>Versi</th><th>Peran</th></tr></thead>
+          <tbody>
+            <tr><td><strong>axum</strong></td><td><code>0.8</code></td><td>Web framework — router, handler, WebSocket native</td></tr>
+            <tr><td><strong>tokio</strong></td><td><code>1</code></td><td>Async runtime multi-thread work-stealing</td></tr>
+            <tr><td><strong>sqlx</strong></td><td><code>0.9</code></td><td>Async PostgreSQL — compile-time query check</td></tr>
+            <tr><td><strong>serde + serde_json</strong></td><td><code>1</code></td><td>JSON serialization via derive macro</td></tr>
+            <tr><td><strong>uuid</strong></td><td><code>1</code></td><td>UUID v7 (sortable) untuk semua primary key</td></tr>
+            <tr><td><strong>tower-http</strong></td><td><code>0.6</code></td><td>CORS, tracing, gzip compression layer</td></tr>
+            <tr><td><strong>thiserror</strong></td><td><code>2</code></td><td>Custom error types dengan derive macro</td></tr>
+            <tr><td><strong>jsonwebtoken</strong></td><td><code>10</code></td><td>JWT RS256 — hanya di auth-service</td></tr>
+            <tr><td><strong>bcrypt</strong></td><td><code>0.19</code></td><td>Password hashing</td></tr>
+            <tr><td><strong>tracing + tracing-subscriber</strong></td><td><code>0.1 / 0.3</code></td><td>Structured logging JSON (prod) / pretty (dev)</td></tr>
+            <tr><td><strong>validator</strong></td><td><code>0.20</code></td><td>Request body validation via derive</td></tr>
+            <tr><td><strong>dotenvy</strong></td><td><code>0.15</code></td><td>Load .env file</td></tr>
+            <tr><td><strong>anyhow</strong></td><td><code>1</code></td><td>Error propagation di application layer</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="callout c-info" style="margin-top:.85rem;">
+        <span class="callout-icon">ℹ️</span>
+        <div><strong>async-trait tidak digunakan</strong>
+        <p>Sejak Rust 1.75, <code>async fn</code> di dalam <code>trait</code> sudah didukung secara native. Semua <code>*-service-client</code> menggunakan native async trait tanpa crate tambahan.</p></div>
+      </div>
+    </section>
+
+    <!-- FRAMEWORK -->
+    <section id="framework">
+      <h2 class="sec-title"><span class="sec-icon ic-o">🦀</span>Framework — Axum</h2>
+      <p style="color:var(--muted);font-size:.88rem;margin-bottom:1rem;">Dipilih berdasarkan perbandingan dengan Actix-web dan Poem.</p>
+      <div style="overflow-x:auto;">
+        <table class="tbl">
+          <thead><tr><th>Framework</th><th>Kelebihan</th><th>Kekurangan</th><th></th></tr></thead>
+          <tbody>
+            <tr>
+              <td><strong>Axum</strong></td>
+              <td>Ergonomis · Tower ecosystem · WebSocket native · maintained Tokio team</td>
+              <td>Relatif baru</td>
+              <td><span style="font-size:.72rem;font-weight:700;color:var(--yellow);background:rgba(227,179,65,.12);border:1px solid rgba(227,179,65,.3);border-radius:4px;padding:.1rem .45rem;">Dipilih</span></td>
+            </tr>
+            <tr>
+              <td><strong>Actix-web</strong></td>
+              <td>Benchmark terbaik · komunitas besar</td>
+              <td>Actor model menambah kompleksitas</td>
+              <td></td>
+            </tr>
+            <tr>
+              <td><strong>Poem</strong></td>
+              <td>OpenAPI auto-generate · simple API</td>
+              <td>Ekosistem kecil · less battle-tested</td>
+              <td></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- PROTOCOL -->
+    <section id="protocol">
+      <h2 class="sec-title"><span class="sec-icon ic-b">🌐</span>Protocol Strategy</h2>
+      <div class="grid">
+        <div class="card">
+          <div class="card-icon">🔵</div>
+          <h3>HTTPS REST</h3>
+          <p>Untuk semua endpoint external (mobile/web ke service). JSON payload.</p>
+          <div class="tags"><span class="tag">External API</span></div>
+        </div>
+        <div class="card">
+          <div class="card-icon">🔄</div>
+          <h3>WebSocket</h3>
+          <p>Khusus chat-service. Axum native WS support. JWT auth saat handshake.</p>
+          <div class="tags"><span class="tag">chat-service</span><span class="tag">Real-time</span></div>
+        </div>
+        <div class="card">
+          <div class="card-icon">⚙️</div>
+          <h3>In-process call</h3>
+          <p>Saat Modular Monolith: komunikasi antar domain adalah function call via trait. Zero network overhead.</p>
+          <div class="tags"><span class="tag">Monolith phase</span></div>
+        </div>
+        <div class="card">
+          <div class="card-icon">🔮</div>
+          <h3>Future: HTTP / gRPC</h3>
+          <p>Saat service diekstrak, ganti implementasi trait di client — consumer tidak berubah.</p>
+          <div class="tags"><span class="tag">Extraction path</span></div>
+        </div>
+        <div class="card">
+          <div class="card-icon">🔐</div>
+          <h3>Cloudflare Tunnel</h3>
+          <p>Zero-trust edge. Tidak ada port terbuka di server. Menggantikan load balancer eksternal.</p>
+          <div class="tags"><span class="tag">Security</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- STATELESS -->
+    <section id="stateless">
+      <h2 class="sec-title"><span class="sec-icon ic-g">⚡</span>Stateless Service Design</h2>
+      <div class="grid">
+        <div class="card">
+          <div class="card-icon">🎫</div>
+          <h3>JWT Authentication</h3>
+          <p>Token self-contained RS256. Server tidak simpan session. Validasi JWT dipusatkan via <code>AuthClient</code> trait — private key hanya ada di auth-service.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">💾</div>
+          <h3>State di Database</h3>
+          <p>Semua state persisten ada di PostgreSQL. Tidak ada in-memory state yang di-share antar request.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">🔄</div>
+          <h3>Horizontal Scaling</h3>
+          <p>Karena stateless, instance bisa di-scale bebas. Restart tanpa koordinasi.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">⏱️</div>
+          <h3>Redis (opsional)</h3>
+          <p>Untuk rate limiting, token blacklist, dan WebSocket pub/sub (multi-replica chat).</p>
+        </div>
+      </div>
+      <div class="callout c-info" style="margin-top:.85rem;">
+        <span class="callout-icon">💡</span>
+        <div><strong>OTP disimpan di auth-service</strong>
+        <p>OTP adalah bagian dari authentication flow. Disimpan di tabel <code>auth.otp_verifications</code> dengan kolom <code>expires_at</code>. Pengiriman OTP dilakukan via <code>notification-service-client</code> — auth-service tidak tahu provider pengiriman.</p></div>
+      </div>
+    </section>
+
+    <!-- COMPOSITION ROOT -->
+    <section id="composition-root">
+      <h2 class="sec-title"><span class="sec-icon ic-p">🏗️</span>Composition Root — rejki-app</h2>
+      <p style="color:var(--muted);font-size:.88rem;margin-bottom:1rem;">Satu-satunya tempat yang tahu semua implementasi konkret. Prinsip ini disebut <strong>Composition Root pattern</strong>.</p>
+
+      <div class="code">
+        <pre><span class="cc">// rejki-app/src/main.rs — implementasi nyata (Phase 1 selesai)</span>
+<span class="ck">use</span> std::sync::Arc;
+<span class="ck">use</span> tower_http::{cors::{Any, CorsLayer}, trace::TraceLayer, compression::CompressionLayer};
+
+<span class="ck">#[tokio::main]</span>
+<span class="ck">async fn</span> <span class="cfn">main</span>() {
+    dotenvy::<span class="cfn">dotenv</span>().ok();
+    common_tracing::<span class="cfn">init_tracing</span>();
+
+    <span class="cc">// 1. Shared DB pool — schema terisolasi per service</span>
+    <span class="ck">let</span> pool = sqlx::<span class="ct">PgPool</span>::<span class="cfn">connect</span>(&env::<span class="cfn">var</span>(<span class="cs">"DATABASE_URL"</span>).<span class="cfn">expect</span>(<span class="cs">"DATABASE_URL tidak di-set"</span>))
+        .await.<span class="cfn">expect</span>(<span class="cs">"gagal connect ke PostgreSQL"</span>);
+
+    <span class="cc">// 2. JwtService — inisiasi sekali, di-share via Arc ke auth-service</span>
+    <span class="ck">let</span> jwt = Arc::new(auth_service::<span class="ct">JwtService</span>::<span class="cfn">from_files</span>(
+        &std::fs::<span class="cfn">read_to_string</span>(<span class="cs">"./keys/private.pem"</span>).<span class="cfn">unwrap</span>(),
+        &std::fs::<span class="cfn">read_to_string</span>(<span class="cs">"./keys/public.pem"</span>).<span class="cfn">unwrap</span>(),
+        <span class="cn">900</span>,
+    ).<span class="cfn">unwrap</span>());
+
+    <span class="cc">// 3. AuthClient in-process — di-inject ke middleware semua service berproteksi</span>
+    <span class="cc">//    Saat diekstrak ke microservice: ganti dengan HttpAuthClient, tidak ada perubahan lain</span>
+    <span class="ck">let</span> auth_client: Arc&lt;<span class="ck">dyn</span> auth_service_client::<span class="ct">AuthClient</span>&gt; =
+        Arc::new(auth_service::<span class="ct">AuthInProcessClient</span>::<span class="cfn">new</span>(jwt.<span class="cfn">clone</span>()));
+
+    <span class="cc">// 4. Wire semua router + cross-cutting layers</span>
+    <span class="ck">let</span> app = Router::new()
+        .<span class="cfn">nest</span>(<span class="cs">"/api/auth"</span>,      auth_service::<span class="cfn">router_with_jwt</span>(pool.<span class="cfn">clone</span>(), jwt))
+        .<span class="cfn">nest</span>(<span class="cs">"/api/users"</span>,     user_service::<span class="cfn">router</span>(pool.<span class="cfn">clone</span>()))
+        .<span class="cfn">nest</span>(<span class="cs">"/api/chat"</span>,      chat_service::<span class="cfn">router</span>(pool.<span class="cfn">clone</span>()))
+        .<span class="cfn">nest</span>(<span class="cs">"/api/notif"</span>,     notification_service::<span class="cfn">router</span>(pool.<span class="cfn">clone</span>()))
+        .<span class="cfn">nest</span>(<span class="cs">"/api/pekerjaan"</span>, iklan_pekerjaan_service::<span class="cfn">router</span>(pool.<span class="cfn">clone</span>()))
+        .<span class="cfn">nest</span>(<span class="cs">"/api/pekerja"</span>,   iklan_pekerja_service::<span class="cfn">router</span>(pool.<span class="cfn">clone</span>()))
+        .<span class="cfn">nest</span>(<span class="cs">"/api/barang"</span>,    iklan_barang_bekas_service::<span class="cfn">router</span>(pool.<span class="cfn">clone</span>()))
+        .<span class="cfn">nest</span>(<span class="cs">"/api/pelatihan"</span>, iklan_pelatihan_service::<span class="cfn">router</span>(pool))
+        .<span class="cfn">layer</span>(<span class="ct">CompressionLayer</span>::<span class="cfn">new</span>())
+        .<span class="cfn">layer</span>(<span class="ct">TraceLayer</span>::<span class="cfn">new_for_http</span>())
+        .<span class="cfn">layer</span>(<span class="ct">CorsLayer</span>::<span class="cfn">new</span>().<span class="cfn">allow_origin</span>(<span class="ct">Any</span>).<span class="cfn">allow_methods</span>(<span class="ct">Any</span>).<span class="cfn">allow_headers</span>(<span class="ct">Any</span>));
+
+    <span class="ck">let</span> port     = env::<span class="cfn">var</span>(<span class="cs">"APP_PORT"</span>).<span class="cfn">unwrap_or</span>(<span class="cs">"8080"</span>.<span class="cfn">into</span>());
+    <span class="ck">let</span> listener = tokio::net::<span class="ct">TcpListener</span>::<span class="cfn">bind</span>(<span class="cfn">format!</span>(<span class="cs">"0.0.0.0:{port}"</span>)).await.<span class="cfn">unwrap</span>();
+    tracing::<span class="cfn">info!</span>(port = %port, <span class="cs">"rejki-app listening"</span>);
+    axum::<span class="cfn">serve</span>(listener, app).await.<span class="cfn">unwrap</span>();
+}</pre>
+      </div>
+
+      <div class="comp-callouts">
+        <div class="callout c-ok" style="margin-top:0;">
+          <span class="callout-icon">✅</span>
+          <div><strong>Import service, bukan client</strong>
+          <p><code>rejki-app</code> import <code>*-service</code> untuk memanggil <code>router()</code>. <code>*-service-client</code> hanya diimport oleh service yang mengkonsumsi domain lain via trait.</p></div>
+        </div>
+        <div class="callout c-info" style="margin-top:0;">
+          <span class="callout-icon">🔄</span>
+          <div><strong>Extraction path</strong>
+          <p>Saat service diekstrak: ganti <code>AuthInProcessClient</code> → <code>HttpAuthClient</code>. Tidak ada perubahan pada router, handler, atau service lain.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CLIENT DOMAIN -->
+    <section id="client-domain">
+      <h2 class="sec-title"><span class="sec-icon ic-p">📦</span>Client Domain — Kontrak Antar Service</h2>
+      <p style="color:var(--muted);font-size:.88rem;margin-bottom:1rem;">Setiap <code>*-service-client</code> hanya boleh berisi trait + DTO publik. Tidak ada logika bisnis, tidak ada akses DB.</p>
+
+      <div class="grid">
+        <div class="card">
+          <div class="card-icon" style="font-size:1rem;background:rgba(247,129,102,.1);border-radius:6px;padding:.4rem .7rem;display:inline-block;margin-bottom:.6rem;">auth-service-client</div>
+          <h3>Expose</h3>
+          <p><code>trait AuthClient</code><br/><code>AuthClaims { user_id, email }</code><br/><code>fn validate_token(jwt)</code></p>
+        </div>
+        <div class="card">
+          <div class="card-icon" style="font-size:1rem;background:rgba(121,192,255,.1);border-radius:6px;padding:.4rem .7rem;display:inline-block;margin-bottom:.6rem;">user-service-client</div>
+          <h3>Expose</h3>
+          <p><code>trait UserClient</code><br/><code>UserSummary { id, username, avatar }</code><br/><code>fn get_user_summary(id)</code><br/><code>fn user_exists(id)</code></p>
+        </div>
+        <div class="card">
+          <div class="card-icon" style="font-size:1rem;background:rgba(86,211,100,.1);border-radius:6px;padding:.4rem .7rem;display:inline-block;margin-bottom:.6rem;">notification-service-client</div>
+          <h3>Expose</h3>
+          <p><code>trait NotificationClient</code><br/><code>NotificationPayload</code><br/><code>fn send(recipient_id, payload)</code><br/><code>fn send_bulk(ids, payload)</code></p>
+        </div>
+        <div class="card">
+          <div class="card-icon" style="font-size:1rem;background:rgba(227,179,65,.1);border-radius:6px;padding:.4rem .7rem;display:inline-block;margin-bottom:.6rem;">iklan-*-service-client</div>
+          <h3>Expose (pola sama)</h3>
+          <p><code>trait Iklan*Client</code><br/><code>Iklan*Summary { id, judul, ... }</code><br/><code>fn get_summary(id)</code><br/><code>fn exists(id)</code></p>
+        </div>
+      </div>
+
+      <div class="callout c-warn" style="margin-top:.85rem;">
+        <span class="callout-icon">⚠️</span>
+        <div><strong>Extraction path via trait swap</strong>
+        <p>Saat service diekstrak, hanya implementasi trait yang berubah — dari direct function call menjadi HTTP/gRPC client. Consumer (service yang pakai) tidak perlu diubah sama sekali.</p></div>
+      </div>
+    </section>
+
+    <!-- DATABASE -->
+    <section id="database">
+      <h2 class="sec-title"><span class="sec-icon ic-g">🐘</span>Database Strategy</h2>
+      <div class="grid">
+        <div class="card">
+          <div class="card-icon">📂</div>
+          <h3>Schema Isolation</h3>
+          <p>Setiap service punya PostgreSQL schema sendiri: <code>auth.*</code>, <code>user_svc.*</code>, <code>chat.*</code>, dst. Tidak ada tabel yang diakses lintas service.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">🚫</div>
+          <h3>No Cross-Service FK</h3>
+          <p>Foreign key hanya dalam satu schema. Konsistensi referensial dijaga di application layer, bukan DB constraint.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">🆔</div>
+          <h3>UUID v7</h3>
+          <p>Semua primary key UUID v7 (time-sortable). Setiap service generate ID sendiri tanpa koordinasi ke DB.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">🔄</div>
+          <h3>Migration Isolated</h3>
+          <p>Setiap service kelola migration sendiri di folder <code>migrations/</code>. Dijalankan otomatis via <code>sqlx::migrate!()</code> saat startup.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">🔌</div>
+          <h3>Connection Pool Terpisah</h3>
+          <p><code>sqlx::PgPool</code> per service — memudahkan ekstraksi ke DB terpisah di masa depan.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">📋</div>
+          <h3>Denormalized Read</h3>
+          <p>Data dari domain lain disimpan sebagai denormalized copy lokal. Update via event atau re-fetch — tidak pernah JOIN lintas schema.</p>
+        </div>
+      </div>
+      <div class="callout c-danger" style="margin-top:.85rem;">
+        <span class="callout-icon">🚫</span>
+        <div><strong>Aturan emas database</strong>
+        <p>Jika ada kebutuhan JOIN antara tabel milik dua service berbeda, itu sinyal boundary service salah. Perbaiki boundary-nya, jangan tambah JOIN-nya.</p></div>
+      </div>
+    </section>
+
+    <!-- PRINCIPLES -->
+    <section id="principles">
+      <h2 class="sec-title"><span class="sec-icon ic-p">📐</span>Prinsip Desain</h2>
+      <div class="principles">
+        <div class="principle"><div class="p-num">01</div><div class="p-body"><h4>Service Independence</h4><p>Tidak ada import langsung antar service. Komunikasi hanya via <code>*-service-client</code> trait.</p></div></div>
+        <div class="principle"><div class="p-num">02</div><div class="p-body"><h4>Minimal Surface Client Domain</h4><p>Client domain hanya ekspos yang benar-benar dibutuhkan konsumer. Internal model, repo, logic tetap tersembunyi.</p></div></div>
+        <div class="principle"><div class="p-num">03</div><div class="p-body"><h4>Composition Root Tunggal</h4><p><code>rejki-app</code> adalah satu-satunya tempat wiring terjadi. Service tidak tahu siapa yang menggunakannya.</p></div></div>
+        <div class="principle"><div class="p-num">04</div><div class="p-body"><h4>Stateless Service</h4><p>Tidak ada state di memory service. State ada di PostgreSQL. Mendukung horizontal scaling dan restart bebas.</p></div></div>
+        <div class="principle"><div class="p-num">05</div><div class="p-body"><h4>No Cross-Service DB Join</h4><p>Setiap service punya schema tabel sendiri. Tidak ada foreign key antar service.</p></div></div>
+        <div class="principle"><div class="p-num">06</div><div class="p-body"><h4>Extraction-Ready by Design</h4><p>Setiap service bisa diekstrak ke process terpisah kapan saja: (1) swap trait impl, (2) pisah DB schema, (3) deploy binary standalone.</p></div></div>
+      </div>
+    </section>
+
+    <!-- ROADMAP -->
+    <section id="roadmap">
+      <h2 class="sec-title"><span class="sec-icon ic-b">📅</span>Roadmap Implementasi</h2>
+      <div class="roadmap">
+
+        <div class="rm ph1">
+          <div class="rm-left"><div class="rm-dot"></div><div class="rm-line"></div></div>
+          <div class="rm-body">
+            <div class="rm-phase">Phase 1 — Foundation</div>
+            <div class="rm-title">Workspace, Shared Crates, Toolchain</div>
+            <div class="rm-desc">Cargo workspace 20 members · common/errors (JSON body) · common/tracing-setup · common/auth-middleware (DI via AuthClient trait) · Docker Compose PostgreSQL · 8 schema DB terisolasi · scripts/init-schemas.sql · .env.example · .gitignore.</div>
+            <div class="rm-done">✓ Selesai</div>
+            <div class="rm-pills">
+              <span class="rm-pill">common/errors</span>
+              <span class="rm-pill">common/tracing-setup</span>
+              <span class="rm-pill">common/auth-middleware</span>
+              <span class="rm-pill">.gitignore</span>
+              <span class="rm-pill">.env.example</span>
+              <span class="rm-pill">scripts/init-schemas.sql</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="rm ph1">
+          <div class="rm-left"><div class="rm-dot"></div><div class="rm-line"></div></div>
+          <div class="rm-body">
+            <div class="rm-phase">Phase 1 — Foundation</div>
+            <div class="rm-title">auth-service + auth-service-client + Semua Service Skeleton</div>
+            <div class="rm-desc">JWT RS256 issue &amp; validate · refresh token rotation · OTP verification atomik (SHA-256, simpan di <code>auth.otp_verifications</code>) · <code>trait AuthClient</code> + <code>AuthInProcessClient</code> · Skeleton 4 layer (domain/application/infrastructure/interface) + migrations untuk semua 8 service · rejki-app wiring nyata dengan CorsLayer + TraceLayer + CompressionLayer.</div>
+            <div class="rm-done">✓ Selesai</div>
+            <div class="rm-pills">
+              <span class="rm-pill">auth-service</span>
+              <span class="rm-pill">auth-service-client</span>
+              <span class="rm-pill">JwtService</span>
+              <span class="rm-pill">AuthInProcessClient</span>
+              <span class="rm-pill">8 service skeleton</span>
+              <span class="rm-pill">rejki-app wiring</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="rm" style="--dot-color: var(--purple);">
+          <div class="rm-left">
+            <div class="rm-dot" style="border-color:var(--purple);background:rgba(188,140,255,.2);"></div>
+            <div class="rm-line"></div>
+          </div>
+          <div class="rm-body">
+            <div class="rm-phase">Phase 1.5 — Standardization</div>
+            <div class="rm-title">14 Standar Wajib Sebelum Phase 2</div>
+            <div class="rm-desc">Semua standar ini wajib terdokumentasi dan diimplementasi sebelum Phase 2 dimulai: <strong>API Standard</strong> (envelope, error format, pagination, presigned URL) · <strong>Security Baseline</strong> (secret policy, IDOR, AppError tidak bocor) · <strong>Logging</strong> (JSON structured, request_id) · <strong>WebSocket Contract</strong> (auth handshake, message envelope, reconnect) · <strong>Notification + Bun.js</strong> (Redis Streams publisher/consumer, FCM, idempotency, retry/DLQ) · <strong>Infrastructure Setup</strong> (docker-compose, nginx dev/prod, multi-stage Dockerfile) · <strong>VPS Deployment</strong> (Docker, ufw, Cloudflare Tunnel, dev+prod satu VPS) · <strong>CI/CD</strong> (GitHub Actions: fmt+clippy+test, deploy prod/dev via SSH) · <strong>Database Convention</strong> (naming, soft delete, index) · <strong>Testing Standard</strong> (tiers, naming, coverage ≥80%) · <strong>Config Standard</strong> (fail-fast APP_ENV, .env hanya development) · <strong>Health Check &amp; Graceful Shutdown</strong> (/health, SIGTERM drain) · <strong>API Versioning</strong> (breaking change policy, deprecation) · <strong>Authorization Pattern</strong> (3 lapisan, ownership di SQL, 404 vs 403).</div>
+            <div class="rm-done">✓ Selesai</div>
+            <div class="rm-pills">
+              <span class="rm-pill">ApiResponse&lt;T&gt;</span>
+              <span class="rm-pill">/api/v1/ prefix</span>
+              <span class="rm-pill">IDOR → 404</span>
+              <span class="rm-pill">JSON logging</span>
+              <span class="rm-pill">request_id</span>
+              <span class="rm-pill">WS envelope</span>
+              <span class="rm-pill">Redis Streams</span>
+              <span class="rm-pill">FCM firebase-admin</span>
+              <span class="rm-pill">docker-compose</span>
+              <span class="rm-pill">nginx rate-limit</span>
+              <span class="rm-pill">multi-stage Dockerfile</span>
+              <span class="rm-pill">GitHub Actions CI</span>
+              <span class="rm-pill">SSH deploy</span>
+              <span class="rm-pill">snake_case DB</span>
+              <span class="rm-pill">sqlx::test</span>
+              <span class="rm-pill">fail-fast APP_ENV</span>
+              <span class="rm-pill">GET /health</span>
+              <span class="rm-pill">SIGTERM graceful</span>
+              <span class="rm-pill">ownership check SQL</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="rm ph2">
+          <div class="rm-left"><div class="rm-dot"></div><div class="rm-line"></div></div>
+          <div class="rm-body">
+            <div class="rm-phase">Phase 2 — Core Services</div>
+            <div class="rm-title">user-service · notification-service · chat-service</div>
+            <div class="rm-desc">user-service CRUD profil lengkap · notification-service Rust jadi publisher Redis Stream + REST API in-app · bun-notification-service consumer FCM HTTP v1 + DB write · chat-service (WebSocket + cursor pagination) · buat <code>UserClient</code>, <code>NotificationClient</code>, <code>ChatClient</code> trait.</div>
+            <div class="rm-pills">
+              <span class="rm-pill">user-service</span>
+              <span class="rm-pill">notification-service</span>
+              <span class="rm-pill">chat-service WebSocket</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="rm ph2">
+          <div class="rm-left"><div class="rm-dot"></div><div class="rm-line"></div></div>
+          <div class="rm-body">
+            <div class="rm-phase">Phase 2 — Core Services</div>
+            <div class="rm-title">iklan-* services (4 service)</div>
+            <div class="rm-desc">iklan-pekerjaan · iklan-pekerja (GIN index keahlian) · iklan-barang-bekas (mark_sold, foto_urls) · iklan-pelatihan (tanggal_mulai/selesai) · integrasi NotificationClient untuk notifikasi event iklan.</div>
+            <div class="rm-pills">
+              <span class="rm-pill">iklan-pekerjaan</span>
+              <span class="rm-pill">iklan-pekerja</span>
+              <span class="rm-pill">iklan-barang-bekas</span>
+              <span class="rm-pill">iklan-pelatihan</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="rm ph3">
+          <div class="rm-left"><div class="rm-dot"></div><div class="rm-line"></div></div>
+          <div class="rm-body">
+            <div class="rm-phase">Phase 3 — Hardening</div>
+            <div class="rm-title">Security · Observability · Testing</div>
+            <div class="rm-desc">Rate limiting (tower-governor) · OTP brute-force protection · request ID per request · structured JSON logging production · integration test dengan DB real (schema <code>rejki_test</code>, bukan mock).</div>
+            <div class="rm-pills">
+              <span class="rm-pill">rate limiting</span>
+              <span class="rm-pill">request ID</span>
+              <span class="rm-pill">integration tests</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="rm ph3">
+          <div class="rm-left"><div class="rm-dot"></div><div class="rm-line"></div></div>
+          <div class="rm-body">
+            <div class="rm-phase">Phase 3 — Hardening</div>
+            <div class="rm-title">CI/CD · Docker · Deployment</div>
+            <div class="rm-desc">Multi-stage Dockerfile (image &lt;30MB) · GitHub Actions: fmt → clippy → test → build → push · nginx.prod.conf lengkap (WebSocket proxy, rate limit) · Cloudflare Tunnel zero-trust · PostgreSQL managed DB + backup cron.</div>
+            <div class="rm-pills">
+              <span class="rm-pill">Dockerfile</span>
+              <span class="rm-pill">GitHub Actions</span>
+              <span class="rm-pill">nginx</span>
+              <span class="rm-pill">Cloudflare Tunnel</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="rm ph4">
+          <div class="rm-left"><div class="rm-dot"></div><div class="rm-line"></div></div>
+          <div class="rm-body">
+            <div class="rm-phase">Phase 4 — Extraction (bila diperlukan)</div>
+            <div class="rm-title">Service Extraction ke Microservice</div>
+            <div class="rm-desc">Identifikasi service dengan kebutuhan scale berbeda · swap implementasi trait dari <code>InProcessClient</code> ke <code>HttpClient</code> — consumer tidak berubah · pisah schema ke DB terpisah · deploy binary standalone.</div>
+            <div class="rm-pills">
+              <span class="rm-pill">trait swap</span>
+              <span class="rm-pill">DB separation</span>
+              <span class="rm-pill">standalone binary</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- MASTER CHECKLIST -->
+    <section id="checklist">
+      <h2 class="sec-title"><span class="sec-icon ic-y">✅</span>Master Checklist</h2>
+      <div style="overflow-x:auto;">
+        <table class="tbl">
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th style="width:70px;text-align:center;">Phase</th>
+              <th style="width:110px;">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- ── Phase 1 Foundation ── -->
+            <tr class="cl-1">
+              <td>Install Rust stable, sqlx-cli, cargo-watch</td>
+              <td style="text-align:center;">1</td>
+              <td><span class="cl-status-done">✓ Selesai</span></td>
+            </tr>
+            <tr class="cl-1">
+              <td>Cargo workspace 20 members + struktur folder</td>
+              <td style="text-align:center;">1</td>
+              <td><span class="cl-status-done">✓ Selesai</span></td>
+            </tr>
+            <tr class="cl-1">
+              <td>common/errors + common/tracing-setup</td>
+              <td style="text-align:center;">1</td>
+              <td><span class="cl-status-done">✓ Selesai</span></td>
+            </tr>
+            <tr class="cl-1">
+              <td>common/auth-middleware — Tower layer DI via <code>Arc&lt;dyn AuthClient&gt;</code></td>
+              <td style="text-align:center;">1</td>
+              <td><span class="cl-status-done">✓ Selesai</span></td>
+            </tr>
+            <tr class="cl-1">
+              <td>Docker Compose local: PostgreSQL</td>
+              <td style="text-align:center;">1</td>
+              <td><span class="cl-status-done">✓ Selesai</span></td>
+            </tr>
+            <tr class="cl-1">
+              <td>scripts/init-schemas.sql — 8 schema + GRANT per service</td>
+              <td style="text-align:center;">1</td>
+              <td><span class="cl-status-done">✓ Selesai</span></td>
+            </tr>
+            <tr class="cl-1">
+              <td>Generate RSA keypair JWT — private key hanya di auth-service</td>
+              <td style="text-align:center;">1</td>
+              <td><span class="cl-status-done">✓ Selesai</span></td>
+            </tr>
+            <tr class="cl-1">
+              <td>.env.example + .gitignore (keys/, *.pem, .env)</td>
+              <td style="text-align:center;">1</td>
+              <td><span class="cl-status-done">✓ Selesai</span></td>
+            </tr>
+            <tr class="cl-1">
+              <td>auth-service: Axum router + AppState + health check + migrations</td>
+              <td style="text-align:center;">1</td>
+              <td><span class="cl-status-done">✓ Selesai</span></td>
+            </tr>
+            <tr class="cl-1">
+              <td>auth-service: JwtService RS256 + refresh token rotation + OTP SHA-256</td>
+              <td style="text-align:center;">1</td>
+              <td><span class="cl-status-done">✓ Selesai</span></td>
+            </tr>
+            <tr class="cl-1">
+              <td>auth-service-client: trait <code>AuthClient</code> + <code>AuthClaims</code> + <code>AuthClientError</code></td>
+              <td style="text-align:center;">1</td>
+              <td><span class="cl-status-done">✓ Selesai</span></td>
+            </tr>
+            <tr class="cl-1">
+              <td>Skeleton 4-layer (domain/application/infrastructure/interface) + migrations untuk 8 service</td>
+              <td style="text-align:center;">1</td>
+              <td><span class="cl-status-done">✓ Selesai</span></td>
+            </tr>
+            <tr class="cl-1">
+              <td>rejki-app: Composition Root nyata — wire 8 router + CorsLayer + TraceLayer + CompressionLayer</td>
+              <td style="text-align:center;">1</td>
+              <td><span class="cl-status-done">✓ Selesai</span></td>
+            </tr>
+
+            <!-- ── Phase 1.5 Standardization ── -->
+            <tr style="background:rgba(188,140,255,.03);">
+              <td style="border-left:3px solid var(--purple);"><a href="api-standard.html" style="color:var(--purple);text-decoration:none;font-weight:700;">ApiResponse&lt;T&gt;</a> + <code>PaginatedMeta</code> + <code>CursorMeta</code> di <code>common/errors</code></td>
+              <td style="text-align:center;">1.5</td>
+              <td><span class="cl-status-done">✓ Selesai</span></td>
+            </tr>
+            <tr style="background:rgba(188,140,255,.03);">
+              <td style="border-left:3px solid var(--purple);"><code>ValidatedJson&lt;T&gt;</code> extractor + update semua <code>AppError</code> variant</td>
+              <td style="text-align:center;">1.5</td>
+              <td><span class="cl-status-done">✓ Selesai</span></td>
+            </tr>
+            <tr style="background:rgba(188,140,255,.03);">
+              <td style="border-left:3px solid var(--purple);"><code>X-Request-ID</code> middleware + URL prefix <code>/api/v1/</code></td>
+              <td style="text-align:center;">1.5</td>
+              <td><span class="cl-status-done">✓ Selesai</span></td>
+            </tr>
+            <tr style="background:rgba(188,140,255,.03);">
+              <td style="border-left:3px solid var(--purple);">Update semua handler pakai <code>ApiResponse</code> + <code>Location</code> header pada 201 Created</td>
+              <td style="text-align:center;">1.5</td>
+              <td><span class="cl-status-done">✓ Selesai</span></td>
+            </tr>
+            <tr style="background:rgba(188,140,255,.03);">
+              <td style="border-left:3px solid var(--purple);"><a href="security-baseline.html" style="color:var(--purple);text-decoration:none;font-weight:700;">Security Baseline</a>: secret policy, IDOR check pattern, HTML strip, <code>AppError::Internal</code> tidak bocor — security headers nginx sudah ada di Infrastructure Setup</td>
+              <td style="text-align:center;">1.5</td>
+              <td><span class="cl-status-done">✓ Selesai</span></td>
+            </tr>
+            <tr style="background:rgba(188,140,255,.03);">
+              <td style="border-left:3px solid var(--purple);">Kontrak File Upload: presigned URL flow, mime whitelist, magic bytes verification, size limit</td>
+              <td style="text-align:center;">1.5</td>
+              <td><span class="cl-status-done">✓ Selesai</span></td>
+            </tr>
+            <tr style="background:rgba(188,140,255,.03);">
+              <td style="border-left:3px solid var(--purple);"><a href="logging-standard.html" style="color:var(--purple);text-decoration:none;font-weight:700;">Logging Standard</a>: structured JSON logging, request_id propagation, log level discipline, sensitive data rules</td>
+              <td style="text-align:center;">1.5</td>
+              <td><span class="cl-status-done">✓ Selesai</span></td>
+            </tr>
+            <tr style="background:rgba(188,140,255,.03);">
+              <td style="border-left:3px solid var(--purple);"><a href="websocket-contract.html" style="color:var(--purple);text-decoration:none;font-weight:700;">WebSocket Contract</a>: auth di handshake, message envelope, event list, reconnect strategy, WS close codes</td>
+              <td style="text-align:center;">1.5</td>
+              <td><span class="cl-status-done">✓ Selesai</span></td>
+            </tr>
+            <tr style="background:rgba(188,140,255,.03);">
+              <td style="border-left:3px solid var(--purple);"><a href="notification-contract.html" style="color:var(--purple);text-decoration:none;font-weight:700;">Notification Contract</a> + <a href="bun-notification-service.html" style="color:var(--purple);text-decoration:none;font-weight:700;">Bun.js Service</a>: arsitektur Redis Streams (Rust publisher → Bun consumer), stream schema, idempotency, retry &amp; DLQ · setup <code>firebase-admin</code> FCM HTTP v1, consumer loop XREADGROUP, PEL recovery, migrations 4 tabel, Dockerfile, env var wajib</td>
+              <td style="text-align:center;">1.5</td>
+              <td><span class="cl-status-done">✓ Selesai</span></td>
+            </tr>
+            <tr style="background:rgba(188,140,255,.03);">
+              <td style="border-left:3px solid var(--purple);"><a href="infrastructure-setup.html" style="color:var(--purple);text-decoration:none;font-weight:700;">Infrastructure Setup</a>: <code>docker-compose.yml</code> (postgres:17 + redis:7 + nginx + bun-notification + cloudflare-tunnel profiles:prod, healthcheck, bridge network) · <code>nginx.dev.conf</code> (proxy + WS, access_log off untuk WS) · <code>nginx.prod.conf</code> (rate-limit 3 zona, JSON log <code>$uri</code>, security headers, custom 429/502) · <code>Dockerfile</code> multi-stage Rust (dep-cache layer, non-root) · <code>bun-notification-service/Dockerfile</code> multi-stage Bun</td>
+              <td style="text-align:center;">1.5</td>
+              <td><span class="cl-status-done">✓ Selesai</span></td>
+            </tr>
+            <tr style="background:rgba(188,140,255,.03);">
+              <td style="border-left:3px solid var(--purple);"><a href="vps-deployment.html" style="color:var(--purple);text-decoration:none;font-weight:700;">VPS Deployment Guide</a>: install Docker Engine, ufw firewall, Cloudflare Tunnel setup, clone repo, secrets &amp; keys, first run — plus panduan dev &amp; prod di satu VPS tanpa staging (<code>docker-compose.override.yml</code>, project name berbeda, database terpisah)</td>
+              <td style="text-align:center;">1.5</td>
+              <td><span class="cl-status-done">✓ Selesai</span></td>
+            </tr>
+            <tr style="background:rgba(188,140,255,.03);">
+              <td style="border-left:3px solid var(--purple);"><a href="cicd-setup.html" style="color:var(--purple);text-decoration:none;font-weight:700;">CI/CD — GitHub Actions</a>: <code>ci.yml</code> (fmt + clippy + test + docker-build-check pada setiap PR), <code>deploy.yml</code> (SSH deploy ke prod saat push ke main), <code>deploy-dev.yml</code> (SSH deploy ke dev saat push ke develop), branch protection, SSH deploy key, GitHub Environments</td>
+              <td style="text-align:center;">1.5</td>
+              <td><span class="cl-status-done">✓ Selesai</span></td>
+            </tr>
+            <tr style="background:rgba(188,140,255,.03);">
+              <td style="border-left:3px solid var(--purple);"><a href="database-convention.html" style="color:var(--purple);text-decoration:none;font-weight:700;">Database Convention</a>: snake_case naming, kolom mandatory (id/created_at/updated_at), soft delete, index strategy, migration rules</td>
+              <td style="text-align:center;">1.5</td>
+              <td><span class="cl-status-done">✓ Selesai</span></td>
+            </tr>
+            <tr style="background:rgba(188,140,255,.03);">
+              <td style="border-left:3px solid var(--purple);"><a href="testing-standard.html" style="color:var(--purple);text-decoration:none;font-weight:700;">Testing Standard</a>: unit/integration/e2e tiers, naming convention, fixture factory, coverage target ≥80% — pipeline CI lihat <a href="cicd-setup.html" style="color:var(--blue);">CI/CD Setup</a></td>
+              <td style="text-align:center;">1.5</td>
+              <td><span class="cl-status-done">✓ Selesai</span></td>
+            </tr>
+            <tr style="background:rgba(188,140,255,.03);">
+              <td style="border-left:3px solid var(--purple);"><a href="config-standard.html" style="color:var(--purple);text-decoration:none;font-weight:700;">Config Standard</a>: SCREAMING_SNAKE_CASE naming, <code>AppConfig::from_env()</code> fail-fast, katalog variabel wajib, .env hanya di development</td>
+              <td style="text-align:center;">1.5</td>
+              <td><span class="cl-status-done">✓ Selesai</span></td>
+            </tr>
+            <tr style="background:rgba(188,140,255,.03);">
+              <td style="border-left:3px solid var(--purple);"><a href="health-check.html" style="color:var(--purple);text-decoration:none;font-weight:700;">Health Check &amp; Graceful Shutdown</a>: <code>GET /health</code> tanpa auth (200/503), graceful shutdown SIGTERM dengan drain 30 detik, DB pool ditutup terakhir</td>
+              <td style="text-align:center;">1.5</td>
+              <td><span class="cl-status-done">✓ Selesai</span></td>
+            </tr>
+            <tr style="background:rgba(188,140,255,.03);">
+              <td style="border-left:3px solid var(--purple);"><a href="api-versioning.html" style="color:var(--purple);text-decoration:none;font-weight:700;">API Versioning &amp; Deprecation</a>: definisi breaking vs non-breaking change, sunset period minimum, header Deprecation + Sunset, 410 Gone setelah sunset</td>
+              <td style="text-align:center;">1.5</td>
+              <td><span class="cl-status-done">✓ Selesai</span></td>
+            </tr>
+            <tr style="background:rgba(188,140,255,.03);">
+              <td style="border-left:3px solid var(--purple);"><a href="authorization-pattern.html" style="color:var(--purple);text-decoration:none;font-weight:700;">Authorization Pattern</a>: 3 lapisan (middleware auth → ownership check → visibility rule), ownership check di query SQL bukan di Rust, IDOR return 404 bukan 403</td>
+              <td style="text-align:center;">1.5</td>
+              <td><span class="cl-status-done">✓ Selesai</span></td>
+            </tr>
+
+            <!-- ── Phase 2 Core Services ── -->
+            <tr class="cl-2">
+              <td>user-service CRUD profil + user-service-client</td>
+              <td style="text-align:center;">2</td>
+              <td><span class="cl-status-todo">Pending</span></td>
+            </tr>
+            <tr class="cl-2">
+              <td>notification-service Rust: ubah peran jadi publisher Redis Stream (<code>XADD</code>) + REST API in-app + device token register/delete · bun-notification-service: consumer XREADGROUP + FCM dispatch + DB write</td>
+              <td style="text-align:center;">2</td>
+              <td><span class="cl-status-todo">Pending</span></td>
+            </tr>
+            <tr class="cl-2">
+              <td>chat-service (WebSocket + cursor pagination) + chat-service-client</td>
+              <td style="text-align:center;">2</td>
+              <td><span class="cl-status-todo">Pending</span></td>
+            </tr>
+            <tr class="cl-2">
+              <td>iklan-pekerjaan / iklan-pekerja / iklan-barang-bekas / iklan-pelatihan — implementasi lengkap</td>
+              <td style="text-align:center;">2</td>
+              <td><span class="cl-status-todo">Pending</span></td>
+            </tr>
+
+            <!-- ── Phase 3 Hardening ── -->
+            <tr class="cl-3">
+              <td>Rate limiting (tower-governor) + OTP brute-force protection</td>
+              <td style="text-align:center;">3</td>
+              <td><span class="cl-status-todo">Pending</span></td>
+            </tr>
+            <tr class="cl-3">
+              <td>Structured logging JSON + Request ID per request</td>
+              <td style="text-align:center;">3</td>
+              <td><span class="cl-status-todo">Pending</span></td>
+            </tr>
+            <tr class="cl-3">
+              <td>Integration test dengan DB real (schema <code>rejki_test</code>)</td>
+              <td style="text-align:center;">3</td>
+              <td><span class="cl-status-todo">Pending</span></td>
+            </tr>
+
+            <!-- ── Phase 3 CI/CD ── -->
+            <tr class="cl-4">
+              <td>Multi-stage Dockerfile per service (image &lt;30MB)</td>
+              <td style="text-align:center;">3</td>
+              <td><span class="cl-status-todo">Pending</span></td>
+            </tr>
+            <tr class="cl-4">
+              <td>GitHub Actions: fmt → clippy → test → build → push image</td>
+              <td style="text-align:center;">3</td>
+              <td><span class="cl-status-todo">Pending</span></td>
+            </tr>
+            <tr class="cl-4">
+              <td>nginx.dev.conf + nginx.prod.conf lengkap (WebSocket proxy, rate limit)</td>
+              <td style="text-align:center;">3</td>
+              <td><span class="cl-status-todo">Pending</span></td>
+            </tr>
+            <tr class="cl-4">
+              <td>Cloudflare Tunnel: TUNNEL_TOKEN di secrets + zero-trust config</td>
+              <td style="text-align:center;">3</td>
+              <td><span class="cl-status-todo">Pending</span></td>
+            </tr>
+            <tr class="cl-5">
+              <td>PostgreSQL managed DB (bukan dalam Swarm) + backup cron</td>
+              <td style="text-align:center;">3</td>
+              <td><span class="cl-status-todo">Pending</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <footer>
+      <p>Rejki Backend Architecture Document · Terakhir diperbarui: 9 Juni 2026 · Phase 1 selesai ✓</p>
+      <p style="margin-top:.3rem;">Stack: Rust · Axum 0.8 · sqlx 0.9 · PostgreSQL · Modular Monolith → Extraction-Ready</p>
+    </footer>
+
+  </main>
+</div>
+</body>
+</html>

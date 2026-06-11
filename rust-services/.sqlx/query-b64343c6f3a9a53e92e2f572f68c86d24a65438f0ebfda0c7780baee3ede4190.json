@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT EXISTS(\n                    SELECT 1 FROM region.village v\n                    JOIN region.district d ON d.id = v.district_id\n                    JOIN region.regency  r ON r.id = d.regency_id\n                    WHERE v.id = $1 AND d.id = $2 AND r.id = $3 AND r.province_id = $4\n                ) AS \"exists!\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "exists!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "b64343c6f3a9a53e92e2f572f68c86d24a65438f0ebfda0c7780baee3ede4190"
+}

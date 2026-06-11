@@ -1,0 +1,40 @@
+# Rust build artifacts
+/rust-services/target
+**/*.rs.bk
+Cargo.lock.bk
+
+# Secrets — JANGAN di-commit
+.env
+.env.local
+.env.*.local
+.env.test
+keys/
+*.pem
+*.key
+*service-account*.json
+firebase-*.json
+
+# Konfigurasi tooling AI lokal (bukan bagian proyek)
+.claude/
+.agent/
+.gemini/
+.kilocode/
+.opencode/
+
+# SQLx offline cache (boleh di-commit jika pakai offline mode, tapi biasanya diabaikan)
+# .sqlx/
+
+# OS & editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/settings.json
+*.swp
+*.swo
+
+# Logs
+*.log
+logs/
+
+# Docker volumes
+pgdata/

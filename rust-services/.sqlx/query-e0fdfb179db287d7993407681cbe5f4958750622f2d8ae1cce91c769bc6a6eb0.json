@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM auth.otp_verifications WHERE user_id = $1 AND purpose = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "e0fdfb179db287d7993407681cbe5f4958750622f2d8ae1cce91c769bc6a6eb0"
+}

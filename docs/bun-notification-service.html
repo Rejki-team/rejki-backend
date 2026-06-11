@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rejki Backend — Bun.js Notification Service</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0d1117; --surf: #161b22; --surf2: #1c2230; --border: #30363d;
+      --text: #e6edf3; --muted: #8b949e; --tag: #21262d;
+      --green: #56d364; --blue: #79c0ff; --orange: #f78166;
+      --yellow: #e3b341; --purple: #bc8cff; --cyan: #56b6d4; --r: 10px;
+    }
+    html { scroll-behavior: smooth; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; font-size: 15px; }
+    .layout { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
+    @media (max-width: 840px) { .layout { grid-template-columns: 1fr; } .nav { display: none; } }
+    .nav { position: sticky; top: 0; height: 100vh; overflow-y: auto; background: var(--surf); border-right: 1px solid var(--border); padding: 1.75rem 1rem; }
+    .nav-logo { font-size: 1.1rem; font-weight: 800; color: var(--yellow); margin-bottom: 1.75rem; }
+    .nav-logo span { color: var(--text); }
+    .nav-group { margin-bottom: 1.5rem; }
+    .nav-group-label { font-size: .67rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: .4rem; }
+    .nav-link { display: block; padding: .32rem .6rem; border-radius: 6px; font-size: .85rem; color: var(--muted); text-decoration: none; transition: background .12s, color .12s; }
+    .nav-link:hover { background: var(--tag); color: var(--text); }
+    .nav-link.accent { color: var(--yellow); }
+    .nav-link.back { color: var(--blue); font-size: .8rem; }
+    main { max-width: 920px; margin: 0 auto; padding: 3rem 2rem 6rem; }
+    @media (max-width: 600px) { main { padding: 2rem 1rem 4rem; } }
+    .hero { border-bottom: 1px solid var(--border); margin-bottom: 3rem; padding-bottom: 2.5rem; }
+    .eyebrow { display: inline-block; font-size: .73rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--yellow); background: rgba(227,179,65,.07); border: 1px solid rgba(227,179,65,.25); border-radius: 20px; padding: .22rem .75rem; margin-bottom: .9rem; }
+    .hero h1 { font-size: clamp(1.7rem,4vw,2.5rem); font-weight: 800; line-height: 1.15; letter-spacing: -.4px; margin-bottom: .9rem; }
+    .hero h1 em { font-style: normal; color: var(--yellow); }
+    .hero p { color: var(--muted); font-size: 1rem; max-width: 680px; line-height: 1.75; }
+    .badges { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: 1.2rem; }
+    .badge { font-size: .76rem; font-weight: 600; padding: .25rem .75rem; border-radius: 20px; border: 1px solid; }
+    .b-y  { color: var(--yellow); border-color: rgba(227,179,65,.4);  background: rgba(227,179,65,.06); }
+    .b-ph { color: var(--purple); border-color: rgba(188,140,255,.4); background: rgba(188,140,255,.06); }
+    .b-g  { color: var(--green);  border-color: rgba(86,211,100,.4);  background: rgba(86,211,100,.06); }
+    .b-o  { color: var(--orange); border-color: rgba(247,129,102,.4); background: rgba(247,129,102,.06); }
+    section { margin-bottom: 3.5rem; }
+    .sec-title { display: flex; align-items: center; gap: .6rem; font-size: 1.2rem; font-weight: 700; margin-bottom: 1.25rem; padding-bottom: .55rem; border-bottom: 1px solid var(--border); }
+    .sec-icon { width: 30px; height: 30px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: .95rem; flex-shrink: 0; }
+    .ic-g { background: rgba(86,211,100,.1); } .ic-b { background: rgba(121,192,255,.1); }
+    .ic-o { background: rgba(247,129,102,.1); } .ic-y { background: rgba(227,179,65,.1); }
+    .ic-c { background: rgba(86,182,212,.1); } .ic-p { background: rgba(188,140,255,.1); }
+    .sub-title { font-size: .95rem; font-weight: 700; margin: 1.6rem 0 .65rem; display: flex; align-items: center; gap: .5rem; }
+    .sub-title::before { content: ''; display: inline-block; width: 3px; height: 14px; background: var(--yellow); border-radius: 2px; }
+    .tbl { width: 100%; border-collapse: collapse; font-size: .84rem; background: var(--surf); border: 1px solid var(--border); border-radius: var(--r); overflow: hidden; }
+    .tbl th { background: var(--surf2); padding: .6rem 1rem; text-align: left; font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+    .tbl td { padding: .65rem 1rem; border-bottom: 1px solid var(--border); vertical-align: top; line-height: 1.55; }
+    .tbl tr:last-child td { border-bottom: none; }
+    .tbl tr:hover td { background: var(--surf2); }
+    .tbl-wrap { overflow-x: auto; }
+    .cblock { background: var(--surf2); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-top: .6rem; }
+    .cblock-header { display: flex; align-items: center; justify-content: space-between; padding: .45rem .9rem; border-bottom: 1px solid var(--border); }
+    .cblock-lang { font-size: .68rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+    .cblock-file { font-size: .72rem; color: var(--blue); font-family: 'Cascadia Code','Fira Code','Consolas',monospace; }
+    .cblock pre { font-family: 'Cascadia Code','Fira Code','Consolas',monospace; font-size: .8rem; line-height: 1.75; padding: .9rem 1.1rem; overflow-x: auto; }
+    .ck  { color: #ff7b72; } .cs  { color: #a5d6ff; } .cc  { color: #6e7681; }
+    .ct  { color: #ffa657; } .cfn { color: #d2a8ff; } .cv  { color: #56d364; }
+    .cn  { color: #79c0ff; }
+    .callout { border-radius: var(--r); padding: .85rem 1.1rem; margin-top: .9rem; font-size: .86rem; display: flex; gap: .65rem; line-height: 1.65; }
+    .callout-icon { flex-shrink: 0; font-size: 1rem; margin-top: 2px; }
+    .callout p { color: var(--muted); } .callout strong { color: var(--text); display: block; margin-bottom: .15rem; }
+    .c-info { background: rgba(121,192,255,.06); border: 1px solid rgba(121,192,255,.22); }
+    .c-warn { background: rgba(227,179,65,.06);  border: 1px solid rgba(227,179,65,.22); }
+    .c-ok   { background: rgba(86,211,100,.06);  border: 1px solid rgba(86,211,100,.22); }
+    .c-danger { background: rgba(247,129,102,.06); border: 1px solid rgba(247,129,102,.22); }
+    .filetree { font-family: 'Cascadia Code','Fira Code','Consolas',monospace; font-size: .8rem; line-height: 1.85; background: var(--surf2); border: 1px solid var(--border); border-radius: 8px; padding: .9rem 1.1rem; color: var(--muted); overflow-x: auto; margin-top: .6rem; }
+    .ft-dir { color: var(--blue); font-weight: 700; }
+    .ft-hi  { color: var(--green); font-weight: 700; }
+    .ft-note { color: var(--muted); font-style: italic; }
+    .steps { display: flex; flex-direction: column; gap: 1.25rem; }
+    .step { display: flex; gap: 1.1rem; background: var(--surf); border: 1px solid var(--border); border-radius: var(--r); padding: 1.25rem; }
+    .step-num { font-size: .75rem; font-weight: 800; color: var(--bg); background: var(--yellow); width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 2px; }
+    .step-body h3 { font-size: .95rem; font-weight: 700; margin-bottom: .4rem; }
+    .step-body p { font-size: .84rem; color: var(--muted); margin-bottom: .65rem; line-height: 1.6; }
+    .step-body p:last-child { margin-bottom: 0; }
+    code { font-family: 'Cascadia Code','Fira Code','Consolas',monospace; font-size: .8rem; background: var(--tag); border: 1px solid var(--border); border-radius: 4px; padding: .05rem .4rem; color: var(--blue); }
+    .checklist { display: flex; flex-direction: column; gap: .45rem; }
+    .chk { display: flex; align-items: flex-start; gap: .75rem; background: var(--surf); border: 1px solid var(--border); border-radius: 8px; padding: .7rem .9rem; font-size: .85rem; }
+    .chk-box { width: 16px; height: 16px; border: 2px solid var(--border); border-radius: 4px; flex-shrink: 0; margin-top: 2px; position: relative; }
+    .chk-box.done { background: var(--green); border-color: var(--green); }
+    .chk-box.done::after { content: '✓'; position: absolute; top: -2px; left: 1px; font-size: .7rem; color: var(--bg); font-weight: 800; }
+    .chk-text { flex: 1; line-height: 1.55; }
+    .chk-text.done { color: var(--muted); text-decoration: line-through; }
+    footer { margin-top: 4rem; padding-top: 1.25rem; border-top: 1px solid var(--border); font-size: .78rem; color: var(--muted); }
+  </style>
+</head>
+<body>
+<div class="layout">
+  <nav class="nav">
+    <div class="nav-logo">rejki<span>-backend</span></div>
+    <div class="nav-group">
+      <div class="nav-group-label">Navigasi</div>
+      <a class="nav-link back" href="index.html">← Architecture Overview</a>
+      <a class="nav-link back" href="notification-contract.html">← Notification Contract</a>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-label">Isi Dokumen</div>
+      <a class="nav-link" href="#mengapa">Mengapa Bun.js</a>
+      <a class="nav-link" href="#struktur">Struktur Folder</a>
+      <a class="nav-link" href="#deps">Dependencies</a>
+      <a class="nav-link" href="#env">Environment Variables</a>
+      <a class="nav-link" href="#firebase">Firebase Setup</a>
+      <a class="nav-link" href="#consumer">Consumer Loop</a>
+      <a class="nav-link" href="#fcm">FCM Dispatch</a>
+      <a class="nav-link" href="#docker">Docker &amp; Compose</a>
+      <a class="nav-link" href="#migrations">DB Migrations</a>
+      <a class="nav-link" href="#health">Health Check</a>
+      <a class="nav-link accent" href="#checklist">Checklist Setup</a>
+    </div>
+  </nav>
+  <main>
+    <div class="hero">
+      <div class="eyebrow">Phase 1.5 — Bun.js Notification Service</div>
+      <h1>Setup <em>bun-notification-service</em></h1>
+      <p>Panduan setup lengkap service Bun.js yang menjadi consumer Redis Stream, dispatch notifikasi via Firebase Cloud Messaging (HTTP v1 API), dan menyimpan notifikasi in-app ke PostgreSQL.</p>
+      <div class="badges">
+        <span class="badge b-y">Bun.js</span>
+        <span class="badge b-g">Redis Streams</span>
+        <span class="badge b-o">firebase-admin</span>
+        <span class="badge b-ph">Phase 1.5</span>
+      </div>
+    </div>
+
+    <!-- MENGAPA BUN.JS -->
+    <section id="mengapa">
+      <h2 class="sec-title"><span class="sec-icon ic-y">💡</span>Mengapa Bun.js</h2>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Alasan</th><th>Detail</th></tr></thead>
+        <tbody>
+          <tr><td><strong>SDK FCM resmi</strong></td><td><code>firebase-admin</code> Node.js dikelola langsung oleh Google. Support FCM HTTP v1 API penuh. Tidak ada kekhawatiran deprecated seperti Legacy API.</td></tr>
+          <tr><td><strong>Bun kompatibel dengan package Node.js</strong></td><td><code>firebase-admin</code> dan <code>ioredis</code> berjalan di Bun tanpa modifikasi. Startup time jauh lebih cepat dari Node.js.</td></tr>
+          <tr><td><strong>I/O-bound workload</strong></td><td>Notification dispatch adalah pure I/O (HTTP ke FCM, write ke DB). Tidak ada CPU-intensive task — Bun cocok untuk ini.</td></tr>
+          <tr><td><strong>Satu VPS, Docker network</strong></td><td>Bun.js container berada di Docker Compose network yang sama dengan Rust dan Redis. Tidak ada latency jaringan eksternal antar service.</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <!-- STRUKTUR FOLDER -->
+    <section id="struktur">
+      <h2 class="sec-title"><span class="sec-icon ic-b">📁</span>Struktur Folder</h2>
+      <div class="filetree">
+<span class="ft-dir">bun-notification-service/</span>
+├── <span class="ft-hi">package.json</span>
+├── <span class="ft-hi">bunfig.toml</span>               <span class="ft-note"># konfigurasi Bun</span>
+├── <span class="ft-hi">Dockerfile</span>
+├── .env.example
+├── <span class="ft-dir">src/</span>
+│   ├── <span class="ft-hi">index.ts</span>              <span class="ft-note"># entry point: setup consumer + health server</span>
+│   ├── <span class="ft-dir">consumer/</span>
+│   │   ├── loop.ts           <span class="ft-note"># XREADGROUP loop, PEL recovery saat startup</span>
+│   │   └── processor.ts      <span class="ft-note"># proses satu message: idempotency → dispatch → XACK</span>
+│   ├── <span class="ft-dir">dispatch/</span>
+│   │   ├── fcm.ts            <span class="ft-note"># kirim push via firebase-admin</span>
+│   │   ├── email.ts          <span class="ft-note"># kirim email via SMTP/Resend</span>
+│   │   └── inapp.ts          <span class="ft-note"># simpan notifikasi ke DB PostgreSQL</span>
+│   ├── <span class="ft-dir">db/</span>
+│   │   ├── client.ts         <span class="ft-note"># PostgreSQL connection pool (pg)</span>
+│   │   └── migrations.ts     <span class="ft-note"># jalankan SQL migration saat startup</span>
+│   ├── <span class="ft-dir">redis/</span>
+│   │   └── client.ts         <span class="ft-note"># ioredis connection</span>
+│   ├── template.ts           <span class="ft-note"># render title + body dari event_type + data</span>
+│   └── config.ts             <span class="ft-note"># AppConfig.fromEnv() — fail-fast jika var kurang</span>
+└── <span class="ft-dir">migrations/</span>
+    └── 001_create_notification_tables.sql</div>
+
+      <div class="callout c-info" style="margin-top:.85rem;">
+        <span class="callout-icon">ℹ️</span>
+        <div>
+          <strong>Folder ini sejajar dengan service Rust lainnya</strong>
+          <p>Letakkan di root workspace: <code>rejki-backend/bun-notification-service/</code>. Tidak masuk ke Cargo workspace (bukan crate Rust).</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- DEPENDENCIES -->
+    <section id="deps">
+      <h2 class="sec-title"><span class="sec-icon ic-o">📦</span>Dependencies</h2>
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <h3>package.json</h3>
+            <div class="cblock">
+              <div class="cblock-header"><span class="cblock-lang">json</span><span class="cblock-file">bun-notification-service/package.json</span></div>
+              <pre>{
+  <span class="cs">"name"</span>: <span class="cs">"bun-notification-service"</span>,
+  <span class="cs">"version"</span>: <span class="cs">"0.1.0"</span>,
+  <span class="cs">"private"</span>: <span class="cv">true</span>,
+  <span class="cs">"scripts"</span>: {
+    <span class="cs">"start"</span>: <span class="cs">"bun run src/index.ts"</span>,
+    <span class="cs">"dev"</span>:   <span class="cs">"bun --watch src/index.ts"</span>
+  },
+  <span class="cs">"dependencies"</span>: {
+    <span class="cs">"firebase-admin"</span>: <span class="cs">"^12"</span>,   <span class="cc">// FCM HTTP v1 API — SDK resmi Google</span>
+    <span class="cs">"ioredis"</span>:        <span class="cs">"^5"</span>,    <span class="cc">// Redis client dengan dukungan Streams</span>
+    <span class="cs">"pg"</span>:             <span class="cs">"^8"</span>     <span class="cc">// PostgreSQL client</span>
+  },
+  <span class="cs">"devDependencies"</span>: {
+    <span class="cs">"@types/pg"</span>:   <span class="cs">"^8"</span>,
+    <span class="cs">"typescript"</span>: <span class="cs">"^5"</span>
+  }
+}</pre>
+            </div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <h3>Install dependencies</h3>
+            <div class="cblock">
+              <div class="cblock-header"><span class="cblock-lang">shell</span></div>
+              <pre>cd bun-notification-service
+bun install</pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ENVIRONMENT VARIABLES -->
+    <section id="env">
+      <h2 class="sec-title"><span class="sec-icon ic-y">⚙️</span>Environment Variables</h2>
+
+      <div class="callout c-info" style="margin-bottom:.8rem;">
+        <div class="callout-icon">ℹ️</div>
+        <div><strong>Prinsip fail-fast dan naming convention ada di Config Standard</strong>
+          <p>Variabel di bawah khusus untuk <code>bun-notification-service</code>. Untuk prinsip fail-fast, SCREAMING_SNAKE_CASE convention, dan katalog variabel Rust service, lihat <a href="config-standard.html" style="color:var(--blue);">Config Standard</a>. Pola yang sama diterapkan di sini dengan TypeScript.</p>
+        </div>
+      </div>
+
+      <div class="cblock">
+        <div class="cblock-header"><span class="cblock-lang">env</span><span class="cblock-file">bun-notification-service/.env.example</span></div>
+        <pre><span class="cc"># Runtime — wajib: "development" | "production"</span>
+APP_ENV=development
+
+<span class="cc"># Redis</span>
+REDIS_URL=redis://localhost:6379
+
+<span class="cc"># PostgreSQL (schema notification)</span>
+DATABASE_URL=postgres://rejki:secret@localhost:5432/rejki_db
+
+<span class="cc"># Firebase Cloud Messaging</span>
+FIREBASE_SERVICE_ACCOUNT_PATH=./keys/firebase-service-account.json
+FIREBASE_PROJECT_ID=rejki-app-id   <span class="cc"># dari Firebase Console → Project Settings</span>
+
+<span class="cc"># Email (pilih salah satu)</span>
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USERNAME=noreply@rejki.id
+SMTP_PASSWORD=app-password-here
+EMAIL_FROM=Rejki &lt;noreply@rejki.id&gt;
+
+<span class="cc"># Health check port</span>
+PORT=9000</pre>
+      </div>
+
+      <div class="sub-title">config.ts — Fail-Fast Validation</div>
+      <div class="cblock">
+        <div class="cblock-header"><span class="cblock-lang">typescript</span><span class="cblock-file">bun-notification-service/src/config.ts</span></div>
+        <pre><span class="ck">function</span> <span class="cfn">require</span>(key: <span class="ct">string</span>): <span class="ct">string</span> {
+  <span class="ck">const</span> val = process.env[key];
+  <span class="ck">if</span> (!val) <span class="ck">throw new</span> <span class="cfn">Error</span>(<span class="cs">`<span class="ct">${key}</span> tidak di-set — wajib ada di environment`</span>);
+  <span class="ck">return</span> val;
+}
+
+<span class="ck">export const</span> config = {
+  appEnv:                 <span class="cfn">require</span>(<span class="cs">"APP_ENV"</span>),
+  redisUrl:               <span class="cfn">require</span>(<span class="cs">"REDIS_URL"</span>),
+  databaseUrl:            <span class="cfn">require</span>(<span class="cs">"DATABASE_URL"</span>),
+  firebaseServiceAccount: <span class="cfn">require</span>(<span class="cs">"FIREBASE_SERVICE_ACCOUNT_PATH"</span>),
+  firebaseProjectId:      <span class="cfn">require</span>(<span class="cs">"FIREBASE_PROJECT_ID"</span>),
+  smtpHost:               <span class="cfn">require</span>(<span class="cs">"SMTP_HOST"</span>),
+  smtpPort:               <span class="ct">parseInt</span>(process.env.<span class="ct">SMTP_PORT</span> ?? <span class="cs">"587"</span>),
+  smtpUsername:           <span class="cfn">require</span>(<span class="cs">"SMTP_USERNAME"</span>),
+  smtpPassword:           <span class="cfn">require</span>(<span class="cs">"SMTP_PASSWORD"</span>),
+  emailFrom:              <span class="cfn">require</span>(<span class="cs">"EMAIL_FROM"</span>),
+  port:                   <span class="ct">parseInt</span>(process.env.<span class="ct">PORT</span> ?? <span class="cs">"9000"</span>),
+} <span class="ck">as const</span>;</pre>
+      </div>
+
+      <div class="callout c-ok">
+        <span class="callout-icon">✅</span>
+        <div>
+          <strong>Service crash saat startup jika env var kurang</strong>
+          <p>Sama dengan pola Rust — fail-fast lebih baik dari silent misconfiguration. Docker Compose akan restart container, operator akan melihat error di log dan segera menambahkan env var yang kurang.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- FIREBASE SETUP -->
+    <section id="firebase">
+      <h2 class="sec-title"><span class="sec-icon ic-o">🔥</span>Firebase Setup</h2>
+      <div class="steps">
+
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <h3>Buat Firebase Project &amp; Download Service Account</h3>
+            <p>Langkah di Firebase Console:</p>
+            <p><strong>1.</strong> Buka <code>console.firebase.google.com</code> → buat project atau pilih yang ada<br>
+            <strong>2.</strong> <strong>Project Settings</strong> → tab <strong>Service accounts</strong><br>
+            <strong>3.</strong> Pilih <strong>Node.js</strong> lalu klik <strong>Generate new private key</strong><br>
+            <strong>4.</strong> Simpan file JSON yang didownload ke <code>keys/firebase-service-account.json</code></p>
+            <div class="callout c-danger" style="margin-top:.65rem;">
+              <span class="callout-icon">⚠️</span>
+              <div><strong>Jangan commit file ini ke git</strong>
+              <p>Pastikan <code>keys/</code> sudah ada di <code>.gitignore</code>. File service account berisi private key yang memberikan akses penuh ke Firebase project.</p></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <h3>Enable FCM di Firebase Console</h3>
+            <p><strong>Project Settings</strong> → tab <strong>Cloud Messaging</strong> → pastikan Firebase Cloud Messaging API (V1) dalam status <strong>Enabled</strong>. Legacy API tidak perlu dienable.</p>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <h3>Inisialisasi firebase-admin di Bun</h3>
+            <div class="cblock">
+              <div class="cblock-header"><span class="cblock-lang">typescript</span><span class="cblock-file">bun-notification-service/src/dispatch/fcm.ts</span></div>
+              <pre><span class="ck">import</span> admin <span class="ck">from</span> <span class="cs">"firebase-admin"</span>;
+<span class="ck">import</span> { readFileSync } <span class="ck">from</span> <span class="cs">"fs"</span>;
+<span class="ck">import</span> { config } <span class="ck">from</span> <span class="cs">"../config"</span>;
+
+<span class="cc">// Inisialisasi sekali saat module pertama kali di-import</span>
+<span class="ck">const</span> serviceAccount = <span class="ct">JSON</span>.<span class="cfn">parse</span>(
+  <span class="cfn">readFileSync</span>(config.firebaseServiceAccount, <span class="cs">"utf-8"</span>)
+);
+
+<span class="ck">if</span> (!admin.apps.length) {
+  admin.<span class="cfn">initializeApp</span>({
+    credential: admin.credential.<span class="cfn">cert</span>(serviceAccount),
+  });
+}
+
+<span class="ck">const</span> messaging = admin.<span class="cfn">messaging</span>();
+
+<span class="ck">export async function</span> <span class="cfn">sendPush</span>(params: {
+  token:    <span class="ct">string</span>;
+  title:    <span class="ct">string</span>;
+  body:     <span class="ct">string</span>;
+  deepLink?: <span class="ct">string</span>;
+  data?:    <span class="ct">Record</span>&lt;<span class="ct">string</span>, <span class="ct">string</span>&gt;;
+}): <span class="ct">Promise</span>&lt;<span class="cs">"ok"</span> | <span class="cs">"invalid_token"</span>&gt; {
+  <span class="ck">try</span> {
+    <span class="ck">await</span> messaging.<span class="cfn">send</span>({
+      token: params.token,
+      notification: { title: params.title, body: params.body },
+      data: {
+        ...(params.data ?? {}),
+        ...(params.deepLink ? { deep_link: params.deepLink } : {}),
+      },
+      android: { priority: <span class="cs">"high"</span> },
+      apns: { payload: { aps: { sound: <span class="cs">"default"</span> } } },
+    });
+    <span class="ck">return</span> <span class="cs">"ok"</span>;
+  } <span class="ck">catch</span> (err: <span class="ct">any</span>) {
+    <span class="cc">// Token tidak valid (unregistered, expired) — jangan retry</span>
+    <span class="ck">if</span> (
+      err?.errorInfo?.code === <span class="cs">"messaging/registration-token-not-registered"</span> ||
+      err?.errorInfo?.code === <span class="cs">"messaging/invalid-registration-token"</span>
+    ) {
+      <span class="ck">return</span> <span class="cs">"invalid_token"</span>;
+    }
+    <span class="ck">throw</span> err; <span class="cc">// error transient — biarkan caller retry</span>
+  }
+}</pre>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- CONSUMER LOOP -->
+    <section id="consumer">
+      <h2 class="sec-title"><span class="sec-icon ic-g">🔄</span>Consumer Loop</h2>
+
+      <div class="cblock">
+        <div class="cblock-header"><span class="cblock-lang">typescript</span><span class="cblock-file">bun-notification-service/src/consumer/loop.ts</span></div>
+        <pre><span class="ck">import</span> Redis <span class="ck">from</span> <span class="cs">"ioredis"</span>;
+<span class="ck">import</span> { processMessage } <span class="ck">from</span> <span class="cs">"./processor"</span>;
+<span class="ck">import</span> { config } <span class="ck">from</span> <span class="cs">"../config"</span>;
+
+<span class="ck">const</span> STREAM    = <span class="cs">"notifications_stream"</span>;
+<span class="ck">const</span> GROUP     = <span class="cs">"bun-consumers"</span>;
+<span class="ck">const</span> CONSUMER  = <span class="cs">`bun-worker-<span class="ct">${process.pid}</span>`</span>;
+
+<span class="ck">export async function</span> <span class="cfn">startConsumerLoop</span>(redis: <span class="ct">Redis</span>): <span class="ct">Promise</span>&lt;<span class="cv">void</span>&gt; {
+  <span class="cc">// Buat group jika belum ada — idempotent</span>
+  <span class="ck">try</span> {
+    <span class="ck">await</span> redis.<span class="cfn">xgroup</span>(<span class="cs">"CREATE"</span>, STREAM, GROUP, <span class="cs">"$"</span>, <span class="cs">"MKSTREAM"</span>);
+  } <span class="ck">catch</span> (e: <span class="ct">any</span>) {
+    <span class="ck">if</span> (!e.message.includes(<span class="cs">"BUSYGROUP"</span>)) <span class="ck">throw</span> e;
+  }
+
+  <span class="cc">// Recovery: proses PEL (message yang belum di-ACK dari sesi sebelumnya)</span>
+  <span class="ck">await</span> <span class="cfn">processPendingEntries</span>(redis);
+
+  console.<span class="cfn">log</span>(<span class="cs">`[consumer] <span class="ct">${CONSUMER}</span> ready — listening on <span class="ct">${STREAM}</span>`</span>);
+
+  <span class="cc">// Main loop</span>
+  <span class="ck">while</span> (<span class="cv">true</span>) {
+    <span class="ck">const</span> results = <span class="ck">await</span> redis.<span class="cfn">xreadgroup</span>(
+      <span class="cs">"GROUP"</span>, GROUP, CONSUMER,
+      <span class="cs">"COUNT"</span>, <span class="cs">"10"</span>,
+      <span class="cs">"BLOCK"</span>, <span class="cs">"2000"</span>,
+      <span class="cs">"STREAMS"</span>, STREAM, <span class="cs">">"</span>,
+    ) <span class="ck">as any</span>;
+
+    <span class="ck">if</span> (!results) <span class="ck">continue</span>; <span class="cc">// timeout — loop lagi</span>
+
+    <span class="ck">for</span> (<span class="ck">const</span> [, messages] <span class="ck">of</span> results) {
+      <span class="ck">for</span> (<span class="ck">const</span> [streamId, fields] <span class="ck">of</span> messages) {
+        <span class="ck">await</span> <span class="cfn">processMessage</span>(redis, STREAM, GROUP, streamId, <span class="cfn">parseFields</span>(fields));
+      }
+    }
+  }
+}
+
+<span class="ck">async function</span> <span class="cfn">processPendingEntries</span>(redis: <span class="ct">Redis</span>) {
+  <span class="ck">const</span> pending = <span class="ck">await</span> redis.<span class="cfn">xautoclaim</span>(
+    STREAM, GROUP, CONSUMER,
+    <span class="cn">60_000</span>, <span class="cc">// 60 detik — ambil alih message yang idle > 1 menit</span>
+    <span class="cs">"0-0"</span>, <span class="cs">"COUNT"</span>, <span class="cs">"100"</span>,
+  ) <span class="ck">as any</span>;
+
+  <span class="ck">for</span> (<span class="ck">const</span> [streamId, fields] <span class="ck">of</span> (pending?.[<span class="cn">1</span>] ?? [])) {
+    <span class="ck">await</span> <span class="cfn">processMessage</span>(redis, STREAM, GROUP, streamId, <span class="cfn">parseFields</span>(fields));
+  }
+}
+
+<span class="ck">function</span> <span class="cfn">parseFields</span>(fields: <span class="ct">string</span>[]): <span class="ct">Record</span>&lt;<span class="ct">string</span>, <span class="ct">string</span>&gt; {
+  <span class="ck">const</span> obj: <span class="ct">Record</span>&lt;<span class="ct">string</span>, <span class="ct">string</span>&gt; = {};
+  <span class="ck">for</span> (<span class="ck">let</span> i = <span class="cn">0</span>; i &lt; fields.length; i += <span class="cn">2</span>) obj[fields[i]] = fields[i + <span class="cn">1</span>];
+  <span class="ck">return</span> obj;
+}</pre>
+      </div>
+
+      <div class="cblock" style="margin-top:.75rem;">
+        <div class="cblock-header"><span class="cblock-lang">typescript</span><span class="cblock-file">bun-notification-service/src/consumer/processor.ts</span></div>
+        <pre><span class="ck">import</span> { db } <span class="ck">from</span> <span class="cs">"../db/client"</span>;
+<span class="ck">import</span> { sendPush } <span class="ck">from</span> <span class="cs">"../dispatch/fcm"</span>;
+<span class="ck">import</span> { saveInApp } <span class="ck">from</span> <span class="cs">"../dispatch/inapp"</span>;
+<span class="ck">import</span> { renderTemplate } <span class="ck">from</span> <span class="cs">"../template"</span>;
+
+<span class="ck">export async function</span> <span class="cfn">processMessage</span>(
+  redis: <span class="ct">any</span>, stream: <span class="ct">string</span>, group: <span class="ct">string</span>,
+  streamId: <span class="ct">string</span>, fields: <span class="ct">Record</span>&lt;<span class="ct">string</span>, <span class="ct">string</span>&gt;,
+) {
+  <span class="ck">const</span> { idempotency_key, event_type, recipient_id, actor_name, data } = fields;
+
+  <span class="cc">// 1. Idempotency check — INSERT OR IGNORE</span>
+  <span class="ck">const</span> res = <span class="ck">await</span> db.<span class="cfn">query</span>(
+    <span class="cs">`INSERT INTO notification.processed_events (idempotency_key)
+     VALUES ($1) ON CONFLICT DO NOTHING`</span>,
+    [idempotency_key],
+  );
+  <span class="ck">if</span> (res.rowCount === <span class="cn">0</span>) {
+    <span class="cc">// Sudah diproses — XACK dan skip</span>
+    <span class="ck">await</span> redis.<span class="cfn">xack</span>(stream, group, streamId);
+    <span class="ck">return</span>;
+  }
+
+  <span class="ck">const</span> parsedData = <span class="ct">JSON</span>.<span class="cfn">parse</span>(data || <span class="cs">"{}"</span>);
+  <span class="ck">const</span> { title, body, deepLink } = <span class="cfn">renderTemplate</span>(event_type, actor_name, parsedData);
+
+  <span class="cc">// 2. Dispatch ke semua saluran yang relevan</span>
+  <span class="ck">const</span> errors: <span class="ct">string</span>[] = [];
+
+  <span class="ck">try</span> { <span class="ck">await</span> <span class="cfn">saveInApp</span>({ recipient_id, event_type, title, body, deepLink }); }
+  <span class="ck">catch</span> (e) { errors.<span class="cfn">push</span>(<span class="cs">`inapp: <span class="ct">${e}</span>`</span>); }
+
+  <span class="ck">try</span> {
+    <span class="ck">const</span> tokens = <span class="ck">await</span> <span class="cfn">getDeviceTokens</span>(recipient_id);
+    <span class="ck">for</span> (<span class="ck">const</span> { token, id } <span class="ck">of</span> tokens) {
+      <span class="ck">const</span> result = <span class="ck">await</span> <span class="cfn">sendPush</span>({ token, title, body, deepLink });
+      <span class="ck">if</span> (result === <span class="cs">"invalid_token"</span>) <span class="ck">await</span> <span class="cfn">deleteDeviceToken</span>(id);
+    }
+  } <span class="ck">catch</span> (e) { errors.<span class="cfn">push</span>(<span class="cs">`push: <span class="ct">${e}</span>`</span>); }
+
+  <span class="cc">// 3. XACK setelah semua saluran selesai</span>
+  <span class="ck">if</span> (errors.length > <span class="cn">0</span>) {
+    <span class="cc">// Pindahkan ke DLQ jika ada error</span>
+    <span class="ck">await</span> redis.<span class="cfn">xadd</span>(<span class="cs">"notifications_dlq"</span>, <span class="cs">"*"</span>,
+      <span class="cs">"original_id"</span>, streamId,
+      <span class="cs">"error"</span>, errors.<span class="cfn">join</span>(<span class="cs">" | "</span>),
+      ...Object.<span class="cfn">entries</span>(fields).<span class="cfn">flat</span>(),
+    );
+  }
+  <span class="ck">await</span> redis.<span class="cfn">xack</span>(stream, group, streamId);
+}</pre>
+      </div>
+    </section>
+
+    <!-- FCM DISPATCH -->
+    <section id="fcm">
+      <h2 class="sec-title"><span class="sec-icon ic-o">📱</span>FCM — HTTP v1 API</h2>
+
+      <div class="callout c-ok">
+        <span class="callout-icon">✅</span>
+        <div>
+          <strong>firebase-admin menggunakan FCM HTTP v1 API secara otomatis</strong>
+          <p><code>admin.messaging().send()</code> sudah menggunakan endpoint <code>https://fcm.googleapis.com/v1/projects/{project}/messages:send</code> dengan OAuth2 token yang di-refresh otomatis dari service account. Tidak perlu setup apapun secara manual.</p>
+        </div>
+      </div>
+
+      <div class="sub-title">Register Device Token dari Client Mobile</div>
+      <p style="color:var(--muted);font-size:.84rem;margin-bottom:.6rem;">Client mobile (Android/iOS) mendapatkan FCM token via Firebase SDK lalu mengirimkannya ke backend saat login. REST endpoint ini dilayani oleh <strong>notification-service Rust</strong>.</p>
+
+      <div class="cblock">
+        <div class="cblock-header"><span class="cblock-lang">http</span></div>
+        <pre><span class="cc"># Register saat login atau token refresh</span>
+<span class="ck">POST</span> /api/v1/notifications/device-token
+<span class="ct">Authorization</span>: Bearer {access_token}
+<span class="ct">Content-Type</span>: application/json
+
+{
+  <span class="cs">"token"</span>:    <span class="cs">"fcm-device-token-dari-sdk"</span>,
+  <span class="cs">"platform"</span>: <span class="cs">"android"</span>   <span class="cc">// "android" | "ios" | "web"</span>
+}
+
+<span class="cc"># Hapus saat logout</span>
+<span class="ck">DELETE</span> /api/v1/notifications/device-token
+<span class="ct">Authorization</span>: Bearer {access_token}</pre>
+      </div>
+
+      <div class="callout c-info" style="margin-top:.85rem;">
+        <span class="callout-icon">ℹ️</span>
+        <div>
+          <strong>Satu user bisa punya multiple device token</strong>
+          <p>User login dari Android + iOS + web browser → tiga token berbeda. Saat push, Bun.js mengirim ke semua token aktif milik user. Token yang kembali dengan status <code>UNREGISTERED</code> dihapus otomatis dari DB.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- DOCKER & COMPOSE -->
+    <section id="docker">
+      <h2 class="sec-title"><span class="sec-icon ic-b">🐳</span>Docker &amp; Docker Compose</h2>
+      <div class="steps">
+
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <h3>Dockerfile</h3>
+            <div class="cblock">
+              <div class="cblock-header"><span class="cblock-lang">dockerfile</span><span class="cblock-file">bun-notification-service/Dockerfile</span></div>
+              <pre><span class="ck">FROM</span> oven/bun:<span class="cs">1</span> <span class="ck">AS</span> deps
+<span class="ck">WORKDIR</span> /app
+<span class="ck">COPY</span> package.json bun.lockb ./
+<span class="ck">RUN</span> bun install --frozen-lockfile
+
+<span class="ck">FROM</span> oven/bun:<span class="cs">1</span>
+<span class="ck">WORKDIR</span> /app
+<span class="ck">COPY</span> --from=deps /app/node_modules ./node_modules
+<span class="ck">COPY</span> . .
+
+<span class="ck">ENV</span> NODE_ENV=production
+<span class="ck">CMD</span> [<span class="cs">"bun"</span>, <span class="cs">"run"</span>, <span class="cs">"src/index.ts"</span>]</pre>
+            </div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <h3>Update docker-compose.yml</h3>
+            <p>Tambahkan service <code>bun-notification</code> ke file yang sudah ada. Pastikan berada di network yang sama dengan Rust app dan Redis.</p>
+            <div class="cblock">
+              <div class="cblock-header"><span class="cblock-lang">yaml</span><span class="cblock-file">docker-compose.yml (tambahan)</span></div>
+              <pre>services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: rejki
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: rejki_db
+    ports:
+      - <span class="cs">"5432:5432"</span>
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./scripts/init-schemas.sql:/docker-entrypoint-initdb.d/init.sql
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    <span class="cc"># Tidak expose port ke luar (hanya internal network)</span>
+
+  rejki-app:
+    build: .
+    restart: unless-stopped
+    depends_on: [postgres, redis]
+    environment:
+      APP_ENV: production
+      DATABASE_URL: postgres://rejki:secret@postgres:5432/rejki_db
+      REDIS_URL: redis://redis:6379
+      JWT_PRIVATE_KEY_PATH: /run/secrets/jwt_private_key
+      JWT_PUBLIC_KEY_PATH: /run/secrets/jwt_public_key
+      APP_PORT: <span class="cn">8080</span>
+    ports:
+      - <span class="cs">"8080:8080"</span>
+    volumes:
+      - ./keys:/app/keys:ro
+
+  <span class="cv">bun-notification</span>:           <span class="cc"># &lt;-- service baru</span>
+    build: ./bun-notification-service
+    restart: unless-stopped
+    depends_on: [postgres, redis]
+    environment:
+      APP_ENV: production
+      REDIS_URL: redis://redis:6379
+      DATABASE_URL: postgres://rejki:secret@postgres:5432/rejki_db
+      FIREBASE_SERVICE_ACCOUNT_PATH: /app/keys/firebase-service-account.json
+      FIREBASE_PROJECT_ID: rejki-app-id
+      SMTP_HOST: <span class="cs">${SMTP_HOST}</span>
+      SMTP_PORT: <span class="cs">${SMTP_PORT}</span>
+      SMTP_USERNAME: <span class="cs">${SMTP_USERNAME}</span>
+      SMTP_PASSWORD: <span class="cs">${SMTP_PASSWORD}</span>
+      EMAIL_FROM: <span class="cs">${EMAIL_FROM}</span>
+      PORT: <span class="cn">9000</span>
+    volumes:
+      - ./keys:/app/keys:ro   <span class="cc"># mount folder keys yang sama</span>
+    <span class="cc"># Tidak expose port ke luar — hanya Redis yang dipakai untuk komunikasi</span>
+
+volumes:
+  pgdata:</pre>
+            </div>
+
+            <div class="callout c-warn" style="margin-top:.75rem;">
+              <span class="callout-icon">⚠️</span>
+              <div><strong>Redis tidak expose port ke host</strong>
+              <p>Hilangkan <code>ports: - "6379:6379"</code> dari service redis di production. Redis hanya boleh diakses oleh service di Docker network yang sama. Jika port 6379 terbuka ke internet tanpa auth, ini adalah security vulnerability.</p></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <h3>Jalankan di development</h3>
+            <div class="cblock">
+              <div class="cblock-header"><span class="cblock-lang">shell</span></div>
+              <pre><span class="cc"># Build dan jalankan semua service</span>
+docker compose up -d --build
+
+<span class="cc"># Lihat log bun-notification saja</span>
+docker compose logs -f bun-notification
+
+<span class="cc"># Development tanpa Docker (perlu Redis dan PostgreSQL lokal)</span>
+cd bun-notification-service
+cp .env.example .env
+<span class="cc"># Edit .env: isi FIREBASE_SERVICE_ACCOUNT_PATH, DATABASE_URL, dll</span>
+bun --watch src/index.ts</pre>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- DB MIGRATIONS -->
+    <section id="migrations">
+      <h2 class="sec-title"><span class="sec-icon ic-p">🗄️</span>DB Migrations</h2>
+      <p style="color:var(--muted);font-size:.84rem;margin-bottom:.85rem;">Bun.js menjalankan SQL migration saat startup sebelum consumer loop dimulai. Menggunakan raw SQL — tidak perlu ORM.</p>
+
+      <div class="cblock">
+        <div class="cblock-header"><span class="cblock-lang">typescript</span><span class="cblock-file">bun-notification-service/src/db/migrations.ts</span></div>
+        <pre><span class="ck">import</span> { readFileSync } <span class="ck">from</span> <span class="cs">"fs"</span>;
+<span class="ck">import</span> { db } <span class="ck">from</span> <span class="cs">"./client"</span>;
+
+<span class="ck">export async function</span> <span class="cfn">runMigrations</span>() {
+  <span class="ck">const</span> sql = <span class="cfn">readFileSync</span>(
+    <span class="ck">new</span> <span class="cfn">URL</span>(<span class="cs">"../../migrations/001_create_notification_tables.sql"</span>, import.meta.url),
+    <span class="cs">"utf-8"</span>
+  );
+  <span class="ck">await</span> db.<span class="cfn">query</span>(sql);
+  console.<span class="cfn">log</span>(<span class="cs">"[migrations] notification schema ready"</span>);
+}</pre>
+      </div>
+
+      <div class="cblock" style="margin-top:.75rem;">
+        <div class="cblock-header"><span class="cblock-lang">sql</span><span class="cblock-file">bun-notification-service/migrations/001_create_notification_tables.sql</span></div>
+        <pre><span class="cc">-- Idempotent: CREATE TABLE IF NOT EXISTS</span>
+
+<span class="ck">CREATE TABLE IF NOT EXISTS</span> notification.notifications (
+    id           UUID        <span class="ck">PRIMARY KEY DEFAULT</span> <span class="cfn">gen_random_uuid</span>(),
+    recipient_id UUID        <span class="ck">NOT NULL</span>,
+    event_type   TEXT        <span class="ck">NOT NULL</span>,
+    title        TEXT        <span class="ck">NOT NULL</span>,
+    body         TEXT        <span class="ck">NOT NULL</span>,
+    deep_link    TEXT,
+    is_read      BOOLEAN     <span class="ck">NOT NULL DEFAULT false</span>,
+    created_at   TIMESTAMPTZ <span class="ck">NOT NULL DEFAULT</span> <span class="cfn">now</span>()
+);
+<span class="ck">CREATE INDEX IF NOT EXISTS</span> idx_notif_recipient
+    <span class="ck">ON</span> notification.notifications (recipient_id, created_at <span class="ck">DESC</span>);
+<span class="ck">CREATE INDEX IF NOT EXISTS</span> idx_notif_unread
+    <span class="ck">ON</span> notification.notifications (recipient_id)
+    <span class="ck">WHERE</span> is_read = <span class="cv">false</span>;
+
+<span class="ck">CREATE TABLE IF NOT EXISTS</span> notification.processed_events (
+    idempotency_key TEXT        <span class="ck">PRIMARY KEY</span>,
+    processed_at    TIMESTAMPTZ <span class="ck">NOT NULL DEFAULT</span> <span class="cfn">now</span>()
+);
+
+<span class="ck">CREATE TABLE IF NOT EXISTS</span> notification.device_tokens (
+    id         UUID        <span class="ck">PRIMARY KEY DEFAULT</span> <span class="cfn">gen_random_uuid</span>(),
+    user_id    UUID        <span class="ck">NOT NULL</span>,
+    token      TEXT        <span class="ck">NOT NULL UNIQUE</span>,
+    platform   TEXT        <span class="ck">NOT NULL</span>,
+    created_at TIMESTAMPTZ <span class="ck">NOT NULL DEFAULT</span> <span class="cfn">now</span>()
+);
+<span class="ck">CREATE INDEX IF NOT EXISTS</span> idx_device_tokens_user
+    <span class="ck">ON</span> notification.device_tokens (user_id);
+
+<span class="ck">CREATE TABLE IF NOT EXISTS</span> notification.user_preferences (
+    user_id       UUID    <span class="ck">PRIMARY KEY</span>,
+    push_enabled  BOOLEAN <span class="ck">NOT NULL DEFAULT true</span>,
+    email_enabled BOOLEAN <span class="ck">NOT NULL DEFAULT true</span>,
+    updated_at    TIMESTAMPTZ <span class="ck">NOT NULL DEFAULT</span> <span class="cfn">now</span>()
+);</pre>
+      </div>
+    </section>
+
+    <!-- HEALTH CHECK -->
+    <section id="health">
+      <h2 class="sec-title"><span class="sec-icon ic-g">❤️</span>Health Check</h2>
+      <p style="color:var(--muted);font-size:.84rem;margin-bottom:.85rem;">Bun.js menjalankan HTTP server kecil di port 9000 untuk health check Docker Compose. Consumer loop berjalan di goroutine terpisah.</p>
+
+      <div class="cblock">
+        <div class="cblock-header"><span class="cblock-lang">typescript</span><span class="cblock-file">bun-notification-service/src/index.ts</span></div>
+        <pre><span class="ck">import</span> { config } <span class="ck">from</span> <span class="cs">"./config"</span>;     <span class="cc">// fail-fast validation</span>
+<span class="ck">import</span> { createDbClient } <span class="ck">from</span> <span class="cs">"./db/client"</span>;
+<span class="ck">import</span> { runMigrations } <span class="ck">from</span> <span class="cs">"./db/migrations"</span>;
+<span class="ck">import</span> { createRedisClient } <span class="ck">from</span> <span class="cs">"./redis/client"</span>;
+<span class="ck">import</span> { startConsumerLoop } <span class="ck">from</span> <span class="cs">"./consumer/loop"</span>;
+
+<span class="ck">async function</span> <span class="cfn">main</span>() {
+  console.<span class="cfn">log</span>(<span class="cs">"[startup] bun-notification-service starting..."</span>);
+
+  <span class="ck">const</span> redis = <span class="cfn">createRedisClient</span>(config.redisUrl);
+  <span class="cfn">createDbClient</span>(config.databaseUrl);
+
+  <span class="cc">// Jalankan migration sebelum consumer dimulai</span>
+  <span class="ck">await</span> <span class="cfn">runMigrations</span>();
+
+  <span class="cc">// Health check server — tidak blocking</span>
+  Bun.<span class="cfn">serve</span>({
+    port: config.port,
+    <span class="cfn">fetch</span>(req) {
+      <span class="ck">if</span> (<span class="ck">new</span> <span class="cfn">URL</span>(req.url).pathname === <span class="cs">"/health"</span>) {
+        <span class="ck">return</span> <span class="ct">Response</span>.<span class="cfn">json</span>({
+          status:  <span class="cs">"ok"</span>,
+          service: <span class="cs">"bun-notification-service"</span>,
+          version: <span class="cs">"1.0.0"</span>,
+        });
+      }
+      <span class="ck">return new</span> <span class="cfn">Response</span>(<span class="cs">"not found"</span>, { status: <span class="cn">404</span> });
+    },
+  });
+  console.<span class="cfn">log</span>(<span class="cs">`[health] listening on :<span class="ct">${config.port}</span>`</span>);
+
+  <span class="cc">// Consumer loop — blocking, jalan terus</span>
+  <span class="ck">await</span> <span class="cfn">startConsumerLoop</span>(redis);
+}
+
+<span class="cfn">main</span>().<span class="cfn">catch</span>((e) => { console.error(e); process.<span class="cfn">exit</span>(<span class="cn">1</span>); });</pre>
+      </div>
+    </section>
+
+    <!-- CHECKLIST -->
+    <section id="checklist">
+      <h2 class="sec-title"><span class="sec-icon ic-g">✅</span>Checklist Setup Phase 1.5</h2>
+      <p style="color:var(--muted);font-size:.85rem;margin-bottom:.85rem;">Semua item berikut wajib selesai sebelum implementasi Phase 2.</p>
+
+      <p style="font-size:.75rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin-bottom:.65rem;">Firebase</p>
+      <div class="checklist">
+        <div class="chk"><div class="chk-box"></div><div class="chk-text">Firebase project dibuat di <code>console.firebase.google.com</code></div></div>
+        <div class="chk"><div class="chk-box"></div><div class="chk-text">Firebase Cloud Messaging API (V1) dalam status Enabled di Firebase Console</div></div>
+        <div class="chk"><div class="chk-box"></div><div class="chk-text">Service account JSON didownload dan disimpan di <code>keys/firebase-service-account.json</code></div></div>
+        <div class="chk"><div class="chk-box"></div><div class="chk-text"><code>keys/</code> ada di <code>.gitignore</code> — tidak ter-commit ke repository</div></div>
+        <div class="chk"><div class="chk-box"></div><div class="chk-text"><code>FIREBASE_SERVICE_ACCOUNT_PATH</code> dan <code>FIREBASE_PROJECT_ID</code> diisi di <code>.env</code></div></div>
+      </div>
+
+      <p style="font-size:.75rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin:1.25rem 0 .65rem;">Bun.js Service</p>
+      <div class="checklist">
+        <div class="chk"><div class="chk-box"></div><div class="chk-text">Folder <code>bun-notification-service/</code> dibuat di root workspace</div></div>
+        <div class="chk"><div class="chk-box"></div><div class="chk-text"><code>bun install</code> berhasil — <code>firebase-admin</code>, <code>ioredis</code>, <code>pg</code> terinstall</div></div>
+        <div class="chk"><div class="chk-box"></div><div class="chk-text"><code>src/config.ts</code> — fail-fast validation untuk semua env var wajib</div></div>
+        <div class="chk"><div class="chk-box"></div><div class="chk-text"><code>src/index.ts</code> — startup: config validation → migration → health server → consumer loop</div></div>
+        <div class="chk"><div class="chk-box"></div><div class="chk-text"><code>src/consumer/loop.ts</code> — XREADGROUP dengan PEL recovery saat startup via XAUTOCLAIM</div></div>
+        <div class="chk"><div class="chk-box"></div><div class="chk-text"><code>src/consumer/processor.ts</code> — idempotency check → dispatch → XACK (DLQ jika error)</div></div>
+        <div class="chk"><div class="chk-box"></div><div class="chk-text"><code>src/dispatch/fcm.ts</code> — <code>firebase-admin</code> initialized, return <code>"invalid_token"</code> untuk UNREGISTERED</div></div>
+        <div class="chk"><div class="chk-box"></div><div class="chk-text">Migration SQL dijalankan saat startup — 4 tabel dengan <code>CREATE TABLE IF NOT EXISTS</code></div></div>
+        <div class="chk"><div class="chk-box"></div><div class="chk-text"><code>GET /health</code> di port 9000 mengembalikan <code>{ status: "ok" }</code></div></div>
+      </div>
+
+      <p style="font-size:.75rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin:1.25rem 0 .65rem;">Infrastructure</p>
+      <div class="checklist">
+        <div class="chk"><div class="chk-box"></div><div class="chk-text"><code>docker-compose.yml</code> diupdate — service <code>bun-notification</code> ditambahkan, Redis tidak expose port ke host</div></div>
+        <div class="chk"><div class="chk-box"></div><div class="chk-text"><code>Dockerfile</code> bun-notification-service menggunakan image <code>oven/bun:1</code></div></div>
+        <div class="chk"><div class="chk-box"></div><div class="chk-text"><code>docker compose up -d bun-notification</code> berhasil dan log menampilkan "[consumer] ready"</div></div>
+        <div class="chk"><div class="chk-box"></div><div class="chk-text"><code>.env.example</code> root workspace diupdate — <code>FIREBASE_SERVICE_ACCOUNT_PATH</code>, <code>FIREBASE_PROJECT_ID</code>, <code>REDIS_URL</code> ditambahkan</div></div>
+      </div>
+    </section>
+
+    <footer>
+      <p>Rejki Backend — Bun.js Notification Service Setup · 9 Juni 2026 · Phase 1.5</p>
+      <p style="margin-top:.3rem;">Stack: Bun.js · firebase-admin (FCM HTTP v1) · ioredis · PostgreSQL · Docker</p>
+    </footer>
+  </main>
+</div>
+</body>
+</html>

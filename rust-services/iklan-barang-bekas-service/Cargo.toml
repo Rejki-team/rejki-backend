@@ -1,0 +1,36 @@
+[package]
+name    = "iklan-barang-bekas-service"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "iklan_barang_bekas_service"
+path = "src/lib.rs"
+
+[[bin]]
+name = "iklan-barang-bekas-service"
+path = "src/main.rs"
+
+[dependencies]
+common-errors  = { workspace = true }
+common-tracing = { workspace = true }
+common-auth-mw = { workspace = true }
+iklan-barang-bekas-service-client = { path = "../iklan-barang-bekas-service-client" }
+user-service-client               = { path = "../user-service-client" }
+notification-service-client       = { path = "../notification-service-client" }
+auth-service-client               = { path = "../auth-service-client" }
+
+axum        = { workspace = true }
+tokio       = { workspace = true }
+sqlx        = { workspace = true }
+serde       = { workspace = true }
+serde_json  = { workspace = true }
+uuid        = { workspace = true }
+chrono      = { workspace = true }
+tracing     = { workspace = true }
+tower-http  = { workspace = true }
+thiserror   = { workspace = true }
+validator   = { workspace = true }
+dotenvy     = { workspace = true }
+anyhow      = { workspace = true }
+ammonia     = { workspace = true }

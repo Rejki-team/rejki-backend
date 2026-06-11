@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rejki Backend — Testing Standard</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0d1117; --surf: #161b22; --surf2: #1c2230; --border: #30363d;
+      --text: #e6edf3; --muted: #8b949e; --tag: #21262d;
+      --green: #56d364; --blue: #79c0ff; --orange: #f78166;
+      --yellow: #e3b341; --purple: #bc8cff; --cyan: #56b6d4; --r: 10px;
+    }
+    html { scroll-behavior: smooth; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; font-size: 15px; }
+    .layout { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
+    @media (max-width: 840px) { .layout { grid-template-columns: 1fr; } .nav { display: none; } }
+    .nav { position: sticky; top: 0; height: 100vh; overflow-y: auto; background: var(--surf); border-right: 1px solid var(--border); padding: 1.75rem 1rem; }
+    .nav-logo { font-size: 1.1rem; font-weight: 800; color: var(--orange); margin-bottom: 1.75rem; }
+    .nav-logo span { color: var(--text); }
+    .nav-group { margin-bottom: 1.5rem; }
+    .nav-group-label { font-size: .67rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: .4rem; }
+    .nav-link { display: block; padding: .32rem .6rem; border-radius: 6px; font-size: .85rem; color: var(--muted); text-decoration: none; transition: background .12s, color .12s; }
+    .nav-link:hover { background: var(--tag); color: var(--text); }
+    .nav-link.accent { color: var(--purple); }
+    .nav-link.back { color: var(--blue); font-size: .8rem; }
+    main { max-width: 920px; margin: 0 auto; padding: 3rem 2rem 6rem; }
+    @media (max-width: 600px) { main { padding: 2rem 1rem 4rem; } }
+    .hero { border-bottom: 1px solid var(--border); margin-bottom: 3rem; padding-bottom: 2.5rem; }
+    .eyebrow { display: inline-block; font-size: .73rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--purple); background: rgba(188,140,255,.07); border: 1px solid rgba(188,140,255,.25); border-radius: 20px; padding: .22rem .75rem; margin-bottom: .9rem; }
+    .hero h1 { font-size: clamp(1.7rem,4vw,2.5rem); font-weight: 800; line-height: 1.15; letter-spacing: -.4px; margin-bottom: .9rem; }
+    .hero h1 em { font-style: normal; color: var(--purple); }
+    .hero p { color: var(--muted); font-size: 1rem; max-width: 680px; line-height: 1.75; }
+    .badges { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: 1.2rem; }
+    .badge { font-size: .76rem; font-weight: 600; padding: .25rem .75rem; border-radius: 20px; border: 1px solid; }
+    .b-pu { color: var(--purple); border-color: rgba(188,140,255,.4); background: rgba(188,140,255,.06); }
+    .b-ph { color: var(--purple); border-color: rgba(188,140,255,.4); background: rgba(188,140,255,.06); }
+    section { margin-bottom: 3.5rem; }
+    .sec-title { display: flex; align-items: center; gap: .6rem; font-size: 1.2rem; font-weight: 700; margin-bottom: 1.25rem; padding-bottom: .55rem; border-bottom: 1px solid var(--border); }
+    .sec-icon { width: 30px; height: 30px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: .95rem; flex-shrink: 0; }
+    .ic-g { background: rgba(86,211,100,.1); } .ic-b { background: rgba(121,192,255,.1); }
+    .ic-o { background: rgba(247,129,102,.1); } .ic-y { background: rgba(227,179,65,.1); }
+    .ic-c { background: rgba(86,182,212,.1); } .ic-p { background: rgba(188,140,255,.1); }
+    .sub-title { font-size: .95rem; font-weight: 700; margin: 1.6rem 0 .65rem; display: flex; align-items: center; gap: .5rem; }
+    .sub-title::before { content: ''; display: inline-block; width: 3px; height: 14px; background: var(--purple); border-radius: 2px; }
+    .tbl { width: 100%; border-collapse: collapse; font-size: .84rem; background: var(--surf); border: 1px solid var(--border); border-radius: var(--r); overflow: hidden; }
+    .tbl th { background: var(--surf2); padding: .6rem 1rem; text-align: left; font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+    .tbl td { padding: .65rem 1rem; border-bottom: 1px solid var(--border); vertical-align: top; line-height: 1.55; }
+    .tbl tr:last-child td { border-bottom: none; }
+    .tbl tr:hover td { background: var(--surf2); }
+    .tbl-wrap { overflow-x: auto; }
+    .code { background: #0d1117; border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.2rem; overflow-x: auto; margin-top: .6rem; }
+    .code pre { font-family: 'Cascadia Code','Fira Code','Consolas',monospace; font-size: .8rem; line-height: 1.75; }
+    .ck { color: #ff7b72; } .cs { color: #a5d6ff; } .cc { color: #6e7681; }
+    .ct { color: #ffa657; } .cfn { color: #d2a8ff; } .cv { color: #56d364; }
+    .tier-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: .75rem; }
+    @media (max-width: 680px) { .tier-grid { grid-template-columns: 1fr; } }
+    .tier-card { background: var(--surf); border: 1px solid var(--border); border-radius: var(--r); padding: 1rem 1.1rem; }
+    .tier-card h4 { font-size: .85rem; font-weight: 700; margin-bottom: .45rem; }
+    .tier-card p { font-size: .78rem; color: var(--muted); line-height: 1.6; }
+    .tier-card .tier-tag { display: inline-block; font-size: .68rem; font-weight: 700; padding: .1rem .5rem; border-radius: 4px; margin-bottom: .45rem; }
+    .t-unit { color: var(--green);  background: rgba(86,211,100,.1); }
+    .t-int  { color: var(--blue);   background: rgba(121,192,255,.1); }
+    .t-e2e  { color: var(--orange); background: rgba(247,129,102,.1); }
+    .callout { border-radius: var(--r); padding: .85rem 1.1rem; margin-top: .9rem; font-size: .86rem; display: flex; gap: .65rem; line-height: 1.65; }
+    .callout-icon { flex-shrink: 0; font-size: 1rem; margin-top: 2px; }
+    .callout p { color: var(--muted); } .callout strong { color: var(--text); display: block; margin-bottom: .15rem; }
+    .c-info { background: rgba(121,192,255,.06); border: 1px solid rgba(121,192,255,.22); }
+    .c-warn { background: rgba(227,179,65,.06);  border: 1px solid rgba(227,179,65,.22); }
+    .c-ok   { background: rgba(86,211,100,.06);  border: 1px solid rgba(86,211,100,.22); }
+    code { font-family: 'Cascadia Code','Fira Code','Consolas',monospace; font-size: .8rem; background: var(--tag); border: 1px solid var(--border); border-radius: 4px; padding: .05rem .4rem; color: var(--blue); }
+    footer { margin-top: 4rem; padding-top: 1.25rem; border-top: 1px solid var(--border); font-size: .78rem; color: var(--muted); }
+  </style>
+</head>
+<body>
+<div class="layout">
+  <nav class="nav">
+    <div class="nav-logo">rejki<span>-backend</span></div>
+    <div class="nav-group">
+      <div class="nav-group-label">Navigasi</div>
+      <a class="nav-link back" href="index.html">← Architecture Overview</a>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-label">Isi Dokumen</div>
+      <a class="nav-link" href="#prinsip">Prinsip</a>
+      <a class="nav-link" href="#tiers">Test Tiers</a>
+      <a class="nav-link" href="#naming">Naming Convention</a>
+      <a class="nav-link" href="#struktur">Struktur Folder</a>
+      <a class="nav-link" href="#data">Test Data</a>
+      <a class="nav-link" href="#coverage">Coverage Target</a>
+      <a class="nav-link" href="#ci">CI Integration</a>
+      <a class="nav-link" href="#contoh">Contoh Test</a>
+      <a class="nav-link accent" href="#checklist">Checklist</a>
+    </div>
+  </nav>
+  <main>
+    <div class="hero">
+      <div class="eyebrow">Phase 1.5 — Testing Standard</div>
+      <h1>Testing <em>Standard</em></h1>
+      <p>Standar struktur test, naming convention, test data management, coverage target, dan integrasi CI/CD untuk semua service Rejki Backend.</p>
+      <div class="badges">
+        <span class="badge b-ph">Phase 1.5</span>
+        <span class="badge b-pu">Rust Testing</span>
+        <span class="badge b-pu">sqlx test</span>
+      </div>
+    </div>
+
+    <section id="prinsip">
+      <h2 class="sec-title"><span class="sec-icon ic-c">🧭</span>Prinsip</h2>
+      <div class="tbl-wrap"><table class="tbl"><tbody>
+        <tr><td><strong>Test behavior, bukan implementation</strong></td><td>Test harus bisa refactor internal tanpa ubah test. Uji "apa yang dilakukan function", bukan "bagaimana caranya".</td></tr>
+        <tr><td><strong>Integration test > unit test untuk Rust backend</strong></td><td>Logic bisnis yang menyentuh DB lebih baik ditest dengan integration test menggunakan DB nyata, bukan mock. Mock DB menghasilkan false confidence.</td></tr>
+        <tr><td><strong>Test harus idempoten</strong></td><td>Menjalankan test dua kali berturut-turut harus menghasilkan hasil yang sama. Tidak ada shared state antar test.</td></tr>
+        <tr><td><strong>Nama test adalah dokumentasi</strong></td><td>Nama test harus cukup deskriptif sehingga pembaca tahu apa yang ditest tanpa baca isi test.</td></tr>
+        <tr><td><strong>Tidak ada test yang flaky</strong></td><td>Test yang gagal intermittent wajib diperbaiki atau dihapus. Test flaky lebih berbahaya dari tidak ada test.</td></tr>
+      </tbody></table></div>
+    </section>
+
+    <section id="tiers">
+      <h2 class="sec-title"><span class="sec-icon ic-p">🧪</span>Test Tiers</h2>
+      <div class="tier-grid">
+        <div class="tier-card">
+          <span class="tier-tag t-unit">Unit</span>
+          <h4>Unit Test</h4>
+          <p>Test fungsi murni tanpa dependency eksternal. Tidak sentuh DB, tidak kirim HTTP. Cocok untuk: parser, validator, kalkulasi, transformation logic.</p>
+        </div>
+        <div class="tier-card">
+          <span class="tier-tag t-int">Integration</span>
+          <h4>Integration Test</h4>
+          <p>Test alur lengkap dari handler → service → repository dengan DB nyata. Menggunakan PostgreSQL test database yang di-reset setiap test run.</p>
+        </div>
+        <div class="tier-card">
+          <span class="tier-tag t-e2e">E2E</span>
+          <h4>E2E Test</h4>
+          <p>Test alur end-to-end antar service via HTTP (misal: register → login → buat iklan). Berjalan di CI dengan full docker-compose stack.</p>
+        </div>
+      </div>
+
+      <div class="tbl-wrap" style="margin-top:.9rem;"><table class="tbl">
+        <thead><tr><th>Dimensi</th><th>Unit</th><th>Integration</th><th>E2E</th></tr></thead>
+        <tbody>
+          <tr><td>Kecepatan</td><td>Sangat cepat (&lt;1ms)</td><td>Sedang (10–200ms)</td><td>Lambat (1–10s)</td></tr>
+          <tr><td>Jalankan di</td><td>Lokal + CI setiap commit</td><td>Lokal + CI setiap commit</td><td>CI saja (staging env)</td></tr>
+          <tr><td>Proporsi ideal</td><td>30%</td><td>60%</td><td>10%</td></tr>
+          <tr><td>DB nyata?</td><td>Tidak</td><td>Ya (test DB)</td><td>Ya (staging DB)</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="naming">
+      <h2 class="sec-title"><span class="sec-icon ic-y">🏷️</span>Naming Convention</h2>
+      <div class="sub-title">Format Nama Test</div>
+      <p style="color:var(--muted);font-size:.85rem;margin-bottom:.6rem;">Format: <code>test_{unit}_given_{kondisi}_when_{aksi}_then_{ekspektasi}</code></p>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Jenis Test</th><th>Contoh Nama</th></tr></thead>
+        <tbody>
+          <tr><td>Happy path</td><td><code>test_login_given_valid_credentials_when_login_then_returns_tokens</code></td></tr>
+          <tr><td>Validation error</td><td><code>test_register_given_invalid_email_when_register_then_returns_validation_error</code></td></tr>
+          <tr><td>Auth error</td><td><code>test_get_profile_given_no_token_when_request_then_returns_401</code></td></tr>
+          <tr><td>Not found</td><td><code>test_get_job_given_nonexistent_id_when_request_then_returns_404</code></td></tr>
+          <tr><td>Business rule</td><td><code>test_apply_job_given_already_applied_when_apply_again_then_returns_conflict</code></td></tr>
+          <tr><td>Permission</td><td><code>test_delete_job_given_other_owners_id_when_delete_then_returns_404</code></td></tr>
+        </tbody>
+      </table></div>
+
+      <div class="callout c-info">
+        <span class="callout-icon">ℹ️</span>
+        <div>
+          <strong>Nama test untuk IDOR case mengembalikan 404, bukan 403</strong>
+          <p>Sesuai standar security-baseline: jika user mencoba akses resource milik orang lain, kembalikan 404 (bukan 403). Ini juga yang harus di-test namanya: <code>_then_returns_404</code>, bukan <code>_then_returns_403</code>.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="struktur">
+      <h2 class="sec-title"><span class="sec-icon ic-b">📁</span>Struktur Folder</h2>
+      <div class="code"><pre><span class="cc"># Struktur test dalam setiap service</span>
+auth-service/
+├── src/
+│   ├── application/
+│   │   ├── service.rs
+│   │   └── <span class="cv">service_test.rs</span>           <span class="cc"># unit test (inline #[cfg(test)])</span>
+│   ├── interface/
+│   │   ├── handler.rs
+│   │   └── <span class="cv">handler_test.rs</span>           <span class="cc"># unit test handler logic</span>
+│   └── infrastructure/
+│       └── repository.rs
+└── <span class="cv">tests/</span>                            <span class="cc"># integration test (akses DB nyata)</span>
+    ├── <span class="cv">common/</span>
+    │   ├── <span class="cv">mod.rs</span>                    <span class="cc"># setup/teardown helper</span>
+    │   └── <span class="cv">fixtures.rs</span>               <span class="cc"># test data factories</span>
+    ├── <span class="cv">test_auth_login.rs</span>
+    ├── <span class="cv">test_auth_register.rs</span>
+    └── <span class="cv">test_auth_refresh.rs</span></pre></div>
+    </section>
+
+    <section id="data">
+      <h2 class="sec-title"><span class="sec-icon ic-o">🧱</span>Test Data</h2>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Aturan</th><th>Detail</th></tr></thead>
+        <tbody>
+          <tr><td>Setiap integration test buat data sendiri</td><td>Jangan andalkan data yang sudah ada dari test sebelumnya. Setiap test setup data yang dibutuhkan di awal, hapus di akhir (atau rollback transaction).</td></tr>
+          <tr><td>Gunakan transaction rollback untuk isolasi</td><td>Wrap setiap integration test dalam transaction, rollback di akhir. Lebih cepat dari truncate tabel.</td></tr>
+          <tr><td>Gunakan fixture factory, bukan hardcode</td><td>Buat helper <code>create_test_user()</code>, <code>create_test_job()</code> di <code>tests/common/fixtures.rs</code>. Jangan hardcode UUID atau email di setiap test.</td></tr>
+          <tr><td>Test email menggunakan domain khusus</td><td>Gunakan <code>@test.rejki.internal</code> untuk email test. Tidak akan pernah ada user real dengan domain ini.</td></tr>
+          <tr><td>Tidak ada data real di test</td><td>Jangan gunakan data dari staging/production dalam test. Semua data test harus generated/fictional.</td></tr>
+        </tbody>
+      </table></div>
+
+      <div class="sub-title">Contoh Fixture Helper</div>
+      <div class="code"><pre><span class="cc">// tests/common/fixtures.rs</span>
+<span class="ck">pub async fn</span> <span class="cfn">create_test_user</span>(pool: &amp;<span class="ct">PgPool</span>) -&gt; <span class="ct">User</span> {
+  <span class="ck">let</span> email = <span class="cfn">format!</span>(<span class="cs">"test_{}@test.rejki.internal"</span>, <span class="ct">Uuid</span>::<span class="cfn">new_v4</span>());
+  sqlx::<span class="cfn">query_as!</span>(
+    <span class="ct">User</span>,
+    <span class="cs">"INSERT INTO auth.user (email, password_hash) VALUES ($1, $2) RETURNING *"</span>,
+    email,
+    <span class="cs">"$2b$12$hash_placeholder"</span>
+  )
+  .<span class="cfn">fetch_one</span>(pool).<span class="cfn">await</span>
+  .<span class="cfn">expect</span>(<span class="cs">"failed to create test user"</span>)
+}</pre></div>
+    </section>
+
+    <section id="coverage">
+      <h2 class="sec-title"><span class="sec-icon ic-g">📊</span>Coverage Target</h2>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Layer</th><th>Target Coverage</th><th>Yang Harus Di-cover</th></tr></thead>
+        <tbody>
+          <tr><td>Application (service layer)</td><td>≥ 80%</td><td>Semua happy path dan error path dari business logic</td></tr>
+          <tr><td>Interface (handler layer)</td><td>≥ 70%</td><td>Validasi input, auth check, response format</td></tr>
+          <tr><td>Infrastructure (repository)</td><td>≥ 60%</td><td>Query SQL happy path via integration test</td></tr>
+        </tbody>
+      </table></div>
+
+      <div class="callout c-warn">
+        <span class="callout-icon">⚠️</span>
+        <div>
+          <strong>Coverage 100% bukan tujuan</strong>
+          <p>Target di atas adalah minimum yang bermakna, bukan maksimum. Mengejar 100% coverage sering menghasilkan test yang buruk (test implementation, bukan behavior). Fokus pada test yang bermakna, bukan angka coverage.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="ci">
+      <h2 class="sec-title"><span class="sec-icon ic-b">⚙️</span>CI Integration</h2>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Langkah CI</th><th>Command</th><th>Kapan</th></tr></thead>
+        <tbody>
+          <tr><td>Format check</td><td><code>cargo fmt --check</code></td><td>Setiap push</td></tr>
+          <tr><td>Lint</td><td><code>cargo clippy -- -D warnings</code></td><td>Setiap push</td></tr>
+          <tr><td>Unit test</td><td><code>cargo test --lib</code></td><td>Setiap push</td></tr>
+          <tr><td>Integration test</td><td><code>cargo test --test '*'</code></td><td>Setiap push (dengan test DB)</td></tr>
+          <tr><td>Build check</td><td><code>cargo build --release</code></td><td>PR ke main</td></tr>
+          <tr><td>E2E test</td><td>Skrip Python/curl + docker-compose</td><td>PR ke main (staging)</td></tr>
+        </tbody>
+      </table></div>
+
+      <div class="sub-title">Environment Variable untuk Test</div>
+      <div class="code"><pre><span class="cc"># .env.test — digunakan saat cargo test</span>
+DATABASE_URL=postgresql://rejki_test:test@localhost:5432/rejki_test
+APP_ENV=test
+JWT_PRIVATE_KEY_PATH=tests/fixtures/test_private_key.pem
+JWT_PUBLIC_KEY_PATH=tests/fixtures/test_public_key.pem</pre></div>
+    </section>
+
+    <section id="contoh">
+      <h2 class="sec-title"><span class="sec-icon ic-o">📝</span>Contoh Test</h2>
+
+      <div class="sub-title">Unit Test (Validator)</div>
+      <div class="code"><pre><span class="cc">// src/application/service_test.rs</span>
+#[cfg(test)]
+<span class="ck">mod</span> tests {
+  <span class="ck">use super</span>::*;
+
+  #[test]
+  <span class="ck">fn</span> <span class="cfn">test_validate_email_given_invalid_format_when_validate_then_returns_error</span>() {
+    <span class="ck">let</span> result = <span class="cfn">validate_email</span>(<span class="cs">"not-an-email"</span>);
+    <span class="cfn">assert!</span>(result.<span class="cfn">is_err</span>());
+    <span class="cfn">assert_eq!</span>(result.<span class="cfn">unwrap_err</span>(), <span class="ct">AppError</span>::<span class="cv">ValidationError</span> { field: <span class="cs">"email"</span>.<span class="cfn">into</span>() });
+  }
+
+  #[test]
+  <span class="ck">fn</span> <span class="cfn">test_validate_email_given_valid_email_when_validate_then_returns_ok</span>() {
+    <span class="ck">let</span> result = <span class="cfn">validate_email</span>(<span class="cs">"user@example.com"</span>);
+    <span class="cfn">assert!</span>(result.<span class="cfn">is_ok</span>());
+  }
+}</pre></div>
+
+      <div class="sub-title">Integration Test (Handler)</div>
+      <div class="code"><pre><span class="cc">// tests/test_auth_login.rs</span>
+#[sqlx::test]    <span class="cc">// sqlx::test otomatis buat DB baru dan rollback setelah test</span>
+<span class="ck">async fn</span> <span class="cfn">test_login_given_valid_credentials_when_login_then_returns_tokens</span>(
+  pool: <span class="ct">PgPool</span>
+) {
+  <span class="ck">let</span> app = <span class="cfn">build_test_app</span>(pool.<span class="cfn">clone</span>()).<span class="cfn">await</span>;
+  <span class="ck">let</span> user = <span class="cfn">create_test_user</span>(&amp;pool).<span class="cfn">await</span>;
+
+  <span class="ck">let</span> response = app
+    .<span class="cfn">oneshot</span>(<span class="cfn">Request::post</span>(<span class="cs">"/api/v1/auth/login"</span>)
+      .<span class="cfn">json</span>(<span class="cfn">json!</span>({ <span class="cs">"email"</span>: user.email, <span class="cs">"password"</span>: <span class="cs">"test_password"</span> })))
+    .<span class="cfn">await</span>
+    .<span class="cfn">unwrap</span>();
+
+  <span class="cfn">assert_eq!</span>(response.status(), <span class="ct">StatusCode</span>::<span class="cv">OK</span>);
+  <span class="ck">let</span> body: <span class="ct">Value</span> = <span class="cfn">parse_response</span>(response).<span class="cfn">await</span>;
+  <span class="cfn">assert!</span>(body[<span class="cs">"success"</span>].<span class="cfn">as_bool</span>().<span class="cfn">unwrap</span>());
+  <span class="cfn">assert!</span>(body[<span class="cs">"data"</span>][<span class="cs">"access_token"</span>].<span class="cfn">is_string</span>());
+  <span class="cfn">assert!</span>(body[<span class="cs">"data"</span>][<span class="cs">"refresh_token"</span>].<span class="cfn">is_string</span>());
+}</pre></div>
+    </section>
+
+    <section id="checklist">
+      <h2 class="sec-title"><span class="sec-icon ic-g">✅</span>Checklist</h2>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Item</th><th>Lokasi</th></tr></thead>
+        <tbody>
+          <tr><td>Folder <code>tests/common/</code> dengan helper <code>create_test_user()</code>, <code>build_test_app()</code>, dan fixture lainnya</td><td>Setiap service: <code>{service}/tests/common/</code></td></tr>
+          <tr><td>File <code>.env.test</code> dengan konfigurasi test DB terpisah dari dev</td><td>Root setiap service</td></tr>
+          <tr><td>Semua nama test menggunakan format <code>test_{unit}_given_{kondisi}_when_{aksi}_then_{ekspektasi}</code></td><td>Semua file test</td></tr>
+          <tr><td>Integration test menggunakan <code>#[sqlx::test]</code> untuk isolasi DB otomatis</td><td>Semua file di <code>tests/</code></td></tr>
+          <tr><td>CI pipeline menjalankan: fmt check, clippy, unit test, integration test di setiap push</td><td><code>.github/workflows/ci.yml</code></td></tr>
+          <tr><td>Test coverage application layer ≥ 80% (diukur dengan <code>cargo-tarpaulin</code> di CI)</td><td><code>.github/workflows/ci.yml</code></td></tr>
+          <tr><td>Tidak ada test yang menggunakan data hardcode (UUID, email) — semua via fixture factory</td><td>Semua file test</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <footer>
+      <p>Rejki Backend — Testing Standard · 9 Juni 2026 · Phase 1.5</p>
+      <p style="margin-top:.3rem;">Stack: Rust · sqlx::test · cargo-tarpaulin · GitHub Actions</p>
+    </footer>
+  </main>
+</div>
+</body>
+</html>

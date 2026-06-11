@@ -1,0 +1,54 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [main]
+
+# Cegah dua deployment berjalan bersamaan
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to VPS
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host:     ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key:      ${{ secrets.VPS_SSH_KEY }}
+          port:     ${{ secrets.VPS_PORT || 22 }}
+          script: |
+            set -e
+
+            cd /opt/rejki/prod
+
+            echo "==> Pull latest code"
+            git pull origin main
+
+            echo "==> Build rejki-app image"
+            docker compose -p rejki-prod build rejki-app
+
+            echo "==> Build bun-notification image"
+            docker compose -p rejki-prod build bun-notification
+
+            echo "==> Restart services"
+            docker compose -p rejki-prod --profile prod up -d
+
+            echo "==> Wait for health check"
+            sleep 10
+            docker compose -p rejki-prod ps
+
+            echo "==> Verify /health endpoint"
+            curl -sf http://localhost/health || (echo "Health check failed!" && exit 1)
+
+            echo "==> Cleanup old images"
+            docker image prune -f
+
+            echo "==> Deploy complete"

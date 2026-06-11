@@ -1,0 +1,10 @@
+[package]
+name    = "region-service-client"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+uuid   = { workspace = true }
+serde  = { workspace = true }
+thiserror = { workspace = true }
+async-trait = "0.1"

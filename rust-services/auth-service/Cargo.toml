@@ -1,0 +1,45 @@
+[package]
+name    = "auth-service"
+version = "0.1.0"
+edition = "2021"
+
+# Library crate — expose router() untuk rejki-app (Composition Root)
+[lib]
+name = "auth_service"
+path = "src/lib.rs"
+
+# Binary standalone — untuk saat diekstrak jadi microservice terpisah
+[[bin]]
+name = "auth-service"
+path = "src/main.rs"
+
+[dependencies]
+common-errors  = { workspace = true }
+common-tracing = { workspace = true }
+common-auth-mw = { workspace = true }
+common-crypto  = { workspace = true }
+auth-service-client = { path = "../auth-service-client" }
+notification-service-client = { path = "../notification-service-client" }
+
+axum        = { workspace = true }
+tokio       = { workspace = true }
+sqlx        = { workspace = true }
+serde       = { workspace = true }
+serde_json  = { workspace = true }
+uuid        = { workspace = true }
+chrono      = { workspace = true }
+tracing     = { workspace = true }
+tower-http  = { workspace = true }
+thiserror   = { workspace = true }
+validator   = { workspace = true }
+jsonwebtoken = { workspace = true }
+bcrypt      = { workspace = true }
+rand        = { workspace = true }
+dotenvy     = { workspace = true }
+anyhow       = { workspace = true }
+sha2         = { workspace = true }
+hex          = { workspace = true }
+aes-gcm      = { workspace = true }
+base64       = { workspace = true }
+redis        = { workspace = true }
+async-trait  = "0.1"

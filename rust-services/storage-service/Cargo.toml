@@ -1,0 +1,30 @@
+[package]
+name    = "storage-service"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "storage_service"
+path = "src/lib.rs"
+
+[[bin]]
+name = "storage-service"
+path = "src/main.rs"
+
+[dependencies]
+common-errors         = { workspace = true }
+common-tracing        = { workspace = true }
+storage-service-client = { path = "../storage-service-client" }
+aws-sdk-s3            = { workspace = true }
+aws-config            = { workspace = true }
+aws-credential-types  = { workspace = true }
+
+axum        = { workspace = true }
+tokio       = { workspace = true }
+serde       = { workspace = true }
+serde_json  = { workspace = true }
+uuid        = { workspace = true }
+tracing     = { workspace = true }
+anyhow      = { workspace = true }
+dotenvy     = { workspace = true }
+async-trait = "0.1"

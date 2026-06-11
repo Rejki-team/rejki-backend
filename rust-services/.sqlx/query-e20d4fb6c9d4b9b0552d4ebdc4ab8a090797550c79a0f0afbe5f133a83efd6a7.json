@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT EXISTS(\n                SELECT 1 FROM auth.account_suspension\n                WHERE user_id = $1\n                  AND (is_permanent = true OR (expires_at IS NOT NULL AND expires_at > now()))\n            )",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "exists",
+        "type_info": "Bool",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "e20d4fb6c9d4b9b0552d4ebdc4ab8a090797550c79a0f0afbe5f133a83efd6a7"
+}

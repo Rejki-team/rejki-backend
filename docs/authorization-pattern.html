@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rejki Backend — Authorization Pattern</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0d1117; --surf: #161b22; --surf2: #1c2230; --border: #30363d;
+      --text: #e6edf3; --muted: #8b949e; --tag: #21262d;
+      --green: #56d364; --blue: #79c0ff; --orange: #f78166;
+      --yellow: #e3b341; --purple: #bc8cff; --cyan: #56b6d4; --r: 10px;
+    }
+    html { scroll-behavior: smooth; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; font-size: 15px; }
+    .layout { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
+    @media (max-width: 840px) { .layout { grid-template-columns: 1fr; } .nav { display: none; } }
+    .nav { position: sticky; top: 0; height: 100vh; overflow-y: auto; background: var(--surf); border-right: 1px solid var(--border); padding: 1.75rem 1rem; }
+    .nav-logo { font-size: 1.1rem; font-weight: 800; color: var(--orange); margin-bottom: 1.75rem; }
+    .nav-logo span { color: var(--text); }
+    .nav-group { margin-bottom: 1.5rem; }
+    .nav-group-label { font-size: .67rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: .4rem; }
+    .nav-link { display: block; padding: .32rem .6rem; border-radius: 6px; font-size: .85rem; color: var(--muted); text-decoration: none; transition: background .12s, color .12s; }
+    .nav-link:hover { background: var(--tag); color: var(--text); }
+    .nav-link.accent { color: var(--orange); }
+    .nav-link.back { color: var(--blue); font-size: .8rem; }
+    main { max-width: 920px; margin: 0 auto; padding: 3rem 2rem 6rem; }
+    .hero { border-bottom: 1px solid var(--border); margin-bottom: 3rem; padding-bottom: 2.5rem; }
+    .eyebrow { display: inline-block; font-size: .73rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--orange); background: rgba(247,129,102,.07); border: 1px solid rgba(247,129,102,.25); border-radius: 20px; padding: .22rem .75rem; margin-bottom: .9rem; }
+    .hero h1 { font-size: clamp(1.7rem,4vw,2.5rem); font-weight: 800; line-height: 1.15; letter-spacing: -.4px; margin-bottom: .9rem; }
+    .hero h1 em { font-style: normal; color: var(--orange); }
+    .hero p { color: var(--muted); font-size: 1rem; max-width: 680px; line-height: 1.75; }
+    .badges { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: 1.2rem; }
+    .badge { font-size: .76rem; font-weight: 600; padding: .25rem .75rem; border-radius: 20px; border: 1px solid; }
+    .b-o  { color: var(--orange); border-color: rgba(247,129,102,.4); background: rgba(247,129,102,.06); }
+    .b-ph { color: var(--purple); border-color: rgba(188,140,255,.4); background: rgba(188,140,255,.06); }
+    section { margin-bottom: 3.5rem; }
+    .sec-title { display: flex; align-items: center; gap: .6rem; font-size: 1.2rem; font-weight: 700; margin-bottom: 1.25rem; padding-bottom: .55rem; border-bottom: 1px solid var(--border); }
+    .sec-icon { width: 30px; height: 30px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: .95rem; flex-shrink: 0; }
+    .ic-g { background: rgba(86,211,100,.1); } .ic-b { background: rgba(121,192,255,.1); }
+    .ic-o { background: rgba(247,129,102,.1); } .ic-y { background: rgba(227,179,65,.1); }
+    .sub-title { font-size: .95rem; font-weight: 700; margin: 1.6rem 0 .65rem; display: flex; align-items: center; gap: .5rem; }
+    .sub-title::before { content: ''; display: inline-block; width: 3px; height: 14px; background: var(--orange); border-radius: 2px; }
+    .tbl { width: 100%; border-collapse: collapse; font-size: .84rem; background: var(--surf); border: 1px solid var(--border); border-radius: var(--r); overflow: hidden; }
+    .tbl th { background: var(--surf2); padding: .6rem 1rem; text-align: left; font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+    .tbl td { padding: .65rem 1rem; border-bottom: 1px solid var(--border); vertical-align: top; line-height: 1.55; }
+    .tbl tr:last-child td { border-bottom: none; }
+    .tbl tr:hover td { background: var(--surf2); }
+    .tbl-wrap { overflow-x: auto; }
+    .code { background: #0d1117; border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.2rem; overflow-x: auto; margin-top: .6rem; }
+    .code pre { font-family: 'Cascadia Code','Fira Code','Consolas',monospace; font-size: .8rem; line-height: 1.75; }
+    .ck { color: #ff7b72; } .cs { color: #a5d6ff; } .cc { color: #6e7681; }
+    .ct { color: #ffa657; } .cfn { color: #d2a8ff; } .cv { color: #56d364; }
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; margin-top: .6rem; }
+    @media (max-width: 680px) { .two-col { grid-template-columns: 1fr; } }
+    .col-label { font-size: .68rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: .35rem; }
+    .callout { border-radius: var(--r); padding: .85rem 1.1rem; margin-top: .9rem; font-size: .86rem; display: flex; gap: .65rem; line-height: 1.65; }
+    .callout-icon { flex-shrink: 0; font-size: 1rem; margin-top: 2px; }
+    .callout p { color: var(--muted); } .callout strong { color: var(--text); display: block; margin-bottom: .15rem; }
+    .c-info { background: rgba(121,192,255,.06); border: 1px solid rgba(121,192,255,.22); }
+    .c-warn { background: rgba(227,179,65,.06);  border: 1px solid rgba(227,179,65,.22); }
+    .c-ok   { background: rgba(86,211,100,.06);  border: 1px solid rgba(86,211,100,.22); }
+    .c-danger { background: rgba(247,129,102,.06); border: 1px solid rgba(247,129,102,.22); }
+    code { font-family: 'Cascadia Code','Fira Code','Consolas',monospace; font-size: .8rem; background: var(--tag); border: 1px solid var(--border); border-radius: 4px; padding: .05rem .4rem; color: var(--blue); }
+    footer { margin-top: 4rem; padding-top: 1.25rem; border-top: 1px solid var(--border); font-size: .78rem; color: var(--muted); }
+  </style>
+</head>
+<body>
+<div class="layout">
+  <nav class="nav">
+    <div class="nav-logo">rejki<span>-backend</span></div>
+    <div class="nav-group">
+      <div class="nav-group-label">Navigasi</div>
+      <a class="nav-link back" href="index.html">← Architecture Overview</a>
+      <a class="nav-link back" href="security-baseline.html">← Security Baseline</a>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-label">Isi Dokumen</div>
+      <a class="nav-link" href="#prinsip">Prinsip</a>
+      <a class="nav-link" href="#lapisan">3 Lapisan Auth</a>
+      <a class="nav-link" href="#ownership">Ownership Check</a>
+      <a class="nav-link" href="#visibility">Visibility Rules</a>
+      <a class="nav-link" href="#response">Response yang Tepat</a>
+      <a class="nav-link" href="#test">Test Pattern</a>
+      <a class="nav-link" href="#impl">Implementasi Rust</a>
+      <a class="nav-link accent" href="#checklist">Checklist</a>
+    </div>
+  </nav>
+  <main>
+    <div class="hero">
+      <div class="eyebrow">Phase 1.5 — Authorization Pattern</div>
+      <h1>Authorization <em>Pattern</em></h1>
+      <p>Standar 3 lapisan otorisasi — autentikasi JWT, ownership check, dan visibility rule — beserta pola implementasi Rust yang konsisten di semua service Rejki Backend.</p>
+      <div class="badges">
+        <span class="badge b-ph">Phase 1.5</span>
+        <span class="badge b-o">Security</span>
+      </div>
+    </div>
+
+    <section id="prinsip">
+      <h2 class="sec-title"><span class="sec-icon ic-o">🧭</span>Prinsip</h2>
+      <div class="tbl-wrap"><table class="tbl"><tbody>
+        <tr><td><strong>Autentikasi di middleware, otorisasi di handler/repository</strong></td><td>JWT validation (autentikasi) dilakukan oleh <code>AuthMiddleware</code> sebelum request sampai ke handler. Pengecekan <em>siapa boleh akses apa</em> (otorisasi) dilakukan di handler atau repository — bukan di middleware.</td></tr>
+        <tr><td><strong>Kembalikan 404, bukan 403 untuk IDOR</strong></td><td>Jika user mencoba mengakses resource milik orang lain, kembalikan <code>404 Not Found</code> — bukan <code>403 Forbidden</code>. Ini mencegah resource enumeration (attacker tidak tahu apakah resource ada atau tidak).</td></tr>
+        <tr><td><strong>Ownership check di repository layer</strong></td><td>Query SQL wajib menyertakan <code>AND owner_id = $caller_user_id</code>. Jangan lakukan ownership check di handler dengan SELECT dulu lalu compare — ini race condition dan lebih lambat.</td></tr>
+        <tr><td><strong>Public resource tidak butuh auth</strong></td><td>Iklan yang sudah diterbitkan bisa dilihat tanpa login. Handler untuk resource publik tidak perlu <code>AuthMiddleware</code>, tapi tetap tidak boleh mengembalikan data sensitif milik pemilik.</td></tr>
+      </tbody></table></div>
+    </section>
+
+    <section id="lapisan">
+      <h2 class="sec-title"><span class="sec-icon ic-b">🔐</span>3 Lapisan Otorisasi</h2>
+      <div class="code"><pre><span class="cc">Request masuk</span>
+      │
+      ▼
+<span class="cc">┌─────────────────────────────────────────────────────────┐</span>
+<span class="cc">│ Lapisan 1: Autentikasi (Middleware)                     │</span>
+<span class="cc">│ Cek: apakah ada JWT valid?                              │</span>
+<span class="cc">│ Gagal → 401 Unauthorized (tidak ada token / token mati) │</span>
+<span class="cc">└────────────────────────┬────────────────────────────────┘</span>
+                         │ Lolos → inject AuthClaims ke request
+                         ▼
+<span class="cc">┌─────────────────────────────────────────────────────────┐</span>
+<span class="cc">│ Lapisan 2: Ownership Check (Repository / Handler)       │</span>
+<span class="cc">│ Cek: apakah resource ini milik user yang sedang login?  │</span>
+<span class="cc">│ Gagal → 404 Not Found (bukan 403)                       │</span>
+<span class="cc">└────────────────────────┬────────────────────────────────┘</span>
+                         │ Lolos → resource ditemukan dan milik caller
+                         ▼
+<span class="cc">┌─────────────────────────────────────────────────────────┐</span>
+<span class="cc">│ Lapisan 3: Visibility Rule (Handler)                    │</span>
+<span class="cc">│ Cek: data apa yang boleh dikembalikan?                  │</span>
+<span class="cc">│ Misalnya: hapus field sensitif untuk non-owner          │</span>
+<span class="cc">└─────────────────────────────────────────────────────────┘</span>
+                         │
+                         ▼
+                    Response ke client</pre></div>
+    </section>
+
+    <section id="ownership">
+      <h2 class="sec-title"><span class="sec-icon ic-o">👤</span>Ownership Check</h2>
+      <div class="sub-title">Pola Query Ownership di Repository</div>
+      <div class="two-col">
+        <div>
+          <div class="col-label">Benar</div>
+          <div class="code"><pre><span class="cc">-- Ownership check di dalam query</span>
+<span class="ck">SELECT</span> * <span class="ck">FROM</span> job.job_listing
+<span class="ck">WHERE</span> id = $1
+  <span class="ck">AND</span> owner_id = $2         <span class="cc">-- $2 = claims.user_id</span>
+  <span class="ck">AND</span> deleted_at <span class="ck">IS NULL</span>;
+
+<span class="cc">-- Jika tidak ada row → return 404</span>
+<span class="cc">-- Bisa karena id tidak ada, ATAU</span>
+<span class="cc">-- id ada tapi bukan milik caller</span></pre></div>
+        </div>
+        <div>
+          <div class="col-label">Salah</div>
+          <div class="code"><pre><span class="cc">-- JANGAN: SELECT dulu, compare di Rust</span>
+<span class="ck">SELECT</span> * <span class="ck">FROM</span> job.job_listing
+<span class="ck">WHERE</span> id = $1;
+
+<span class="cc">// lalu di Rust:</span>
+<span class="ck">if</span> listing.owner_id != claims.user_id {
+  <span class="ck">return</span> Err(<span class="ct">AppError</span>::<span class="cv">Forbidden</span>); <span class="cc">// ← SALAH</span>
+}
+<span class="cc">// race condition + bocorkan 403</span></pre></div>
+        </div>
+      </div>
+
+      <div class="tbl-wrap" style="margin-top:.9rem;"><table class="tbl">
+        <thead><tr><th>Operasi</th><th>Query Pattern</th></tr></thead>
+        <tbody>
+          <tr><td>GET resource milik sendiri</td><td><code>WHERE id = $1 AND owner_id = $2 AND deleted_at IS NULL</code></td></tr>
+          <tr><td>UPDATE resource milik sendiri</td><td><code>WHERE id = $1 AND owner_id = $2 AND deleted_at IS NULL</code> + <code>SET updated_at = now()</code></td></tr>
+          <tr><td>DELETE (soft) resource milik sendiri</td><td><code>WHERE id = $1 AND owner_id = $2 AND deleted_at IS NULL</code> + <code>SET deleted_at = now()</code></td></tr>
+          <tr><td>GET resource publik (tanpa auth)</td><td><code>WHERE id = $1 AND is_published = true AND deleted_at IS NULL</code> (tidak cek <code>owner_id</code>)</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="visibility">
+      <h2 class="sec-title"><span class="sec-icon ic-y">👁️</span>Visibility Rules</h2>
+      <p style="color:var(--muted);font-size:.85rem;margin-bottom:.8rem;">Aturan field mana yang boleh dikembalikan ke siapa. Diterapkan di handler, bukan di DB.</p>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Resource</th><th>Caller</th><th>Field yang Dikembalikan</th></tr></thead>
+        <tbody>
+          <tr><td>Profil user</td><td>Pemilik sendiri</td><td>Semua field termasuk phone_number, email, tanggal_lahir</td></tr>
+          <tr><td>Profil user</td><td>User lain (lihat profil publik)</td><td>Hanya field publik: nama, foto, kota. Tidak ada phone, email, tanggal_lahir.</td></tr>
+          <tr><td>Iklan pekerjaan</td><td>Semua (publik)</td><td>Field iklan termasuk kontak perusahaan</td></tr>
+          <tr><td>Iklan pekerjaan (draft)</td><td>Pemilik iklan</td><td>Semua field termasuk status draft</td></tr>
+          <tr><td>Iklan pekerjaan (draft)</td><td>User lain</td><td>404 Not Found — draft tidak terlihat</td></tr>
+          <tr><td>Pesan chat</td><td>Peserta room</td><td>Semua field pesan di room tersebut</td></tr>
+          <tr><td>Pesan chat</td><td>Bukan peserta room</td><td>404 saat join room, tidak bisa lihat pesan</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="response">
+      <h2 class="sec-title"><span class="sec-icon ic-b">📋</span>Response yang Tepat</h2>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Skenario</th><th>HTTP Status</th><th>Alasan</th></tr></thead>
+        <tbody>
+          <tr><td>Tidak ada token JWT</td><td><code>401 Unauthorized</code></td><td>Belum autentikasi sama sekali.</td></tr>
+          <tr><td>Token JWT expired</td><td><code>401 Unauthorized</code></td><td>Sesi sudah habis, perlu login ulang atau refresh.</td></tr>
+          <tr><td>Token JWT valid, resource tidak ada di DB</td><td><code>404 Not Found</code></td><td>Resource memang tidak ada.</td></tr>
+          <tr><td>Token JWT valid, resource ada tapi bukan milik caller</td><td><code>404 Not Found</code></td><td>IDOR prevention — jangan bocorkan bahwa resource ada.</td></tr>
+          <tr><td>Token JWT valid, resource ada, operasi tidak diizinkan (fitur premium)</td><td><code>403 Forbidden</code></td><td>Satu-satunya kasus dimana 403 boleh digunakan — bukan IDOR, tapi restriction fitur.</td></tr>
+        </tbody>
+      </table></div>
+
+      <div class="callout c-danger">
+        <span class="callout-icon">🚫</span>
+        <div>
+          <strong>403 Forbidden hanya untuk pembatasan fitur, bukan IDOR</strong>
+          <p>Contoh 403 yang benar: user tier gratis mencoba akses fitur premium. Contoh 403 yang salah: user A mencoba delete iklan milik user B — ini harus 404. Memberikan 403 untuk IDOR memberitahu attacker bahwa resource ada.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="test">
+      <h2 class="sec-title"><span class="sec-icon ic-y">🧪</span>Test Pattern untuk Authorization</h2>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Skenario yang Wajib Ditest</th><th>Nama Test (Format)</th></tr></thead>
+        <tbody>
+          <tr><td>Akses tanpa token</td><td><code>test_{endpoint}_given_no_token_when_request_then_returns_401</code></td></tr>
+          <tr><td>Akses resource milik sendiri</td><td><code>test_{endpoint}_given_owner_when_request_then_returns_200</code></td></tr>
+          <tr><td>Akses resource milik orang lain</td><td><code>test_{endpoint}_given_other_user_when_request_then_returns_404</code></td></tr>
+          <tr><td>Akses resource yang tidak ada</td><td><code>test_{endpoint}_given_nonexistent_id_when_request_then_returns_404</code></td></tr>
+          <tr><td>Delete resource milik orang lain</td><td><code>test_delete_{resource}_given_other_owners_id_when_delete_then_returns_404</code></td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="impl">
+      <h2 class="sec-title"><span class="sec-icon ic-b">⚙️</span>Implementasi Rust</h2>
+      <div class="code"><pre><span class="cc">// iklan-pekerjaan-service/src/infrastructure/repository.rs</span>
+<span class="ck">pub async fn</span> <span class="cfn">find_by_id_and_owner</span>(
+  &amp;<span class="ck">self</span>,
+  id: <span class="ct">Uuid</span>,
+  owner_id: <span class="ct">Uuid</span>,            <span class="cc">// dari claims.user_id</span>
+) -&gt; <span class="ct">Result</span>&lt;<span class="ct">JobListing</span>, <span class="ct">AppError</span>&gt; {
+  sqlx::<span class="cfn">query_as!</span>(
+    <span class="ct">JobListing</span>,
+    <span class="cs">"SELECT * FROM job.job_listing WHERE id = $1 AND owner_id = $2 AND deleted_at IS NULL"</span>,
+    id, owner_id
+  )
+  .<span class="cfn">fetch_optional</span>(&amp;<span class="ck">self</span>.pool).<span class="cfn">await</span>?
+  .<span class="cfn">ok_or</span>(<span class="ct">AppError</span>::<span class="cv">NotFound</span>)   <span class="cc">// 404 — tidak peduli alasannya</span>
+}
+
+<span class="cc">// Untuk resource publik: tidak ada owner check</span>
+<span class="ck">pub async fn</span> <span class="cfn">find_published</span>(&amp;<span class="ck">self</span>, id: <span class="ct">Uuid</span>) -&gt; <span class="ct">Result</span>&lt;<span class="ct">JobListing</span>, <span class="ct">AppError</span>&gt; {
+  sqlx::<span class="cfn">query_as!</span>(
+    <span class="ct">JobListing</span>,
+    <span class="cs">"SELECT * FROM job.job_listing WHERE id = $1 AND is_published = true AND deleted_at IS NULL"</span>,
+    id
+  )
+  .<span class="cfn">fetch_optional</span>(&amp;<span class="ck">self</span>.pool).<span class="cfn">await</span>?
+  .<span class="cfn">ok_or</span>(<span class="ct">AppError</span>::<span class="cv">NotFound</span>)
+}
+
+<span class="cc">// Handler — visibility rule setelah ownership check</span>
+<span class="ck">pub async fn</span> <span class="cfn">get_job_handler</span>(
+  <span class="ct">Extension</span>(claims): <span class="ct">Extension</span>&lt;<span class="ct">AuthClaims</span>&gt;,
+  <span class="ct">Path</span>(id): <span class="ct">Path</span>&lt;<span class="ct">Uuid</span>&gt;,
+  <span class="ct">State</span>(service): <span class="ct">State</span>&lt;<span class="ct">JobService</span>&gt;,
+) -&gt; impl <span class="ct">IntoResponse</span> {
+  <span class="ck">let</span> listing = service.<span class="cfn">get_by_id_and_owner</span>(id, claims.user_id).<span class="cfn">await</span>?;
+  <span class="ct">ApiResponse</span>::<span class="cfn">ok</span>(listing)  <span class="cc">// semua field untuk pemilik</span>
+}</pre></div>
+    </section>
+
+    <section id="checklist">
+      <h2 class="sec-title"><span class="sec-icon ic-g">✅</span>Checklist</h2>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Item</th><th>Berlaku di</th></tr></thead>
+        <tbody>
+          <tr><td>Semua endpoint yang butuh auth menggunakan <code>AuthMiddleware</code> — tidak validasi JWT manual di handler</td><td>Semua service Phase 2</td></tr>
+          <tr><td>Ownership check dilakukan di query SQL (<code>AND owner_id = $caller_id</code>), bukan SELECT + compare di Rust</td><td>Semua repository method yang menulis/update/delete</td></tr>
+          <tr><td>Akses resource milik orang lain return <code>404 Not Found</code>, bukan <code>403 Forbidden</code></td><td>Semua service</td></tr>
+          <tr><td><code>403 Forbidden</code> hanya dipakai untuk pembatasan fitur (premium), bukan IDOR</td><td>Semua service</td></tr>
+          <tr><td>Draft/private resource tidak terlihat oleh user lain (return 404, bukan 403 atau konten tersembunyi)</td><td>iklan-* service</td></tr>
+          <tr><td>Setiap endpoint yang bisa kena IDOR punya test: <code>given_other_user_when_request_then_returns_404</code></td><td>Semua integration test</td></tr>
+          <tr><td>Visibility rule (field apa yang dikembalikan) diterapkan di handler/DTO, tidak di DB query</td><td>Semua service</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <footer>
+      <p>Rejki Backend — Authorization Pattern · 9 Juni 2026 · Phase 1.5</p>
+      <p style="margin-top:.3rem;">Stack: Rust · Axum · sqlx · JWT</p>
+    </footer>
+  </main>
+</div>
+</body>
+</html>

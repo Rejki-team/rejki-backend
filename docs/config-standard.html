@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rejki Backend — Configuration Standard</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0d1117; --surf: #161b22; --surf2: #1c2230; --border: #30363d;
+      --text: #e6edf3; --muted: #8b949e; --tag: #21262d;
+      --green: #56d364; --blue: #79c0ff; --orange: #f78166;
+      --yellow: #e3b341; --purple: #bc8cff; --cyan: #56b6d4; --r: 10px;
+    }
+    html { scroll-behavior: smooth; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; font-size: 15px; }
+    .layout { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
+    @media (max-width: 840px) { .layout { grid-template-columns: 1fr; } .nav { display: none; } }
+    .nav { position: sticky; top: 0; height: 100vh; overflow-y: auto; background: var(--surf); border-right: 1px solid var(--border); padding: 1.75rem 1rem; }
+    .nav-logo { font-size: 1.1rem; font-weight: 800; color: var(--orange); margin-bottom: 1.75rem; }
+    .nav-logo span { color: var(--text); }
+    .nav-group { margin-bottom: 1.5rem; }
+    .nav-group-label { font-size: .67rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: .4rem; }
+    .nav-link { display: block; padding: .32rem .6rem; border-radius: 6px; font-size: .85rem; color: var(--muted); text-decoration: none; transition: background .12s, color .12s; }
+    .nav-link:hover { background: var(--tag); color: var(--text); }
+    .nav-link.accent { color: var(--yellow); }
+    .nav-link.back { color: var(--blue); font-size: .8rem; }
+    main { max-width: 920px; margin: 0 auto; padding: 3rem 2rem 6rem; }
+    .hero { border-bottom: 1px solid var(--border); margin-bottom: 3rem; padding-bottom: 2.5rem; }
+    .eyebrow { display: inline-block; font-size: .73rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--yellow); background: rgba(227,179,65,.07); border: 1px solid rgba(227,179,65,.25); border-radius: 20px; padding: .22rem .75rem; margin-bottom: .9rem; }
+    .hero h1 { font-size: clamp(1.7rem,4vw,2.5rem); font-weight: 800; line-height: 1.15; letter-spacing: -.4px; margin-bottom: .9rem; }
+    .hero h1 em { font-style: normal; color: var(--yellow); }
+    .hero p { color: var(--muted); font-size: 1rem; max-width: 680px; line-height: 1.75; }
+    .badges { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: 1.2rem; }
+    .badge { font-size: .76rem; font-weight: 600; padding: .25rem .75rem; border-radius: 20px; border: 1px solid; }
+    .b-y  { color: var(--yellow); border-color: rgba(227,179,65,.4);  background: rgba(227,179,65,.06); }
+    .b-ph { color: var(--purple); border-color: rgba(188,140,255,.4); background: rgba(188,140,255,.06); }
+    section { margin-bottom: 3.5rem; }
+    .sec-title { display: flex; align-items: center; gap: .6rem; font-size: 1.2rem; font-weight: 700; margin-bottom: 1.25rem; padding-bottom: .55rem; border-bottom: 1px solid var(--border); }
+    .sec-icon { width: 30px; height: 30px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: .95rem; flex-shrink: 0; }
+    .ic-g { background: rgba(86,211,100,.1); } .ic-b { background: rgba(121,192,255,.1); }
+    .ic-o { background: rgba(247,129,102,.1); } .ic-y { background: rgba(227,179,65,.1); }
+    .ic-c { background: rgba(86,182,212,.1); }
+    .sub-title { font-size: .95rem; font-weight: 700; margin: 1.6rem 0 .65rem; display: flex; align-items: center; gap: .5rem; }
+    .sub-title::before { content: ''; display: inline-block; width: 3px; height: 14px; background: var(--yellow); border-radius: 2px; }
+    .tbl { width: 100%; border-collapse: collapse; font-size: .84rem; background: var(--surf); border: 1px solid var(--border); border-radius: var(--r); overflow: hidden; }
+    .tbl th { background: var(--surf2); padding: .6rem 1rem; text-align: left; font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+    .tbl td { padding: .65rem 1rem; border-bottom: 1px solid var(--border); vertical-align: top; line-height: 1.55; }
+    .tbl tr:last-child td { border-bottom: none; }
+    .tbl tr:hover td { background: var(--surf2); }
+    .tbl-wrap { overflow-x: auto; }
+    .code { background: #0d1117; border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.2rem; overflow-x: auto; margin-top: .6rem; }
+    .code pre { font-family: 'Cascadia Code','Fira Code','Consolas',monospace; font-size: .8rem; line-height: 1.75; }
+    .ck { color: #ff7b72; } .cs { color: #a5d6ff; } .cc { color: #6e7681; }
+    .ct { color: #ffa657; } .cfn { color: #d2a8ff; } .cv { color: #56d364; }
+    .callout { border-radius: var(--r); padding: .85rem 1.1rem; margin-top: .9rem; font-size: .86rem; display: flex; gap: .65rem; line-height: 1.65; }
+    .callout-icon { flex-shrink: 0; font-size: 1rem; margin-top: 2px; }
+    .callout p { color: var(--muted); } .callout strong { color: var(--text); display: block; margin-bottom: .15rem; }
+    .c-info { background: rgba(121,192,255,.06); border: 1px solid rgba(121,192,255,.22); }
+    .c-warn { background: rgba(227,179,65,.06);  border: 1px solid rgba(227,179,65,.22); }
+    .c-ok   { background: rgba(86,211,100,.06);  border: 1px solid rgba(86,211,100,.22); }
+    .c-danger { background: rgba(247,129,102,.06); border: 1px solid rgba(247,129,102,.22); }
+    code { font-family: 'Cascadia Code','Fira Code','Consolas',monospace; font-size: .8rem; background: var(--tag); border: 1px solid var(--border); border-radius: 4px; padding: .05rem .4rem; color: var(--blue); }
+    footer { margin-top: 4rem; padding-top: 1.25rem; border-top: 1px solid var(--border); font-size: .78rem; color: var(--muted); }
+  </style>
+</head>
+<body>
+<div class="layout">
+  <nav class="nav">
+    <div class="nav-logo">rejki<span>-backend</span></div>
+    <div class="nav-group">
+      <div class="nav-group-label">Navigasi</div>
+      <a class="nav-link back" href="index.html">← Architecture Overview</a>
+      <a class="nav-link back" href="security-baseline.html">← Security Baseline</a>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-label">Isi Dokumen</div>
+      <a class="nav-link" href="#prinsip">Prinsip</a>
+      <a class="nav-link" href="#naming">Naming Convention</a>
+      <a class="nav-link" href="#env-per-env">Env per Environment</a>
+      <a class="nav-link" href="#katalog">Katalog Variabel</a>
+      <a class="nav-link" href="#failfast">Fail-Fast Validation</a>
+      <a class="nav-link" href="#impl">Implementasi Rust</a>
+      <a class="nav-link accent" href="#checklist">Checklist</a>
+    </div>
+  </nav>
+  <main>
+    <div class="hero">
+      <div class="eyebrow">Phase 1.5 — Configuration Standard</div>
+      <h1>Configuration &amp; <em>Environment</em> Standard</h1>
+      <p>Standar penamaan environment variable, struktur file konfigurasi per environment, validasi fail-fast saat startup, dan katalog variabel wajib untuk semua service Rejki Backend.</p>
+      <div class="badges">
+        <span class="badge b-ph">Phase 1.5</span>
+        <span class="badge b-y">All Services</span>
+      </div>
+    </div>
+
+    <section id="prinsip">
+      <h2 class="sec-title"><span class="sec-icon ic-c">🧭</span>Prinsip</h2>
+
+      <div class="callout c-ok" style="margin-bottom:.9rem;">
+        <div class="callout-icon">✅</div>
+        <div><strong>Dokumen ini adalah Single Source of Truth untuk konfigurasi</strong>
+          <p>Naming convention, prinsip fail-fast, dan katalog variabel wajib didefinisikan di sini. Dokumen lain yang menyebut environment variable merujuk ke standar ini: <a href="infrastructure-setup.html" style="color:var(--blue);">Infrastructure Setup</a> (konteks Docker Compose) · <a href="vps-deployment.html" style="color:var(--blue);">VPS Deployment</a> (konteks production) · <a href="bun-notification-service.html" style="color:var(--blue);">Bun.js Service</a> (konteks TypeScript).</p>
+        </div>
+      </div>
+
+      <div class="tbl-wrap"><table class="tbl"><tbody>
+        <tr><td><strong>Fail-fast on startup</strong></td><td>Jika konfigurasi wajib tidak ada atau tidak valid, service harus langsung panic saat startup — bukan saat pertama kali config dipakai di runtime. Silent misconfiguration lebih berbahaya dari crash.</td></tr>
+        <tr><td><strong>SCREAMING_SNAKE_CASE untuk semua nama</strong></td><td>Semua environment variable menggunakan format <code>SCREAMING_SNAKE_CASE</code>. Tidak ada mix case, tidak ada titik atau dash.</td></tr>
+        <tr><td><strong>Prefix service untuk var spesifik</strong></td><td>Variable yang hanya berlaku untuk satu service menggunakan prefix service. Variable shared (DB URL, JWT key) tidak perlu prefix.</td></tr>
+        <tr><td><strong>.env hanya untuk development</strong></td><td>File <code>.env</code> hanya diload di environment <code>development</code>. Staging dan production menggunakan environment variable sistem — tidak ada file <code>.env</code> di server.</td></tr>
+        <tr><td><strong>.env.example selalu sinkron</strong></td><td>Setiap kali ada variabel baru, <code>.env.example</code> wajib diupdate di commit yang sama. <code>.env.example</code> tidak boleh berisi nilai nyata — hanya placeholder.</td></tr>
+      </tbody></table></div>
+    </section>
+
+    <section id="naming">
+      <h2 class="sec-title"><span class="sec-icon ic-y">🏷️</span>Naming Convention</h2>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Kategori</th><th>Format</th><th>Contoh Benar</th><th>Contoh Salah</th></tr></thead>
+        <tbody>
+          <tr><td>Database URL</td><td><code>DATABASE_URL</code></td><td><code>DATABASE_URL=postgresql://...</code></td><td><code>DB_URL</code>, <code>database_url</code></td></tr>
+          <tr><td>Port aplikasi</td><td><code>APP_PORT</code></td><td><code>APP_PORT=8080</code></td><td><code>PORT</code>, <code>app_port</code></td></tr>
+          <tr><td>Environment saat ini</td><td><code>APP_ENV</code></td><td><code>APP_ENV=production</code></td><td><code>ENV</code>, <code>NODE_ENV</code>, <code>RUST_ENV</code></td></tr>
+          <tr><td>Path ke file</td><td><code>{NAMA}_PATH</code></td><td><code>JWT_PRIVATE_KEY_PATH</code></td><td><code>PRIVATE_KEY</code>, <code>JWT_KEY_FILE</code></td></tr>
+          <tr><td>Timeout (detik)</td><td><code>{NAMA}_TIMEOUT_SECS</code></td><td><code>DB_CONNECT_TIMEOUT_SECS</code></td><td><code>TIMEOUT</code>, <code>DB_TIMEOUT_MS</code></td></tr>
+          <tr><td>Variable service-spesifik</td><td><code>{SERVICE}_{NAMA}</code></td><td><code>CHAT_MAX_MESSAGE_LENGTH</code></td><td><code>MAX_MESSAGE_LENGTH</code></td></tr>
+          <tr><td>Credential eksternal</td><td><code>{PROVIDER}_{KEY_TYPE}</code></td><td><code>FCM_SERVER_KEY</code>, <code>SMTP_PASSWORD</code></td><td><code>FIREBASE_KEY</code>, <code>MAIL_PASS</code></td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="env-per-env">
+      <h2 class="sec-title"><span class="sec-icon ic-b">🗂️</span>Konfigurasi per Environment</h2>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>File</th><th>Di-commit?</th><th>Digunakan saat</th><th>Isi</th></tr></thead>
+        <tbody>
+          <tr><td><code>.env.example</code></td><td>Ya — wajib commit</td><td>Referensi developer baru</td><td>Semua key dengan placeholder value. Contoh: <code>DATABASE_URL=postgresql://user:pass@localhost/rejki_dev</code></td></tr>
+          <tr><td><code>.env</code></td><td>Tidak — ada di .gitignore</td><td>Development lokal</td><td>Value nyata untuk lokal. Dibuat developer sendiri dari <code>.env.example</code>.</td></tr>
+          <tr><td><code>.env.test</code></td><td>Tidak — ada di .gitignore</td><td><code>cargo test</code></td><td>Test database URL, test JWT key path, <code>APP_ENV=test</code>.</td></tr>
+          <tr><td>GitHub Secrets</td><td>Tidak — tersimpan di GitHub</td><td>CI/CD pipeline</td><td>Credential staging & production. Diload ke env var oleh GitHub Actions.</td></tr>
+          <tr><td>Server env vars</td><td>Tidak — dikonfigurasi di server</td><td>Production runtime</td><td>Diset di Docker Compose, systemd unit, atau platform config. Tidak ada file <code>.env</code> di server.</td></tr>
+        </tbody>
+      </table></div>
+
+      <div class="callout c-danger">
+        <span class="callout-icon">🚫</span>
+        <div>
+          <strong>Tidak ada nilai nyata di .env.example</strong>
+          <p>Placeholder seperti <code>your_jwt_secret_here</code> atau <code>postgresql://user:pass@localhost</code> boleh ada. Nilai nyata (password asli, API key asli) tidak boleh masuk ke file yang di-commit, termasuk <code>.env.example</code>.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="katalog">
+      <h2 class="sec-title"><span class="sec-icon ic-o">📋</span>Katalog Variabel Wajib</h2>
+      <p style="color:var(--muted);font-size:.85rem;margin-bottom:.8rem;">Variabel-variabel ini wajib ada di semua environment. Startup akan panic jika tidak ada.</p>
+
+      <div class="sub-title">Shared (semua service)</div>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Variable</th><th>Tipe</th><th>Contoh</th><th>Keterangan</th></tr></thead>
+        <tbody>
+          <tr><td><code>APP_ENV</code></td><td>string</td><td><code>development</code></td><td>Nilai valid: <code>development</code>, <code>test</code>, <code>staging</code>, <code>production</code>. Menentukan log format, CORS policy, dsb.</td></tr>
+          <tr><td><code>APP_PORT</code></td><td>u16</td><td><code>8080</code></td><td>Port yang didengarkan service. Default: <code>8080</code> jika tidak di-set (satu-satunya variabel dengan fallback).</td></tr>
+          <tr><td><code>DATABASE_URL</code></td><td>string URL</td><td><code>postgresql://rejki:pass@localhost/rejki_dev</code></td><td>PostgreSQL connection string. Wajib valid, koneksi dicek saat startup.</td></tr>
+        </tbody>
+      </table></div>
+
+      <div class="sub-title">auth-service</div>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Variable</th><th>Tipe</th><th>Contoh</th><th>Keterangan</th></tr></thead>
+        <tbody>
+          <tr><td><code>JWT_PRIVATE_KEY_PATH</code></td><td>path</td><td><code>./keys/private.pem</code></td><td>Path ke RSA private key PEM. File harus ada dan bisa dibaca saat startup.</td></tr>
+          <tr><td><code>JWT_PUBLIC_KEY_PATH</code></td><td>path</td><td><code>./keys/public.pem</code></td><td>Path ke RSA public key PEM.</td></tr>
+          <tr><td><code>JWT_ACCESS_TTL_SECS</code></td><td>u64</td><td><code>900</code></td><td>Umur access token dalam detik. Default: 900 (15 menit).</td></tr>
+          <tr><td><code>JWT_REFRESH_TTL_SECS</code></td><td>u64</td><td><code>2592000</code></td><td>Umur refresh token dalam detik. Default: 2592000 (30 hari).</td></tr>
+        </tbody>
+      </table></div>
+
+      <div class="sub-title">notification-service</div>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Variable</th><th>Tipe</th><th>Keterangan</th></tr></thead>
+        <tbody>
+          <tr><td><code>FCM_SERVER_KEY</code></td><td>string</td><td>Firebase Cloud Messaging server key untuk push notification Android/iOS.</td></tr>
+          <tr><td><code>SMTP_HOST</code></td><td>string</td><td>SMTP server hostname untuk pengiriman email.</td></tr>
+          <tr><td><code>SMTP_PORT</code></td><td>u16</td><td>SMTP port. Biasanya 587 (STARTTLS) atau 465 (SSL).</td></tr>
+          <tr><td><code>SMTP_USERNAME</code></td><td>string</td><td>SMTP username/email pengirim.</td></tr>
+          <tr><td><code>SMTP_PASSWORD</code></td><td>string</td><td>SMTP password. Gunakan app password jika provider Gmail.</td></tr>
+          <tr><td><code>EMAIL_FROM_ADDRESS</code></td><td>string</td><td>Alamat email pengirim. Contoh: <code>noreply@rejki.id</code></td></tr>
+        </tbody>
+      </table></div>
+
+      <div class="sub-title">File storage (service yang handle upload)</div>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Variable</th><th>Keterangan</th></tr></thead>
+        <tbody>
+          <tr><td><code>R2_ACCOUNT_ID</code></td><td>Cloudflare R2 Account ID.</td></tr>
+          <tr><td><code>R2_ACCESS_KEY_ID</code></td><td>R2 Access Key ID untuk generate presigned URL.</td></tr>
+          <tr><td><code>R2_SECRET_ACCESS_KEY</code></td><td>R2 Secret Access Key. Jangan log, jangan expose.</td></tr>
+          <tr><td><code>R2_BUCKET_NAME</code></td><td>Nama bucket R2.</td></tr>
+          <tr><td><code>R2_PUBLIC_URL</code></td><td>Base URL publik bucket. Contoh: <code>https://cdn.rejki.id</code></td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="failfast">
+      <h2 class="sec-title"><span class="sec-icon ic-o">💥</span>Fail-Fast Validation</h2>
+      <p style="color:var(--muted);font-size:.85rem;margin-bottom:.8rem;">Semua validasi config dilakukan di <code>main.rs</code> sebelum server mulai menerima request.</p>
+
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Jenis Validasi</th><th>Cara</th><th>Contoh Error</th></tr></thead>
+        <tbody>
+          <tr><td>Variabel wajib tidak ada</td><td><code>env::var("KEY").expect("KEY tidak di-set")</code></td><td><code>thread 'main' panicked: APP_ENV tidak di-set</code></td></tr>
+          <tr><td>Nilai tidak valid</td><td>Parse ke tipe yang benar, panic jika gagal</td><td><code>APP_PORT=abc → panicked: invalid port: abc</code></td></tr>
+          <tr><td>File tidak ditemukan</td><td><code>fs::read_to_string(path).expect("JWT_PRIVATE_KEY_PATH tidak dapat dibaca")</code></td><td><code>panicked: JWT_PRIVATE_KEY_PATH tidak dapat dibaca: No such file</code></td></tr>
+          <tr><td>DB tidak bisa dikoneksi</td><td><code>PgPool::connect(&url).await.expect("gagal connect ke DB")</code></td><td><code>panicked: gagal connect ke DB: connection refused</code></td></tr>
+          <tr><td>Nilai enum tidak valid</td><td>Match <code>APP_ENV</code> ke enum, panic jika tidak dikenal</td><td><code>panicked: APP_ENV tidak valid: 'prod' (harus: development/test/staging/production)</code></td></tr>
+        </tbody>
+      </table></div>
+
+      <div class="callout c-ok">
+        <span class="callout-icon">✅</span>
+        <div>
+          <strong>Panic saat startup = aman. Panic saat runtime = berbahaya.</strong>
+          <p>Service yang gagal start karena missing config akan segera terdeteksi saat deployment. Service yang start lalu crash di tengah request karena missing config adalah bug yang lebih buruk — request user hilang, data mungkin setengah tersimpan.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="impl">
+      <h2 class="sec-title"><span class="sec-icon ic-b">⚙️</span>Implementasi Rust</h2>
+      <div class="code"><pre><span class="cc">// common/config/src/lib.rs — struct konfigurasi yang di-share</span>
+<span class="ck">pub struct</span> <span class="ct">AppConfig</span> {
+  <span class="ck">pub</span> env:      <span class="ct">AppEnv</span>,
+  <span class="ck">pub</span> port:     <span class="ct">u16</span>,
+  <span class="ck">pub</span> db_url:   <span class="ct">String</span>,
+}
+
+#[<span class="cfn">derive</span>(<span class="ct">Debug</span>, <span class="ct">Clone</span>, <span class="ct">PartialEq</span>)]
+<span class="ck">pub enum</span> <span class="ct">AppEnv</span> {
+  Development, Test, Staging, Production,
+}
+
+<span class="ck">impl</span> <span class="ct">AppConfig</span> {
+  <span class="ck">pub fn</span> <span class="cfn">from_env</span>() -&gt; <span class="ct">Self</span> {
+    <span class="ck">let</span> env_str = std::env::<span class="cfn">var</span>(<span class="cs">"APP_ENV"</span>).<span class="cfn">expect</span>(<span class="cs">"APP_ENV tidak di-set"</span>);
+    <span class="ck">let</span> env = <span class="ck">match</span> env_str.<span class="cfn">as_str</span>() {
+      <span class="cs">"development"</span> => <span class="ct">AppEnv</span>::<span class="cv">Development</span>,
+      <span class="cs">"test"</span>        => <span class="ct">AppEnv</span>::<span class="cv">Test</span>,
+      <span class="cs">"staging"</span>     => <span class="ct">AppEnv</span>::<span class="cv">Staging</span>,
+      <span class="cs">"production"</span>  => <span class="ct">AppEnv</span>::<span class="cv">Production</span>,
+      other => <span class="cfn">panic!</span>(<span class="cs">"APP_ENV tidak valid: '{other}' (harus: development/test/staging/production)"</span>),
+    };
+    <span class="ct">Self</span> {
+      env,
+      port:   std::env::<span class="cfn">var</span>(<span class="cs">"APP_PORT"</span>).<span class="cfn">unwrap_or</span>(<span class="cs">"8080"</span>.<span class="cfn">into</span>())
+                .<span class="cfn">parse</span>().<span class="cfn">expect</span>(<span class="cs">"APP_PORT harus berupa angka valid (0-65535)"</span>),
+      db_url: std::env::<span class="cfn">var</span>(<span class="cs">"DATABASE_URL"</span>).<span class="cfn">expect</span>(<span class="cs">"DATABASE_URL tidak di-set"</span>),
+    }
+  }
+}
+
+<span class="cc">// rejki-app/src/main.rs</span>
+#[tokio::main]
+<span class="ck">async fn</span> <span class="cfn">main</span>() {
+  <span class="cc">// Load .env HANYA di development</span>
+  <span class="ck">if</span> std::env::<span class="cfn">var</span>(<span class="cs">"APP_ENV"</span>).<span class="cfn">unwrap_or_default</span>() == <span class="cs">"development"</span> {
+    dotenvy::<span class="cfn">dotenv</span>().<span class="cfn">ok</span>();   <span class="cc">// ok() = tidak panic jika .env tidak ada</span>
+  }
+  <span class="ck">let</span> config = <span class="ct">AppConfig</span>::<span class="cfn">from_env</span>();    <span class="cc">// ← panic disini jika config tidak valid</span>
+  common_tracing::<span class="cfn">init_tracing</span>(&amp;config.env);
+  <span class="cc">// ... rest of main</span>
+}</pre></div>
+    </section>
+
+    <section id="checklist">
+      <h2 class="sec-title"><span class="sec-icon ic-g">✅</span>Checklist</h2>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Item</th><th>Lokasi</th></tr></thead>
+        <tbody>
+          <tr><td>Struct <code>AppConfig</code> + enum <code>AppEnv</code> dengan <code>from_env()</code> yang validasi semua variabel wajib</td><td><code>common/config/src/lib.rs</code></td></tr>
+          <tr><td><code>.env</code> hanya diload jika <code>APP_ENV=development</code> — tidak pernah di staging/production</td><td><code>rejki-app/src/main.rs</code></td></tr>
+          <tr><td><code>.env.example</code> berisi semua variabel dengan placeholder (bukan nilai nyata), di-commit ke repository</td><td>Root project</td></tr>
+          <tr><td><code>.env</code>, <code>.env.test</code>, <code>keys/</code>, <code>*.pem</code> ada di <code>.gitignore</code></td><td><code>.gitignore</code></td></tr>
+          <tr><td>Semua variabel wajib: panic dengan pesan deskriptif jika tidak ada atau tidak valid saat startup</td><td><code>common/config/src/lib.rs</code></td></tr>
+          <tr><td>Koneksi DB dicek saat startup (<code>PgPool::connect</code>) — service tidak start jika DB tidak bisa diakses</td><td><code>rejki-app/src/main.rs</code></td></tr>
+          <tr><td>Naming convention SCREAMING_SNAKE_CASE diterapkan konsisten di semua service</td><td>Semua service + <code>.env.example</code></td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <footer>
+      <p>Rejki Backend — Configuration Standard · 9 Juni 2026 · Phase 1.5</p>
+      <p style="margin-top:.3rem;">Stack: Rust · dotenvy · std::env</p>
+    </footer>
+  </main>
+</div>
+</body>
+</html>

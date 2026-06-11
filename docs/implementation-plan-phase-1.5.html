@@ -1,0 +1,1210 @@
+﻿<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rejki Backend — Implementation Plan Phase 1.5</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0d1117; --surf: #161b22; --surf2: #1c2230; --surf3: #21262d;
+      --border: #30363d; --border2: #21262d;
+      --text: #e6edf3; --muted: #8b949e; --muted2: #6e7681;
+      --green: #3fb950; --green-dim: #238636;
+      --blue: #79c0ff; --blue-dim: #1f6feb;
+      --orange: #f78166; --yellow: #d29922; --yellow-bright: #e3b341;
+      --purple: #bc8cff; --purple-dim: #6e40c9;
+      --cyan: #39c5cf; --red: #f85149;
+      --r: 8px; --r-lg: 12px;
+    }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: -apple-system, 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg); color: var(--text);
+      line-height: 1.6; font-size: 14px;
+    }
+
+    /* ── Layout ── */
+    .layout {
+      display: grid;
+      grid-template-columns: 240px 1fr;
+      min-height: 100vh;
+    }
+
+    /* ── Sidebar nav ── */
+    .nav {
+      position: sticky; top: 0; height: 100vh;
+      overflow-y: auto; overflow-x: hidden;
+      background: var(--surf); border-right: 1px solid var(--border);
+      padding: 1.25rem .75rem;
+      display: flex; flex-direction: column; gap: .1rem;
+    }
+    .nav-brand {
+      font-size: .85rem; font-weight: 800; letter-spacing: -.2px;
+      color: var(--yellow-bright); padding: .25rem .5rem .75rem;
+      border-bottom: 1px solid var(--border2); margin-bottom: .5rem;
+    }
+    .nav-brand span { color: var(--muted); }
+    .nav-section {
+      font-size: .6rem; font-weight: 700; letter-spacing: .1em;
+      text-transform: uppercase; color: var(--muted2);
+      padding: .6rem .5rem .2rem;
+    }
+    .nav-item {
+      display: flex; align-items: center; gap: .5rem;
+      padding: .3rem .5rem; border-radius: 6px;
+      font-size: .78rem; color: var(--muted); text-decoration: none;
+      transition: background .1s, color .1s;
+      position: relative;
+    }
+    .nav-item:hover { background: var(--surf3); color: var(--text); }
+    .nav-item.active { background: rgba(121,192,255,.1); color: var(--blue); }
+    .nav-item .nav-badge {
+      margin-left: auto; font-size: .58rem; font-weight: 700;
+      padding: .1rem .35rem; border-radius: 20px;
+    }
+    .nb-done { background: rgba(63,185,80,.15); color: var(--green); }
+    .nb-ref  { background: rgba(121,192,255,.12); color: var(--blue); font-size: .6rem; }
+    .nav-divider { height: 1px; background: var(--border2); margin: .5rem 0; }
+    .nav-back { color: var(--blue); font-size: .75rem; }
+
+    /* ── Progress bar ── */
+    .progress-wrap { padding: .5rem; margin-bottom: .25rem; }
+    .progress-label {
+      display: flex; justify-content: space-between;
+      font-size: .65rem; color: var(--muted); margin-bottom: .35rem;
+    }
+    .progress-track {
+      height: 4px; background: var(--surf3); border-radius: 2px; overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%; border-radius: 2px;
+      background: linear-gradient(90deg, var(--green-dim), var(--green));
+      transition: width .3s;
+    }
+
+    /* ── Main content ── */
+    main {
+      max-width: 880px; margin: 0 auto;
+      padding: 2.5rem 2rem 6rem;
+    }
+
+    /* ── Hero ── */
+    .hero {
+      margin-bottom: 2.5rem; padding-bottom: 2rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .eyebrow {
+      display: inline-flex; align-items: center; gap: .4rem;
+      font-size: .68rem; font-weight: 700; letter-spacing: .08em;
+      text-transform: uppercase; color: var(--purple);
+      background: rgba(188,140,255,.07);
+      border: 1px solid rgba(188,140,255,.2);
+      border-radius: 20px; padding: .2rem .65rem; margin-bottom: .75rem;
+    }
+    .hero h1 {
+      font-size: clamp(1.5rem, 3.5vw, 2.1rem);
+      font-weight: 800; line-height: 1.15; letter-spacing: -.4px;
+      margin-bottom: .65rem;
+    }
+    .hero h1 em { font-style: normal; color: var(--purple); }
+    .hero p { color: var(--muted); font-size: .9rem; max-width: 640px; line-height: 1.75; }
+    .meta-pills { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: 1rem; }
+    .pill {
+      font-size: .7rem; font-weight: 600; padding: .18rem .6rem;
+      border-radius: 20px; border: 1px solid;
+    }
+    .pill-p { color: var(--purple); border-color: rgba(188,140,255,.35); background: rgba(188,140,255,.07); }
+    .pill-g { color: var(--green);  border-color: rgba(63,185,80,.35);   background: rgba(63,185,80,.07); }
+    .pill-y { color: var(--yellow-bright); border-color: rgba(227,179,65,.35); background: rgba(227,179,65,.07); }
+    .pill-b { color: var(--blue);   border-color: rgba(121,192,255,.35); background: rgba(121,192,255,.07); }
+
+    /* ── Wave block ── */
+    .wave { margin-bottom: 2.75rem; scroll-margin-top: 1rem; }
+    .wave-header {
+      display: flex; align-items: flex-start; gap: .85rem;
+      margin-bottom: 1.25rem; padding-bottom: .6rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .wave-badge {
+      display: inline-flex; align-items: center; justify-content: center;
+      min-width: 2.2rem; height: 2.2rem;
+      font-size: .65rem; font-weight: 800; letter-spacing: .06em;
+      text-transform: uppercase; border-radius: 8px; flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .wb-purple { background: var(--purple-dim); color: #fff; }
+    .wb-green  { background: var(--green-dim);  color: #fff; }
+    .wb-blue   { background: var(--blue-dim);   color: #fff; }
+    .wb-yellow { background: var(--yellow);     color: #000; }
+    .wb-orange { background: #b75239;           color: #fff; }
+    .wb-cyan   { background: #0a7280;           color: #fff; }
+
+    .wave-info { flex: 1; min-width: 0; }
+    .wave-title { font-size: 1rem; font-weight: 700; line-height: 1.3; }
+    .wave-desc  { font-size: .8rem; color: var(--muted); margin-top: .2rem; line-height: 1.55; }
+    .wave-links { display: flex; flex-wrap: wrap; gap: .35rem; margin-top: .4rem; }
+    .wave-link  { font-size: .68rem; color: var(--blue); text-decoration: none; opacity: .8; }
+    .wave-link:hover { opacity: 1; text-decoration: underline; }
+    .wave-status { flex-shrink: 0; margin-top: 3px; }
+
+    /* Status badges */
+    .badge {
+      display: inline-flex; align-items: center; gap: .3rem;
+      font-size: .66rem; font-weight: 700; padding: .2rem .55rem;
+      border-radius: 20px; white-space: nowrap;
+    }
+    .badge::before { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%; }
+    .badge-done   { background: rgba(63,185,80,.12);  color: var(--green);  border: 1px solid rgba(63,185,80,.3); }
+    .badge-done::before   { background: var(--green); }
+    .badge-todo   { background: rgba(139,148,158,.1); color: var(--muted);  border: 1px solid rgba(139,148,158,.25); }
+    .badge-todo::before   { background: var(--muted); }
+    .badge-info   { background: rgba(121,192,255,.1); color: var(--blue);   border: 1px solid rgba(121,192,255,.25); }
+    .badge-info::before   { background: var(--blue); }
+
+    /* ── Task card ── */
+    .tasks { display: flex; flex-direction: column; gap: .6rem; }
+    .task {
+      background: var(--surf); border: 1px solid var(--border);
+      border-radius: var(--r); overflow: hidden;
+    }
+    .task.done { border-color: rgba(63,185,80,.25); }
+    .task-head {
+      display: flex; align-items: flex-start; gap: .7rem;
+      padding: .85rem 1rem; cursor: pointer;
+      transition: background .1s;
+    }
+    .task-head:hover { background: var(--surf2); }
+    .task-id {
+      font-size: .62rem; font-weight: 800; letter-spacing: .06em;
+      text-transform: uppercase; color: var(--muted2);
+      background: var(--surf2); border: 1px solid var(--border);
+      border-radius: 4px; padding: .15rem .4rem;
+      white-space: nowrap; flex-shrink: 0; margin-top: 1px;
+    }
+    .task-done .task-id { border-color: rgba(63,185,80,.3); color: var(--green); }
+    .task-title { font-size: .875rem; font-weight: 600; flex: 1; line-height: 1.45; }
+    .task-scope {
+      font-size: .68rem; color: var(--cyan);
+      background: rgba(57,197,207,.07); border: 1px solid rgba(57,197,207,.2);
+      border-radius: 4px; padding: .1rem .4rem;
+      white-space: nowrap; flex-shrink: 0; margin-top: 2px;
+    }
+    .task-body {
+      padding: 0 1rem 1rem; border-top: 1px solid var(--border2);
+      display: flex; flex-direction: column; gap: .65rem;
+    }
+    .task-body-inner { padding-top: .75rem; }
+
+    /* ── Section label ── */
+    .section-label {
+      font-size: .65rem; font-weight: 700; letter-spacing: .08em;
+      text-transform: uppercase; color: var(--muted2);
+      margin-bottom: .35rem;
+    }
+
+    /* ── File list ── */
+    .file-list { display: flex; flex-direction: column; gap: .22rem; }
+    .file-row  { display: flex; align-items: baseline; gap: .5rem; font-size: .8rem; line-height: 1.5; }
+    .fop {
+      font-size: .6rem; font-weight: 700; text-transform: uppercase;
+      border-radius: 3px; padding: .05rem .28rem; flex-shrink: 0;
+    }
+    .fop-new  { background: rgba(63,185,80,.12);  color: var(--green);  border: 1px solid rgba(63,185,80,.28); }
+    .fop-edit { background: rgba(121,192,255,.12); color: var(--blue);   border: 1px solid rgba(121,192,255,.28); }
+    .fop-run  { background: rgba(227,179,65,.12);  color: var(--yellow-bright); border: 1px solid rgba(227,179,65,.28); }
+    .fop-done { background: rgba(63,185,80,.08);   color: var(--green);  border: 1px solid rgba(63,185,80,.2); }
+    .fop-audit{ background: rgba(188,140,255,.1);  color: var(--purple); border: 1px solid rgba(188,140,255,.25); }
+    .fpath { font-family: 'Cascadia Code','Fira Code','Consolas',monospace; font-size: .76rem; color: var(--blue); }
+    .fnote { color: var(--muted); font-size: .76rem; }
+
+    /* ── Impl list ── */
+    .impl-list { display: flex; flex-direction: column; gap: .22rem; }
+    .impl-item {
+      font-size: .8rem; color: var(--muted); padding-left: .9rem;
+      position: relative; line-height: 1.6;
+    }
+    .impl-item::before { content: '·'; position: absolute; left: .2rem; color: var(--muted2); }
+    .impl-item code {
+      font-family: 'Cascadia Code','Fira Code','Consolas',monospace;
+      font-size: .73rem; background: var(--surf3); border: 1px solid var(--border);
+      border-radius: 3px; padding: .02rem .28rem; color: var(--blue);
+    }
+    .impl-item a { color: var(--blue); text-decoration: none; }
+    .impl-item a:hover { text-decoration: underline; }
+
+    /* ── Dep tags ── */
+    .dep-list { display: flex; flex-wrap: wrap; gap: .3rem; }
+    .dep {
+      font-family: 'Cascadia Code','Fira Code','Consolas',monospace;
+      font-size: .71rem; background: var(--surf2); border: 1px solid var(--border);
+      border-radius: 4px; padding: .08rem .4rem; color: var(--orange);
+    }
+
+    /* ── Callout ── */
+    .callout {
+      border-radius: var(--r); padding: .7rem .9rem;
+      font-size: .8rem; display: flex; gap: .6rem; line-height: 1.65;
+    }
+    .callout-icon { flex-shrink: 0; font-size: .95rem; line-height: 1.6; }
+    .callout strong { display: block; color: var(--text); margin-bottom: .1rem; font-size: .82rem; }
+    .callout p { color: var(--muted); }
+    .c-warn { background: rgba(227,179,65,.06); border: 1px solid rgba(227,179,65,.2); }
+    .c-info { background: rgba(121,192,255,.06); border: 1px solid rgba(121,192,255,.2); }
+    .c-ok   { background: rgba(63,185,80,.06);  border: 1px solid rgba(63,185,80,.2); }
+    .c-note { background: rgba(188,140,255,.05); border: 1px solid rgba(188,140,255,.2); }
+
+    /* ── Summary table ── */
+    .tbl-wrap { overflow-x: auto; border-radius: var(--r); border: 1px solid var(--border); margin-bottom: 1.5rem; }
+    .tbl { width: 100%; border-collapse: collapse; font-size: .8rem; }
+    .tbl th {
+      background: var(--surf2); padding: .5rem .85rem;
+      text-align: left; font-size: .65rem; font-weight: 700;
+      letter-spacing: .07em; text-transform: uppercase; color: var(--muted);
+      white-space: nowrap;
+    }
+    .tbl td { padding: .55rem .85rem; border-top: 1px solid var(--border2); vertical-align: top; line-height: 1.5; }
+    .tbl tr:hover td { background: var(--surf2); }
+    .tbl .wave-col { color: var(--muted2); font-family: 'Cascadia Code','Fira Code','Consolas',monospace; font-size: .72rem; font-weight: 700; white-space: nowrap; }
+
+    code {
+      font-family: 'Cascadia Code','Fira Code','Consolas',monospace;
+      font-size: .74rem; background: var(--surf3); border: 1px solid var(--border);
+      border-radius: 3px; padding: .02rem .3rem; color: var(--blue);
+    }
+
+    /* ── Summary section title ── */
+    .section-title {
+      font-size: 1rem; font-weight: 700;
+      margin-bottom: 1.25rem; padding-bottom: .5rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    /* ── Footer ── */
+    footer {
+      margin-top: 3.5rem; padding-top: 1.25rem;
+      border-top: 1px solid var(--border);
+      font-size: .72rem; color: var(--muted2);
+      display: flex; justify-content: space-between; flex-wrap: wrap; gap: .5rem;
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 860px) {
+      .layout { grid-template-columns: 1fr; }
+      .nav { display: none; }
+      main { padding: 1.75rem 1.25rem 5rem; }
+      .wave-header { flex-wrap: wrap; }
+      .wave-status { order: -1; margin-left: auto; }
+    }
+    @media (max-width: 520px) {
+      main { padding: 1.25rem .9rem 4rem; }
+      .hero h1 { font-size: 1.4rem; }
+      .task-head { flex-wrap: wrap; gap: .5rem; }
+      .task-scope { order: 3; }
+    }
+
+    /* ── Inline ref link ── */
+    .ref-link { color: var(--blue); text-decoration: none; font-size: .75rem; }
+    .ref-link:hover { text-decoration: underline; }
+
+    /* ── Utility ── */
+    .mt-05 { margin-top: .5rem; }
+    .mt-1  { margin-top: 1rem; }
+    .gap-section { display: flex; flex-direction: column; gap: .65rem; }
+  </style>
+</head>
+<body>
+<div class="layout">
+
+  <!-- ════════════════════════ SIDEBAR ════════════════════════ -->
+  <nav class="nav">
+    <div class="nav-brand">rejki<span>-backend</span></div>
+
+    <!-- Progress -->
+    <div class="progress-wrap">
+      <div class="progress-label">
+        <span>Phase 1.5 Progress</span>
+        <span style="color:var(--green);font-weight:700;">100%</span>
+      </div>
+      <div class="progress-track"><div class="progress-fill" style="width:100%"></div></div>
+    </div>
+
+    <div class="nav-divider"></div>
+
+    <div class="nav-section">Navigasi</div>
+    <a class="nav-item nav-back" href="index.html">← Architecture Overview</a>
+
+    <div class="nav-section">Wave</div>
+    <a class="nav-item" href="#w0">W0 — Infrastructure <span class="nav-badge nb-done">Done</span></a>
+    <a class="nav-item" href="#w1">W1 — Common Layer <span class="nav-badge nb-done">Done</span></a>
+    <a class="nav-item" href="#w2">W2 — API Standard <span class="nav-badge nb-done">Done</span></a>
+    <a class="nav-item" href="#w3">W3 — Security <span class="nav-badge nb-done">Done</span></a>
+    <a class="nav-item" href="#w4">W4 — Observability <span class="nav-badge nb-done">Done</span></a>
+    <a class="nav-item" href="#w5">W5 — Notification <span class="nav-badge nb-done">Done</span></a>
+    <a class="nav-item" href="#w6">W6 — WebSocket <span class="nav-badge nb-done">Done</span></a>
+    <a class="nav-item" href="#w7">W7 — Database <span class="nav-badge nb-done">Done</span></a>
+    <a class="nav-item" href="#w8">W8 — Testing <span class="nav-badge nb-done">Done</span></a>
+    <a class="nav-item" href="#w9">W9 — CI/CD &amp; Deploy <span class="nav-badge nb-done">Done</span></a>
+    <a class="nav-item" href="#summary">Ringkasan</a>
+
+    <div class="nav-divider"></div>
+
+    <div class="nav-section">Dokumen Referensi</div>
+    <a class="nav-item" href="api-standard.html">API Standard <span class="nav-badge nb-ref">ref</span></a>
+    <a class="nav-item" href="security-baseline.html">Security Baseline <span class="nav-badge nb-ref">ref</span></a>
+    <a class="nav-item" href="logging-standard.html">Logging Standard <span class="nav-badge nb-ref">ref</span></a>
+    <a class="nav-item" href="websocket-contract.html">WebSocket Contract <span class="nav-badge nb-ref">ref</span></a>
+    <a class="nav-item" href="notification-contract.html">Notification Contract <span class="nav-badge nb-ref">ref</span></a>
+    <a class="nav-item" href="bun-notification-service.html">Bun.js Service <span class="nav-badge nb-ref">ref</span></a>
+    <a class="nav-item" href="database-convention.html">DB Convention <span class="nav-badge nb-ref">ref</span></a>
+    <a class="nav-item" href="testing-standard.html">Testing Standard <span class="nav-badge nb-ref">ref</span></a>
+    <a class="nav-item" href="config-standard.html">Config Standard <span class="nav-badge nb-ref">ref</span></a>
+    <a class="nav-item" href="authorization-pattern.html">Authorization Pattern <span class="nav-badge nb-ref">ref</span></a>
+    <a class="nav-item" href="infrastructure-setup.html">Infrastructure Setup <span class="nav-badge nb-ref">ref</span></a>
+    <a class="nav-item" href="vps-deployment.html">VPS Deployment <span class="nav-badge nb-ref">ref</span></a>
+    <a class="nav-item" href="cicd-setup.html">CI/CD Setup <span class="nav-badge nb-ref">ref</span></a>
+  </nav>
+
+  <!-- ════════════════════════ MAIN ════════════════════════ -->
+  <main>
+
+    <!-- Hero -->
+    <div class="hero">
+      <div class="eyebrow">Implementation Plan</div>
+      <h1>Phase 1.5 — <em>Rencana Implementasi</em></h1>
+      <p>Seluruh task implementasi Phase 1.5 dikelompokkan dalam 9 wave berurutan. Setiap task merujuk langsung ke dokumen standar yang mendefinisikannya. Semua wave telah selesai diimplementasi.</p>
+      <div class="meta-pills">
+        <span class="pill pill-g">✓ 9/9 Wave Selesai</span>
+        <span class="pill pill-p">22 Task</span>
+        <span class="pill pill-y">Berbasis Dokumentasi</span>
+        <span class="pill pill-b">Siap Phase 2</span>
+      </div>
+    </div>
+
+    <!-- ══════════════ W0 ══════════════ -->
+    <div class="wave" id="w0">
+      <div class="wave-header">
+        <div class="wave-badge wb-green">W0</div>
+        <div class="wave-info">
+          <div class="wave-title">Infrastructure — Docker, Nginx, CI/CD Workflows</div>
+          <div class="wave-desc">File infrastruktur dasar — sudah selesai sebelum phase ini dimulai.</div>
+          <div class="wave-links">
+            <a class="wave-link" href="infrastructure-setup.html">infrastructure-setup</a>
+            <a class="wave-link" href="vps-deployment.html">vps-deployment</a>
+            <a class="wave-link" href="cicd-setup.html">cicd-setup</a>
+          </div>
+        </div>
+        <div class="wave-status"><span class="badge badge-done">Selesai</span></div>
+      </div>
+
+      <div class="tasks">
+        <div class="task done">
+          <div class="task-head task-done">
+            <span class="task-id">W0-01</span>
+            <span class="task-title">Docker Compose, Nginx configs, Dockerfile (Rust + Bun), init-schemas.sql, CI/CD workflows</span>
+            <span class="task-scope">root</span>
+            <span class="badge badge-done" style="flex-shrink:0;margin-top:1px;">Done</span>
+          </div>
+          <div class="task-body">
+            <div class="task-body-inner gap-section">
+              <div>
+                <div class="section-label">File yang dibuat</div>
+                <div class="file-list">
+                  <div class="file-row"><span class="fop fop-done">Done</span><span class="fpath">docker-compose.yml</span><span class="fnote">— 6 services (postgres, redis, rejki-app, bun, nginx, cloudflare tunnel), healthcheck, bridge network</span></div>
+                  <div class="file-row"><span class="fop fop-done">Done</span><span class="fpath">nginx.dev.conf</span><span class="fnote">— proxy + WebSocket upgrade</span></div>
+                  <div class="file-row"><span class="fop fop-done">Done</span><span class="fpath">nginx.prod.conf</span><span class="fnote">— rate-limit 3 zona, JSON log, security headers, custom 429/502</span></div>
+                  <div class="file-row"><span class="fop fop-done">Done</span><span class="fpath">rust-services/Dockerfile</span><span class="fnote">— multi-stage Rust, dep-cache layer, non-root user rejki</span></div>
+                  <div class="file-row"><span class="fop fop-done">Done</span><span class="fpath">bun-notification-service/Dockerfile</span><span class="fnote">— multi-stage Bun, frozen-lockfile</span></div>
+                  <div class="file-row"><span class="fop fop-done">Done</span><span class="fpath">scripts/init-schemas.sql</span><span class="fnote">— CREATE SCHEMA untuk 8 service domain</span></div>
+                  <div class="file-row"><span class="fop fop-done">Done</span><span class="fpath">.github/workflows/ci.yml</span><span class="fnote">— fmt + clippy + unit test + integration test + docker build check</span></div>
+                  <div class="file-row"><span class="fop fop-done">Done</span><span class="fpath">.github/workflows/deploy.yml</span><span class="fnote">— SSH deploy ke prod saat push ke main</span></div>
+                  <div class="file-row"><span class="fop fop-done">Done</span><span class="fpath">.github/workflows/deploy-dev.yml</span><span class="fnote">— SSH deploy ke dev saat push ke develop</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════ W1 ══════════════ -->
+    <div class="wave" id="w1">
+      <div class="wave-header">
+        <div class="wave-badge wb-purple">W1</div>
+        <div class="wave-info">
+          <div class="wave-title">Common Layer — Pondasi untuk semua wave berikutnya</div>
+          <div class="wave-desc">Dikerjakan pertama. Semua wave lain bergantung pada tipe dan struct di sini.</div>
+          <div class="wave-links">
+            <a class="wave-link" href="api-standard.html">api-standard</a>
+            <a class="wave-link" href="config-standard.html">config-standard</a>
+            <a class="wave-link" href="health-check.html">health-check</a>
+          </div>
+        </div>
+        <div class="wave-status"><span class="badge badge-done">Selesai</span></div>
+      </div>
+
+      <div class="tasks">
+
+        <div class="task done">
+          <div class="task-head task-done">
+            <span class="task-id">W1-01</span>
+            <span class="task-title">Tambah crate <code>rust-services/common/config</code> — <code>AppConfig</code> struct + <code>AppEnv</code> enum</span>
+            <span class="task-scope">rust-services/common/config</span>
+            <span class="badge badge-done" style="flex-shrink:0;margin-top:1px;">Done</span>
+          </div>
+          <div class="task-body">
+            <div class="task-body-inner gap-section">
+              <div>
+                <div class="section-label">File</div>
+                <div class="file-list">
+                  <div class="file-row"><span class="fop fop-done">Done</span><span class="fpath">rust-services/common/config/Cargo.toml</span></div>
+                  <div class="file-row"><span class="fop fop-done">Done</span><span class="fpath">rust-services/common/config/src/lib.rs</span></div>
+                  <div class="file-row"><span class="fop fop-done">Done</span><span class="fpath">rust-services/Cargo.toml</span><span class="fnote">— tambah <code>rust-services/common/config</code> ke workspace members + dependencies</span></div>
+                </div>
+              </div>
+              <div>
+                <div class="section-label">Yang diimplementasi</div>
+                <div class="impl-list">
+                  <div class="impl-item"><code>AppEnv</code> enum: <code>Development</code>, <code>Production</code></div>
+                  <div class="impl-item"><code>load_app_env()</code> — panic fail-fast jika <code>APP_ENV</code> tidak di-set atau tidak valid</div>
+                  <div class="impl-item"><code>AppConfig</code> struct: <code>app_env</code>, <code>app_port</code>, <code>database_url</code>, <code>redis_url</code>, <code>service_name</code></div>
+                  <div class="impl-item"><code>AppConfig::from_env()</code> — panic jika variabel wajib tidak ada; <code>dotenvy</code> hanya diload di Development</div>
+                </div>
+              </div>
+              <div class="callout c-ok">
+                <div class="callout-icon">✅</div>
+                <div><strong>Implementasi selesai</strong><p><code>common-config</code> sudah menjadi member workspace dan digunakan oleh <code>rust-services/rejki-app/src/main.rs</code>.</p></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="task done">
+          <div class="task-head task-done">
+            <span class="task-id">W1-02</span>
+            <span class="task-title">Update <code>rust-services/common/errors</code> — <code>ApiResponse&lt;T&gt;</code>, <code>ValidatedJson&lt;T&gt;</code>, envelope standar</span>
+            <span class="task-scope">rust-services/common/errors</span>
+            <span class="badge badge-done" style="flex-shrink:0;margin-top:1px;">Done</span>
+          </div>
+          <div class="task-body">
+            <div class="task-body-inner gap-section">
+              <div>
+                <div class="section-label">File</div>
+                <div class="file-list">
+                  <div class="file-row"><span class="fop fop-done">Done</span><span class="fpath">rust-services/common/errors/src/lib.rs</span><span class="fnote">— full rewrite</span></div>
+                  <div class="file-row"><span class="fop fop-done">Done</span><span class="fpath">rust-services/common/errors/Cargo.toml</span><span class="fnote">— tambah <code>validator</code>, <code>uuid</code>, <code>serde_json</code>, <code>anyhow</code></span></div>
+                </div>
+              </div>
+              <div>
+                <div class="section-label">Yang diimplementasi</div>
+                <div class="impl-list">
+                  <div class="impl-item"><code>ApiResponse&lt;T&gt;</code>: field <code>success</code>, <code>data</code>, <code>meta</code>, <code>request_id</code> (UUID v7)</div>
+                  <div class="impl-item"><code>ApiResponse::ok(data)</code> dan helper <code>created_response()</code> → 201 + <code>Location</code> header</div>
+                  <div class="impl-item"><code>PaginatedMeta</code>: <code>page</code>, <code>per_page</code>, <code>total</code>, <code>total_pages</code></div>
+                  <div class="impl-item"><code>CursorMeta</code>: <code>limit</code>, <code>has_more</code>, <code>next_cursor</code>, <code>prev_cursor</code></div>
+                  <div class="impl-item"><code>ValidatedJson&lt;T&gt;</code> — custom <code>FromRequest</code> extractor; reject 422 sebelum masuk handler</div>
+                  <div class="impl-item"><code>AppError::Gone(String)</code> → HTTP 410</div>
+                  <div class="impl-item"><code>deprecated_headers(sunset_date, successor)</code> → <code>Deprecation: true</code>, <code>Sunset</code>, <code>Link</code> headers</div>
+                </div>
+              </div>
+              <div>
+                <div class="section-label">Dependencies yang ditambahkan</div>
+                <div class="dep-list">
+                  <span class="dep">validator</span><span class="dep">uuid (v7)</span><span class="dep">serde_json</span><span class="dep">anyhow</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="task done">
+          <div class="task-head task-done">
+            <span class="task-id">W1-03</span>
+            <span class="task-title">Update <code>common/tracing-setup</code> — <code>request_id_layer</code> middleware + UUID v7</span>
+            <span class="task-scope">rust-services/common/tracing-setup</span>
+            <span class="badge badge-done" style="flex-shrink:0;margin-top:1px;">Done</span>
+          </div>
+          <div class="task-body">
+            <div class="task-body-inner gap-section">
+              <div>
+                <div class="section-label">Yang diimplementasi</div>
+                <div class="impl-list">
+                  <div class="impl-item"><code>X_REQUEST_ID: HeaderName</code> — static header name konstant</div>
+                  <div class="impl-item"><code>request_id_layer(req, next)</code> — generate UUID v7, inject ke request dan echo ke response header</div>
+                  <div class="impl-item">Client yang mengirim <code>x-request-id</code> sendiri akan di-echo balik (tidak di-override)</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="task done">
+          <div class="task-head task-done">
+            <span class="task-id">W1-04</span>
+            <span class="task-title">Update <code>rejki-app/main.rs</code> — <code>GET /health</code>, graceful shutdown, prefix <code>/api/v1/</code></span>
+            <span class="task-scope">rust-services/rejki-app</span>
+            <span class="badge badge-done" style="flex-shrink:0;margin-top:1px;">Done</span>
+          </div>
+          <div class="task-body">
+            <div class="task-body-inner gap-section">
+              <div>
+                <div class="section-label">Yang diimplementasi</div>
+                <div class="impl-list">
+                  <div class="impl-item"><code>GET /health</code> tanpa auth — respons: <code>{ "status": "ok" }</code></div>
+                  <div class="impl-item">Semua router di bawah prefix <code>/api/v1/</code></div>
+                  <div class="impl-item">Graceful shutdown: <code>ctrl_c()</code> + <code>SIGTERM</code> (unix), drain 30 detik</div>
+                  <div class="impl-item">Middleware stack: <code>request_id_layer</code> + <code>CompressionLayer</code> + <code>TraceLayer</code> + CORS</div>
+                  <div class="impl-item"><code>auth_client: Arc&lt;dyn AuthClient&gt;</code> dibuat di main lalu di-inject ke chat-service</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ══════════════ W2 ══════════════ -->
+    <div class="wave" id="w2">
+      <div class="wave-header">
+        <div class="wave-badge wb-blue">W2</div>
+        <div class="wave-info">
+          <div class="wave-title">API Standard — Terapkan envelope ke semua handler</div>
+          <div class="wave-desc">Bergantung pada W1-02. Semua service handler diupdate serentak.</div>
+          <div class="wave-links">
+            <a class="wave-link" href="api-standard.html">api-standard</a>
+            <a class="wave-link" href="api-versioning.html">api-versioning</a>
+          </div>
+        </div>
+        <div class="wave-status"><span class="badge badge-done">Selesai</span></div>
+      </div>
+
+      <div class="tasks">
+
+        <div class="task done">
+          <div class="task-head task-done">
+            <span class="task-id">W2-01</span>
+            <span class="task-title">Update semua handler — <code>ApiResponse&lt;T&gt;</code>, <code>ValidatedJson</code>, Location header 201</span>
+            <span class="task-scope">semua service</span>
+            <span class="badge badge-done" style="flex-shrink:0;margin-top:1px;">Done</span>
+          </div>
+          <div class="task-body">
+            <div class="task-body-inner gap-section">
+              <div>
+                <div class="section-label">File yang diubah</div>
+                <div class="file-list">
+                  <div class="file-row"><span class="fop fop-done">Done</span><span class="fpath">rust-services/auth-service/src/interface/handlers.rs</span><span class="fnote">— register → 201 + Location, login/verify_otp/resend/refresh → ApiResponse</span></div>
+                  <div class="file-row"><span class="fop fop-done">Done</span><span class="fpath">rust-services/user-service/src/interface/handlers.rs</span><span class="fnote">— get_profile/update_profile pakai ApiResponse + ValidatedJson</span></div>
+                  <div class="file-row"><span class="fop fop-done">Done</span><span class="fpath">rust-services/chat-service/src/interface/handlers.rs</span></div>
+                  <div class="file-row"><span class="fop fop-done">Done</span><span class="fpath">rust-services/notification-service/src/interface/handlers.rs</span></div>
+                  <div class="file-row"><span class="fop fop-done">Done</span><span class="fpath">rust-services/iklan-pekerjaan-service/src/interface/handlers.rs</span><span class="fnote">— create → 201 + Location <code>/api/v1/pekerjaan/{id}</code></span></div>
+                  <div class="file-row"><span class="fop fop-done">Done</span><span class="fpath">rust-services/iklan-pekerja-service/src/interface/handlers.rs</span></div>
+                  <div class="file-row"><span class="fop fop-done">Done</span><span class="fpath">rust-services/iklan-barang-bekas-service/src/interface/handlers.rs</span></div>
+                  <div class="file-row"><span class="fop fop-done">Done</span><span class="fpath">rust-services/iklan-pelatihan-service/src/interface/handlers.rs</span></div>
+                </div>
+              </div>
+              <div>
+                <div class="section-label">Yang diimplementasi di setiap handler</div>
+                <div class="impl-list">
+                  <div class="impl-item">Semua response sukses dibungkus <code>ApiResponse::ok(data)</code></div>
+                  <div class="impl-item">Handler POST create: return 201 + <code>Location: /api/v1/{resource}/{id}</code> via <code>created_response()</code></div>
+                  <div class="impl-item">Handler delete: return 204 No Content</div>
+                  <div class="impl-item">Semua <code>Json(payload)</code> diganti <code>ValidatedJson(payload)</code></div>
+                  <div class="impl-item">DTOs ditambah <code>#[derive(Validate)]</code> dengan constraint per field</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="task done">
+          <div class="task-head task-done">
+            <span class="task-id">W2-02</span>
+            <span class="task-title">Helper <code>deprecated_headers()</code> + <code>AppError::Gone</code> → HTTP 410</span>
+            <span class="task-scope">rust-services/common/errors</span>
+            <span class="badge badge-done" style="flex-shrink:0;margin-top:1px;">Done</span>
+          </div>
+          <div class="task-body">
+            <div class="task-body-inner">
+              <div class="impl-list">
+                <div class="impl-item"><code>deprecated_headers(sunset_date, successor)</code> — return <code>Deprecation: true</code>, <code>Sunset: &lt;date&gt;</code>, <code>Link: &lt;rel="successor-version"&gt;</code></div>
+                <div class="impl-item"><code>AppError::Gone(String)</code> → HTTP 410 dengan message yang jelas</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ══════════════ W3 ══════════════ -->
+    <div class="wave" id="w3">
+      <div class="wave-header">
+        <div class="wave-badge wb-orange">W3</div>
+        <div class="wave-info">
+          <div class="wave-title">Security &amp; Authorization — HTML strip, IDOR, ownership check</div>
+          <div class="wave-desc">Bergantung pada W2-01. Terapkan ke layer aplikasi dan repository.</div>
+          <div class="wave-links">
+            <a class="wave-link" href="security-baseline.html">security-baseline</a>
+            <a class="wave-link" href="authorization-pattern.html">authorization-pattern</a>
+          </div>
+        </div>
+        <div class="wave-status"><span class="badge badge-done">Selesai</span></div>
+      </div>
+
+      <div class="tasks">
+
+        <div class="task done">
+          <div class="task-head task-done">
+            <span class="task-id">W3-01</span>
+            <span class="task-title">HTML strip dengan <code>ammonia</code> di semua field teks bebas input user</span>
+            <span class="task-scope">semua service</span>
+            <span class="badge badge-done" style="flex-shrink:0;margin-top:1px;">Done</span>
+          </div>
+          <div class="task-body">
+            <div class="task-body-inner gap-section">
+              <div>
+                <div class="section-label">Service yang diupdate</div>
+                <div class="file-list">
+                  <div class="file-row"><span class="fop fop-done">Done</span><span class="fpath">rust-services/chat-service/src/application/service.rs</span><span class="fnote">— <code>ammonia::clean_text(&input.content)</code> sebelum simpan</span></div>
+                  <div class="file-row"><span class="fop fop-done">Done</span><span class="fpath">rust-services/iklan-pekerjaan-service/src/application/service.rs</span><span class="fnote">— strip <code>judul</code>, <code>deskripsi</code></span></div>
+                  <div class="file-row"><span class="fop fop-done">Done</span><span class="fpath">rust-services/iklan-pekerja-service/src/application/service.rs</span><span class="fnote">— strip <code>deskripsi</code></span></div>
+                  <div class="file-row"><span class="fop fop-done">Done</span><span class="fpath">rust-services/iklan-barang-bekas-service/src/application/service.rs</span><span class="fnote">— strip <code>judul</code>, <code>deskripsi</code></span></div>
+                  <div class="file-row"><span class="fop fop-done">Done</span><span class="fpath">rust-services/iklan-pelatihan-service/src/application/service.rs</span><span class="fnote">— strip <code>judul</code>, <code>deskripsi</code></span></div>
+                </div>
+              </div>
+              <div>
+                <div class="section-label">Dependencies yang ditambahkan</div>
+                <div class="dep-list"><span class="dep">ammonia = "4"</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="task done">
+          <div class="task-head task-done">
+            <span class="task-id">W3-02</span>
+            <span class="task-title">Ownership check di repository — IDOR return 404, bukan 403</span>
+            <span class="task-scope">semua service</span>
+            <span class="badge badge-done" style="flex-shrink:0;margin-top:1px;">Done</span>
+          </div>
+          <div class="task-body">
+            <div class="task-body-inner">
+              <div class="impl-list">
+                <div class="impl-item">Query DELETE: <code>WHERE id = $1 AND poster_id = $2</code> — jika <code>rows_affected = 0</code> → <code>AppError::NotFound</code></div>
+                <div class="impl-item">Tidak bocorkan eksistensi resource ke user lain — 404 bukan 403</div>
+                <div class="impl-item">403 Forbidden hanya untuk pembatasan fitur, bukan IDOR</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="task done">
+          <div class="task-head task-done">
+            <span class="task-id">W3-03</span>
+            <span class="task-title">Fix <code>common/auth-middleware</code> — path dependency dan <code>async-trait</code></span>
+            <span class="task-scope">rust-services/common/auth-middleware</span>
+            <span class="badge badge-done" style="flex-shrink:0;margin-top:1px;">Done</span>
+          </div>
+          <div class="task-body">
+            <div class="task-body-inner">
+              <div class="impl-list">
+                <div class="impl-item">Fix path: <code>auth-service-client = &#123; path = "../../auth-service-client" &#125;</code> (sebelumnya salah ke <code>../</code>)</div>
+                <div class="impl-item">Tambah <code>async-trait = "0.1"</code> agar <code>dyn AuthClient</code> bisa dipakai</div>
+                <div class="impl-item"><code>#[async_trait::async_trait]</code> di trait <code>AuthClient</code> dan impl <code>AuthInProcessClient</code></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ══════════════ W4 ══════════════ -->
+    <div class="wave" id="w4">
+      <div class="wave-header">
+        <div class="wave-badge wb-cyan">W4</div>
+        <div class="wave-info">
+          <div class="wave-title">Observability — Slow query warning + <code>warn_slow!</code> macro</div>
+          <div class="wave-desc">Bergantung pada W1-03. Diterapkan ke semua repository method.</div>
+          <div class="wave-links">
+            <a class="wave-link" href="logging-standard.html">logging-standard</a>
+          </div>
+        </div>
+        <div class="wave-status"><span class="badge badge-done">Selesai</span></div>
+      </div>
+
+      <div class="tasks">
+
+        <div class="task done">
+          <div class="task-head task-done">
+            <span class="task-id">W4-01</span>
+            <span class="task-title">Macro <code>warn_slow!</code> di semua repository — WARN jika query &gt; 100ms</span>
+            <span class="task-scope">semua repository</span>
+            <span class="badge badge-done" style="flex-shrink:0;margin-top:1px;">Done</span>
+          </div>
+          <div class="task-body">
+            <div class="task-body-inner gap-section">
+              <div>
+                <div class="section-label">File yang diupdate</div>
+                <div class="file-list">
+                  <div class="file-row"><span class="fop fop-done">Done</span><span class="fpath">rust-services/user-service/src/infrastructure/pg_repository.rs</span></div>
+                  <div class="file-row"><span class="fop fop-done">Done</span><span class="fpath">rust-services/notification-service/src/infrastructure/pg_repository.rs</span></div>
+                  <div class="file-row"><span class="fop fop-done">Done</span><span class="fpath">rust-services/chat-service/src/infrastructure/pg_repository.rs</span></div>
+                  <div class="file-row"><span class="fop fop-done">Done</span><span class="fpath">rust-services/iklan-pekerjaan-service/src/infrastructure/pg_repository.rs</span></div>
+                  <div class="file-row"><span class="fop fop-done">Done</span><span class="fpath">rust-services/iklan-pekerja-service/src/infrastructure/pg_repository.rs</span></div>
+                  <div class="file-row"><span class="fop fop-done">Done</span><span class="fpath">rust-services/iklan-barang-bekas-service/src/infrastructure/pg_repository.rs</span></div>
+                  <div class="file-row"><span class="fop fop-done">Done</span><span class="fpath">rust-services/iklan-pelatihan-service/src/infrastructure/pg_repository.rs</span></div>
+                </div>
+              </div>
+              <div>
+                <div class="section-label">Implementasi</div>
+                <div class="impl-list">
+                  <div class="impl-item">Macro lokal <code>warn_slow!($start, $op)</code> — hitung <code>Instant::elapsed()</code>, log jika &gt; 100ms</div>
+                  <div class="impl-item">Setiap method repository: <code>let t = Instant::now();</code> sebelum query, <code>warn_slow!(t, "op_name");</code> setelah</div>
+                  <div class="impl-item">Log field: <code>op</code> (nama operasi), <code>elapsed_ms</code></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ══════════════ W5 ══════════════ -->
+    <div class="wave" id="w5">
+      <div class="wave-header">
+        <div class="wave-badge wb-yellow">W5</div>
+        <div class="wave-info">
+          <div class="wave-title">Notification — Redis Streams Publisher (Rust) + Bun.js Consumer</div>
+          <div class="wave-desc">Dua komponen: Rust publisher di notification-service, Bun consumer terpisah dengan FCM.</div>
+          <div class="wave-links">
+            <a class="wave-link" href="notification-contract.html">notification-contract</a>
+            <a class="wave-link" href="bun-notification-service.html">bun-notification-service</a>
+          </div>
+        </div>
+        <div class="wave-status"><span class="badge badge-done">Selesai</span></div>
+      </div>
+
+      <div class="tasks">
+
+        <div class="task done">
+          <div class="task-head task-done">
+            <span class="task-id">W5-01</span>
+            <span class="task-title">Rust — <code>NotificationEvent</code> + <code>RedisPublisher</code> di <code>notification-service</code></span>
+            <span class="task-scope">rust-services/notification-service</span>
+            <span class="badge badge-done" style="flex-shrink:0;margin-top:1px;">Done</span>
+          </div>
+          <div class="task-body">
+            <div class="task-body-inner gap-section">
+              <div>
+                <div class="section-label">File yang dibuat / diubah</div>
+                <div class="file-list">
+                  <div class="file-row"><span class="fop fop-done">Done</span><span class="fpath">rust-services/notification-service/src/infrastructure/redis_publisher.rs</span><span class="fnote">— <code>NotificationEvent</code> + <code>RedisPublisher</code></span></div>
+                  <div class="file-row"><span class="fop fop-done">Done</span><span class="fpath">rust-services/notification-service/src/application/service.rs</span><span class="fnote">— <code>with_publisher()</code>, graceful degradation jika Redis tidak ada</span></div>
+                  <div class="file-row"><span class="fop fop-done">Done</span><span class="fpath">rust-services/notification-service/src/interface/mod.rs</span><span class="fnote">— inisialisasi <code>RedisPublisher</code> dari env</span></div>
+                </div>
+              </div>
+              <div>
+                <div class="section-label">Implementasi</div>
+                <div class="impl-list">
+                  <div class="impl-item"><code>NotificationEvent</code>: <code>event_id</code>, <code>recipient_id</code>, <code>title</code>, <code>body</code>, <code>data</code></div>
+                  <div class="impl-item"><code>XADD notifications_stream MAXLEN ~ 10_000</code> — cap stream otomatis</div>
+                  <div class="impl-item">Graceful degradation: jika Redis tidak tersedia, DB tetap disimpan, push diabaikan dengan WARN</div>
+                </div>
+              </div>
+              <div>
+                <div class="section-label">Dependencies</div>
+                <div class="dep-list"><span class="dep">redis = "0.27" (tokio-comp)</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="task done">
+          <div class="task-head task-done">
+            <span class="task-id">W5-02</span>
+            <span class="task-title">Bun.js — consumer loop + FCM dispatch + idempotency + DLQ</span>
+            <span class="task-scope">bun-notification-service</span>
+            <span class="badge badge-done" style="flex-shrink:0;margin-top:1px;">Done</span>
+          </div>
+          <div class="task-body">
+            <div class="task-body-inner gap-section">
+              <div>
+                <div class="section-label">File yang dibuat</div>
+                <div class="file-list">
+                  <div class="file-row"><span class="fop fop-done">Done</span><span class="fpath">bun-notification-service/src/config.ts</span><span class="fnote">— <code>require_env()</code> fail-fast helper</span></div>
+                  <div class="file-row"><span class="fop fop-done">Done</span><span class="fpath">bun-notification-service/src/types.ts</span><span class="fnote">— <code>NotificationEvent</code>, <code>FcmToken</code></span></div>
+                  <div class="file-row"><span class="fop fop-done">Done</span><span class="fpath">bun-notification-service/src/firebase.ts</span><span class="fnote">— Firebase Admin SDK, <code>send_push()</code></span></div>
+                  <div class="file-row"><span class="fop fop-done">Done</span><span class="fpath">bun-notification-service/src/db.ts</span><span class="fnote">— <code>get_fcm_tokens_column()</code>, <code>mark_event_processed()</code></span></div>
+                  <div class="file-row"><span class="fop fop-done">Done</span><span class="fpath">bun-notification-service/src/consumer.ts</span><span class="fnote">— XREADGROUP + XAUTOCLAIM + DLQ</span></div>
+                  <div class="file-row"><span class="fop fop-done">Done</span><span class="fpath">bun-notification-service/src/index.ts</span><span class="fnote">— entry point, SIGTERM/SIGINT handler</span></div>
+                  <div class="file-row"><span class="fop fop-done">Done</span><span class="fpath">bun-notification-service/migrations/001_create_notification_tables.sql</span></div>
+                </div>
+              </div>
+              <div>
+                <div class="section-label">Implementasi</div>
+                <div class="impl-list">
+                  <div class="impl-item">Consumer group: <code>bun-consumers</code>, <code>XAUTOCLAIM</code> threshold 60s untuk PEL recovery</div>
+                  <div class="impl-item">Idempotency: <code>INSERT INTO notification.processed_events ON CONFLICT DO NOTHING</code></div>
+                  <div class="impl-item">Max retry: 3×. Setelah gagal → <code>XADD notifications_dlq</code> lalu <code>XACK</code></div>
+                  <div class="impl-item">SIGTERM/SIGINT handling — shutdown bersih</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ══════════════ W6 ══════════════ -->
+    <div class="wave" id="w6">
+      <div class="wave-header">
+        <div class="wave-badge wb-purple">W6</div>
+        <div class="wave-info">
+          <div class="wave-title">WebSocket — Auth handshake + message envelope + keepalive</div>
+          <div class="wave-desc">Bergantung pada W1 dan W3. Hanya menyentuh chat-service.</div>
+          <div class="wave-links">
+            <a class="wave-link" href="websocket-contract.html">websocket-contract</a>
+          </div>
+        </div>
+        <div class="wave-status"><span class="badge badge-done">Selesai</span></div>
+      </div>
+
+      <div class="tasks">
+
+        <div class="task done">
+          <div class="task-head task-done">
+            <span class="task-id">W6-01</span>
+            <span class="task-title">WebSocket handler — validasi JWT sebelum upgrade, <code>WsEnvelope</code>, close codes, keepalive</span>
+            <span class="task-scope">rust-services/chat-service</span>
+            <span class="badge badge-done" style="flex-shrink:0;margin-top:1px;">Done</span>
+          </div>
+          <div class="task-body">
+            <div class="task-body-inner gap-section">
+              <div>
+                <div class="section-label">File</div>
+                <div class="file-list">
+                  <div class="file-row"><span class="fop fop-done">Done</span><span class="fpath">rust-services/chat-service/src/interface/ws_handler.rs</span><span class="fnote">— baru</span></div>
+                  <div class="file-row"><span class="fop fop-done">Done</span><span class="fpath">rust-services/chat-service/src/interface/mod.rs</span><span class="fnote">— tambah route <code>GET /ws</code>, AppState dengan <code>auth_client</code></span></div>
+                </div>
+              </div>
+              <div>
+                <div class="section-label">Implementasi</div>
+                <div class="impl-list">
+                  <div class="impl-item">Endpoint: <code>GET /api/v1/chat/ws?token=&lt;jwt&gt;</code></div>
+                  <div class="impl-item">Validasi JWT dari query param <code>?token=</code> sebelum upgrade — tolak 401 jika invalid</div>
+                  <div class="impl-item">Message envelope: <code>WsEnvelope { type, request_id, payload }</code></div>
+                  <div class="impl-item">Close codes: 4001 unauthorized, 4003 forbidden, 4004 room not found, 1012 service restart</div>
+                  <div class="impl-item">Keepalive: ping setiap 60 detik; tutup jika tidak ada respon</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ══════════════ W7 ══════════════ -->
+    <div class="wave" id="w7">
+      <div class="wave-header">
+        <div class="wave-badge wb-green">W7</div>
+        <div class="wave-info">
+          <div class="wave-title">Database Convention — Audit &amp; fix semua migration</div>
+          <div class="wave-desc">Dapat dikerjakan paralel dengan W5/W6. Pastikan semua tabel sudah sesuai konvensi.</div>
+          <div class="wave-links">
+            <a class="wave-link" href="database-convention.html">database-convention</a>
+          </div>
+        </div>
+        <div class="wave-status"><span class="badge badge-done">Selesai</span></div>
+      </div>
+
+      <div class="tasks">
+
+        <div class="task done">
+          <div class="task-head task-done">
+            <span class="task-id">W7-01</span>
+            <span class="task-title">Audit semua migration — kolom mandatory, soft delete, naming, no cross-schema FK</span>
+            <span class="task-scope">semua migrations</span>
+            <span class="badge badge-done" style="flex-shrink:0;margin-top:1px;">Done</span>
+          </div>
+          <div class="task-body">
+            <div class="task-body-inner gap-section">
+              <div>
+                <div class="section-label">Pelanggaran yang ditemukan dan diperbaiki</div>
+                <div class="file-list">
+                  <div class="file-row"><span class="fop fop-done">Fixed</span><span class="fpath">rust-services/notification-service/migrations/20260609000002_add_updated_at_to_notifications.up.sql</span><span class="fnote">— kolom <code>updated_at</code> yang hilang</span></div>
+                  <div class="file-row"><span class="fop fop-done">Fixed</span><span class="fpath">bun-notification-service/migrations/001_create_notification_tables.sql</span><span class="fnote">— PK yang salah tipe, kolom yang hilang, <code>user_preferences</code> tanpa PK</span></div>
+                </div>
+              </div>
+              <div>
+                <div class="section-label">Konvensi yang diverifikasi (semua OK)</div>
+                <div class="impl-list">
+                  <div class="impl-item">Setiap tabel: <code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()</code>, <code>created_at</code>, <code>updated_at TIMESTAMPTZ NOT NULL DEFAULT now()</code></div>
+                  <div class="impl-item">Semua nama: <code>snake_case</code> — tabel, kolom, index, constraint</div>
+                  <div class="impl-item">Index untuk setiap kolom FK-equivalent: <code>idx_{tabel}_{kolom}</code></div>
+                  <div class="impl-item">Tidak ada <code>REFERENCES {schema_lain}.{tabel}</code> — isolasi antar schema terjaga</div>
+                  <div class="impl-item">Schema: <code>auth</code>, <code>user_svc</code>, <code>chat</code>, <code>notification</code>, <code>iklan_pekerjaan</code>, <code>iklan_pekerja</code>, <code>iklan_barang_bekas</code>, <code>iklan_pelatihan</code></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ══════════════ W8 ══════════════ -->
+    <div class="wave" id="w8">
+      <div class="wave-header">
+        <div class="wave-badge wb-blue">W8</div>
+        <div class="wave-info">
+          <div class="wave-title">Testing — Setup infrastruktur + authorization test wajib</div>
+          <div class="wave-desc">Bergantung pada W2 dan W3. Integration test dengan PostgreSQL nyata.</div>
+          <div class="wave-links">
+            <a class="wave-link" href="testing-standard.html">testing-standard</a>
+            <a class="wave-link" href="authorization-pattern.html">authorization-pattern</a>
+          </div>
+        </div>
+        <div class="wave-status"><span class="badge badge-done">Selesai</span></div>
+      </div>
+
+      <div class="tasks">
+
+        <div class="task done">
+          <div class="task-head task-done">
+            <span class="task-id">W8-01</span>
+            <span class="task-title">Setup infrastruktur test — <code>tests/common/</code>, fixture factory, <code>.env.test</code></span>
+            <span class="task-scope">rust-services/rejki-app/tests/</span>
+            <span class="badge badge-done" style="flex-shrink:0;margin-top:1px;">Done</span>
+          </div>
+          <div class="task-body">
+            <div class="task-body-inner gap-section">
+              <div>
+                <div class="section-label">File yang dibuat</div>
+                <div class="file-list">
+                  <div class="file-row"><span class="fop fop-done">Done</span><span class="fpath">rust-services/rejki-app/tests/common/mod.rs</span><span class="fnote">— <code>build_test_app()</code>, <code>test_pool()</code>, helpers: <code>post_json</code>, <code>get_authed</code>, <code>get_anon</code>, <code>body_json</code></span></div>
+                  <div class="file-row"><span class="fop fop-done">Done</span><span class="fpath">rust-services/rejki-app/tests/common/fixtures.rs</span><span class="fnote">— <code>seed_user(pool, suffix)</code> + <code>clean_test_data(pool)</code></span></div>
+                  <div class="file-row"><span class="fop fop-done">Done</span><span class="fpath">rust-services/rejki-app/.env.test</span><span class="fnote">— <code>DATABASE_URL</code> ke <code>rejki_test</code>, <code>APP_ENV=development</code></span></div>
+                </div>
+              </div>
+              <div>
+                <div class="section-label">Implementasi</div>
+                <div class="impl-list">
+                  <div class="impl-item">Email domain test: <code>@test.rejki.internal</code> — tidak bocor ke prod</div>
+                  <div class="impl-item"><code>seed_user()</code>: insert ke DB + issue JWT langsung via <code>JwtService::issue_access_token()</code> (tidak perlu OTP flow)</div>
+                  <div class="impl-item"><code>clean_test_data()</code> dipanggil di awal setiap test — idempotency, bukan teardown</div>
+                  <div class="impl-item">Naming convention: <code>test_{unit}_given_{cond}_when_{action}_then_{expect}</code></div>
+                </div>
+              </div>
+              <div>
+                <div class="section-label">Dev-dependencies yang ditambahkan</div>
+                <div class="dep-list">
+                  <span class="dep">tower (util)</span><span class="dep">dotenvy</span><span class="dep">bcrypt</span><span class="dep">uuid</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="task done">
+          <div class="task-head task-done">
+            <span class="task-id">W8-02</span>
+            <span class="task-title">Authorization tests — 401, 200 owner, 404 IDOR, request-id propagasi (9 test cases)</span>
+            <span class="task-scope">rust-services/rejki-app/tests/</span>
+            <span class="badge badge-done" style="flex-shrink:0;margin-top:1px;">Done</span>
+          </div>
+          <div class="task-body">
+            <div class="task-body-inner gap-section">
+              <div>
+                <div class="section-label">File</div>
+                <div class="file-list">
+                  <div class="file-row"><span class="fop fop-done">Done</span><span class="fpath">rust-services/rejki-app/tests/auth_integration_test.rs</span><span class="fnote">— 9 test cases</span></div>
+                </div>
+              </div>
+              <div>
+                <div class="section-label">Test cases yang diimplementasi</div>
+                <div class="impl-list">
+                  <div class="impl-item"><code>test_health_given_no_auth_when_get_health_then_200</code></div>
+                  <div class="impl-item"><code>test_user_profile_given_no_token_when_get_me_then_401</code></div>
+                  <div class="impl-item"><code>test_chat_given_no_token_when_get_rooms_then_401</code></div>
+                  <div class="impl-item"><code>test_notif_given_no_token_when_get_list_then_401</code></div>
+                  <div class="impl-item"><code>test_user_profile_given_bad_token_when_get_me_then_401</code></div>
+                  <div class="impl-item"><code>test_user_profile_given_valid_token_when_get_me_then_200</code></div>
+                  <div class="impl-item"><code>test_iklan_given_different_owner_when_delete_pekerjaan_then_404</code> — IDOR protection</div>
+                  <div class="impl-item"><code>test_iklan_given_correct_owner_when_delete_pekerjaan_then_204</code></div>
+                  <div class="impl-item"><code>test_request_id_given_any_request_when_get_health_then_x_request_id_present</code></div>
+                </div>
+              </div>
+              <div class="callout c-info">
+                <div class="callout-icon">ℹ️</div>
+                <div><strong>Cara menjalankan</strong>
+                  <p>Dari direktori <code>rust-services/rejki-app/</code>: <code>cd rust-services/rejki-app &amp;&amp; cargo test --test auth_integration_test -- --test-threads=1</code><br>Prerequisite: PostgreSQL test DB + migrasi sudah dijalankan + RSA key di <code>./keys/</code></p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ══════════════ W9 ══════════════ -->
+    <div class="wave" id="w9">
+      <div class="wave-header">
+        <div class="wave-badge wb-orange">W9</div>
+        <div class="wave-info">
+          <div class="wave-title">CI/CD &amp; Deploy — Integration test job + SSH deploy ke VPS</div>
+          <div class="wave-desc">Dikerjakan setelah semua wave lain selesai. Update CI + dokumentasi setup VPS.</div>
+          <div class="wave-links">
+            <a class="wave-link" href="vps-deployment.html">vps-deployment</a>
+            <a class="wave-link" href="cicd-setup.html">cicd-setup</a>
+          </div>
+        </div>
+        <div class="wave-status"><span class="badge badge-done">Selesai</span></div>
+      </div>
+
+      <div class="tasks">
+
+        <div class="task done">
+          <div class="task-head task-done">
+            <span class="task-id">W9-01</span>
+            <span class="task-title">Setup VPS — Docker, ufw, clone repo, secrets, first run, Cloudflare Tunnel</span>
+            <span class="task-scope">VPS (one-time)</span>
+            <span class="badge badge-done" style="flex-shrink:0;margin-top:1px;">Done</span>
+          </div>
+          <div class="task-body">
+            <div class="task-body-inner">
+              <div class="impl-list">
+                <div class="impl-item">Install Docker Engine + Compose plugin; <code>systemctl enable docker</code></div>
+                <div class="impl-item">ufw: allow SSH (22) + HTTP (80); block port 5432/6379/8080/9000 dari publik</div>
+                <div class="impl-item">Clone repo ke <code>/opt/rejki/prod</code> (main) dan <code>/opt/rejki/dev</code> (develop)</div>
+                <div class="impl-item">Generate JWT key pair: <code>openssl genrsa -out keys/private.pem 2048</code></div>
+                <div class="impl-item">Upload <code>keys/firebase-service-account.json</code> via scp</div>
+                <div class="impl-item">Cloudflare Tunnel: buat tunnel, set hostname <code>api.rejki.id → nginx:80</code>, simpan token ke <code>.env</code></div>
+                <div class="impl-item">Docker log rotation: <code>/etc/docker/daemon.json</code> — max-size 50m, max-file 5</div>
+                <div class="impl-item">Verifikasi: <code>docker compose ps</code> semua healthy + <code>curl /health</code> → 200</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="task done">
+          <div class="task-head task-done">
+            <span class="task-id">W9-02</span>
+            <span class="task-title">Update CI — job <code>integration-test</code> dengan Postgres service container</span>
+            <span class="task-scope">GitHub Actions</span>
+            <span class="badge badge-done" style="flex-shrink:0;margin-top:1px;">Done</span>
+          </div>
+          <div class="task-body">
+            <div class="task-body-inner gap-section">
+              <div>
+                <div class="section-label">File yang diupdate</div>
+                <div class="file-list">
+                  <div class="file-row"><span class="fop fop-done">Done</span><span class="fpath">.github/workflows/ci.yml</span><span class="fnote">— tambah job <code>integration-test</code> + split unit/integration</span></div>
+                </div>
+              </div>
+              <div>
+                <div class="section-label">Jobs di CI pipeline</div>
+                <div class="impl-list">
+                  <div class="impl-item"><code>check</code> — fmt + clippy + build workspace</div>
+                  <div class="impl-item"><code>unit-test</code> — <code>cargo test --workspace --lib</code> (tanpa DB)</div>
+                  <div class="impl-item"><code>integration-test</code> — Postgres service container, jalankan semua migrasi, generate RSA key, <code>cargo test --test auth_integration_test</code></div>
+                  <div class="impl-item"><code>docker-build-check</code> — hanya untuk push/PR ke main</div>
+                </div>
+              </div>
+              <div class="callout c-note">
+                <div class="callout-icon">💡</div>
+                <div><strong>GitHub Secrets yang dibutuhkan</strong>
+                  <p><code>VPS_HOST</code>, <code>VPS_USER</code>, <code>VPS_SSH_KEY</code> — untuk deploy workflows. Environments: <code>production</code> (required reviewer) + <code>development</code>.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ══════════════ SUMMARY ══════════════ -->
+    <section id="summary">
+      <div class="section-title">Ringkasan — Semua Task Phase 1.5</div>
+
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Task</th>
+              <th>Scope</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td class="wave-col">W0-01</td><td>Docker Compose, Nginx, Dockerfile, CI/CD workflows, init-schemas.sql</td><td><code>root</code></td><td><span class="badge badge-done">Done</span></td></tr>
+            <tr><td class="wave-col">W1-01</td><td>common/config — <code>AppEnv</code>, <code>AppConfig</code>, <code>load_app_env()</code> fail-fast</td><td><code>rust-services/common/config</code></td><td><span class="badge badge-done">Done</span></td></tr>
+            <tr><td class="wave-col">W1-02</td><td>common/errors — <code>ApiResponse</code>, <code>ValidatedJson</code>, <code>PaginatedMeta</code>, <code>CursorMeta</code>, <code>AppError::Gone</code></td><td><code>rust-services/common/errors</code></td><td><span class="badge badge-done">Done</span></td></tr>
+            <tr><td class="wave-col">W1-03</td><td>common/tracing-setup — <code>request_id_layer</code>, UUID v7, echo client request-id</td><td><code>rust-services/common/tracing</code></td><td><span class="badge badge-done">Done</span></td></tr>
+            <tr><td class="wave-col">W1-04</td><td>rejki-app — <code>GET /health</code>, graceful shutdown SIGTERM, prefix <code>/api/v1/</code></td><td><code>rust-services/rejki-app</code></td><td><span class="badge badge-done">Done</span></td></tr>
+            <tr><td class="wave-col">W2-01</td><td>Semua handler — <code>ApiResponse</code>, <code>ValidatedJson</code>, Location header 201, status code benar</td><td><code>semua service</code></td><td><span class="badge badge-done">Done</span></td></tr>
+            <tr><td class="wave-col">W2-02</td><td><code>deprecated_headers()</code> helper + <code>AppError::Gone</code> → HTTP 410</td><td><code>rust-services/common/errors</code></td><td><span class="badge badge-done">Done</span></td></tr>
+            <tr><td class="wave-col">W3-01</td><td>ammonia HTML strip di field teks bebas (chat, iklan-* service)</td><td><code>semua service</code></td><td><span class="badge badge-done">Done</span></td></tr>
+            <tr><td class="wave-col">W3-02</td><td>Ownership check di repository — IDOR return 404, <code>WHERE id AND poster_id</code></td><td><code>semua service</code></td><td><span class="badge badge-done">Done</span></td></tr>
+            <tr><td class="wave-col">W3-03</td><td>Fix auth-middleware path dependency + <code>async-trait</code> untuk <code>dyn AuthClient</code></td><td><code>rust-services/common/auth-mw</code></td><td><span class="badge badge-done">Done</span></td></tr>
+            <tr><td class="wave-col">W4-01</td><td>Macro <code>warn_slow!</code> di semua repository — WARN jika query &gt; 100ms</td><td><code>semua repo</code></td><td><span class="badge badge-done">Done</span></td></tr>
+            <tr><td class="wave-col">W5-01</td><td><code>NotificationEvent</code> + <code>RedisPublisher</code> Rust, graceful degradation</td><td><code>rust-services/notification-svc</code></td><td><span class="badge badge-done">Done</span></td></tr>
+            <tr><td class="wave-col">W5-02</td><td>Bun.js consumer — XREADGROUP, XAUTOCLAIM, FCM, idempotency, DLQ, SIGTERM</td><td><code>bun-notification</code></td><td><span class="badge badge-done">Done</span></td></tr>
+            <tr><td class="wave-col">W6-01</td><td>WebSocket handler — auth sebelum upgrade, <code>WsEnvelope</code>, close codes, keepalive 60s</td><td><code>rust-services/chat-service</code></td><td><span class="badge badge-done">Done</span></td></tr>
+            <tr><td class="wave-col">W7-01</td><td>Audit semua migration — fix <code>updated_at</code> di notification, fix bun migration schema</td><td><code>semua migration</code></td><td><span class="badge badge-done">Done</span></td></tr>
+            <tr><td class="wave-col">W8-01</td><td>Setup <code>tests/common/</code>, <code>seed_user()</code>, <code>clean_test_data()</code>, <code>.env.test</code></td><td><code>rust-services/rejki-app/tests</code></td><td><span class="badge badge-done">Done</span></td></tr>
+            <tr><td class="wave-col">W8-02</td><td>9 authorization test cases — 401, 200 owner, 404 IDOR, x-request-id</td><td><code>rust-services/rejki-app/tests</code></td><td><span class="badge badge-done">Done</span></td></tr>
+            <tr><td class="wave-col">W9-01</td><td>VPS setup — Docker, ufw, Cloudflare Tunnel, secrets, first run</td><td><code>VPS</code></td><td><span class="badge badge-done">Done</span></td></tr>
+            <tr><td class="wave-col">W9-02</td><td>CI update — <code>integration-test</code> job dengan Postgres service container</td><td><code>GitHub Actions</code></td><td><span class="badge badge-done">Done</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout c-ok">
+        <div class="callout-icon">✅</div>
+        <div>
+          <strong>Phase 1.5 — Selesai 100%</strong>
+          <p>Semua 19 task di 9 wave telah diimplementasi per <strong>2026-06-09</strong>. Fondasi teknis siap untuk Phase 2 (fitur bisnis): auth OTP flow, chat real-time, iklan flow, dan payment gateway.</p>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      <span>rejki-backend · Phase 1.5 · Selesai 2026-06-09</span>
+      <span>19 task · 9 wave · Berbasis 15 dokumen standar</span>
+    </footer>
+
+  </main>
+</div>
+
+<script>
+  // Highlight nav item aktif saat scroll
+  const items = document.querySelectorAll('.nav-item[href^="#"]');
+  const waves = document.querySelectorAll('.wave, section[id]');
+  const obs = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        items.forEach(a => {
+          a.classList.toggle('active', a.getAttribute('href') === '#' + e.target.id);
+        });
+      }
+    });
+  }, { rootMargin: '-30% 0px -60% 0px' });
+  waves.forEach(w => obs.observe(w));
+</script>
+</body>
+</html>

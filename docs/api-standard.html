@@ -1,0 +1,1247 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rejki Backend — API Standard & Contract</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:      #0d1117;
+      --surf:    #161b22;
+      --surf2:   #1c2230;
+      --border:  #30363d;
+      --text:    #e6edf3;
+      --muted:   #8b949e;
+      --tag:     #21262d;
+      --green:   #56d364;
+      --blue:    #79c0ff;
+      --orange:  #f78166;
+      --yellow:  #e3b341;
+      --purple:  #bc8cff;
+      --teal:    #39d353;
+      --r:       10px;
+    }
+
+    html { scroll-behavior: smooth; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; font-size: 15px; }
+
+    /* ── Layout ── */
+    .layout { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
+    @media (max-width: 840px) { .layout { grid-template-columns: 1fr; } .nav { display: none; } }
+
+    /* ── Nav ── */
+    .nav {
+      position: sticky; top: 0; height: 100vh; overflow-y: auto;
+      background: var(--surf); border-right: 1px solid var(--border);
+      padding: 1.75rem 1rem;
+    }
+    .nav-logo { font-size: 1.1rem; font-weight: 800; color: var(--orange); margin-bottom: 1.75rem; }
+    .nav-logo span { color: var(--text); }
+    .nav-group { margin-bottom: 1.5rem; }
+    .nav-group-label { font-size: 0.67rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: .4rem; }
+    .nav-link { display: block; padding: .32rem .6rem; border-radius: 6px; font-size: .85rem; color: var(--muted); text-decoration: none; transition: background .12s, color .12s; }
+    .nav-link:hover { background: var(--tag); color: var(--text); }
+    .nav-link.accent { color: var(--green); }
+    .nav-link.back { color: var(--blue); font-size: .8rem; }
+
+    /* ── Main ── */
+    main { max-width: 920px; margin: 0 auto; padding: 3rem 2rem 6rem; }
+    @media (max-width: 600px) { main { padding: 2rem 1rem 4rem; } }
+
+    /* ── Hero ── */
+    .hero { border-bottom: 1px solid var(--border); margin-bottom: 3rem; padding-bottom: 2.5rem; }
+    .eyebrow { display: inline-block; font-size: .73rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--purple); background: rgba(188,140,255,.07); border: 1px solid rgba(188,140,255,.25); border-radius: 20px; padding: .22rem .75rem; margin-bottom: .9rem; }
+    .hero h1 { font-size: clamp(1.7rem,4vw,2.5rem); font-weight: 800; line-height: 1.15; letter-spacing: -.4px; margin-bottom: .9rem; }
+    .hero h1 em { font-style: normal; color: var(--purple); }
+    .hero p { color: var(--muted); font-size: 1rem; max-width: 680px; line-height: 1.75; }
+    .badges { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: 1.2rem; }
+    .badge { font-size: .76rem; font-weight: 600; padding: .25rem .75rem; border-radius: 20px; border: 1px solid; }
+    .b-ph  { color: var(--purple); border-color: rgba(188,140,255,.4); background: rgba(188,140,255,.06); }
+    .b-sl  { color: var(--green);  border-color: rgba(86,211,100,.4);  background: rgba(86,211,100,.06);  }
+    .b-fl  { color: var(--blue);   border-color: rgba(121,192,255,.4); background: rgba(121,192,255,.06); }
+
+    /* ── Section ── */
+    section { margin-bottom: 3.5rem; }
+    .sec-title { display: flex; align-items: center; gap: .6rem; font-size: 1.2rem; font-weight: 700; margin-bottom: 1.25rem; padding-bottom: .55rem; border-bottom: 1px solid var(--border); }
+    .sec-icon { width: 30px; height: 30px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: .95rem; flex-shrink: 0; }
+    .ic-g { background: rgba(86,211,100,.1); }
+    .ic-b { background: rgba(121,192,255,.1); }
+    .ic-o { background: rgba(247,129,102,.1); }
+    .ic-y { background: rgba(227,179,65,.1); }
+    .ic-p { background: rgba(188,140,255,.1); }
+
+    /* ── Subsection ── */
+    .sub-title { font-size: .95rem; font-weight: 700; margin: 1.6rem 0 .65rem; color: var(--text); display: flex; align-items: center; gap: .5rem; }
+    .sub-title::before { content: ''; display: inline-block; width: 3px; height: 14px; background: var(--purple); border-radius: 2px; }
+
+    /* ── Table ── */
+    .tbl { width: 100%; border-collapse: collapse; font-size: .84rem; background: var(--surf); border: 1px solid var(--border); border-radius: var(--r); overflow: hidden; }
+    .tbl th { background: var(--surf2); padding: .6rem 1rem; text-align: left; font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+    .tbl td { padding: .65rem 1rem; border-bottom: 1px solid var(--border); vertical-align: top; line-height: 1.5; }
+    .tbl tr:last-child td { border-bottom: none; }
+    .tbl tr:hover td { background: var(--surf2); }
+    .tbl-wrap { overflow-x: auto; }
+
+    /* ── Code ── */
+    .code { background: #0d1117; border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.2rem; overflow-x: auto; margin-top: .6rem; }
+    .code pre { font-family: 'Cascadia Code','Fira Code','Consolas',monospace; font-size: .8rem; line-height: 1.75; }
+    .ck  { color: #ff7b72; }
+    .cs  { color: #a5d6ff; }
+    .cc  { color: #6e7681; }
+    .ct  { color: #ffa657; }
+    .cfn { color: #d2a8ff; }
+    .cn  { color: #79c0ff; }
+    .cv  { color: #56d364; }
+
+    /* ── Side-by-side code ── */
+    .code-cols { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; margin-top: .6rem; }
+    @media (max-width: 680px) { .code-cols { grid-template-columns: 1fr; } }
+    .code-col-label { font-size: .68rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: .35rem; }
+
+    /* ── Callout ── */
+    .callout { border-radius: var(--r); padding: .85rem 1.1rem; margin-top: .9rem; font-size: .86rem; display: flex; gap: .65rem; line-height: 1.65; }
+    .callout-icon { flex-shrink: 0; font-size: 1rem; margin-top: 2px; }
+    .callout p { color: var(--muted); }
+    .callout strong { color: var(--text); display: block; margin-bottom: .15rem; }
+    .c-info   { background: rgba(121,192,255,.06); border: 1px solid rgba(121,192,255,.22); }
+    .c-warn   { background: rgba(227,179,65,.06);  border: 1px solid rgba(227,179,65,.22);  }
+    .c-ok     { background: rgba(86,211,100,.06);  border: 1px solid rgba(86,211,100,.22);  }
+    .c-danger { background: rgba(247,129,102,.06); border: 1px solid rgba(247,129,102,.22); }
+    .c-purple { background: rgba(188,140,255,.06); border: 1px solid rgba(188,140,255,.22); }
+
+    /* ── Status code pills ── */
+    .sc { display: inline-flex; align-items: center; font-size: .75rem; font-weight: 700; padding: .12rem .55rem; border-radius: 5px; font-family: 'Cascadia Code','Fira Code',monospace; border: 1px solid; }
+    .sc-2 { color: var(--green);  background: rgba(86,211,100,.08);  border-color: rgba(86,211,100,.3); }
+    .sc-3 { color: var(--blue);   background: rgba(121,192,255,.08); border-color: rgba(121,192,255,.3); }
+    .sc-4 { color: var(--yellow); background: rgba(227,179,65,.08);  border-color: rgba(227,179,65,.3); }
+    .sc-5 { color: var(--orange); background: rgba(247,129,102,.08); border-color: rgba(247,129,102,.3); }
+
+    /* ── Method pills ── */
+    .method { display: inline-flex; align-items: center; font-size: .72rem; font-weight: 700; padding: .1rem .5rem; border-radius: 4px; font-family: 'Cascadia Code','Fira Code',monospace; border: 1px solid; }
+    .m-get    { color: var(--green);  background: rgba(86,211,100,.08);  border-color: rgba(86,211,100,.3); }
+    .m-post   { color: var(--blue);   background: rgba(121,192,255,.08); border-color: rgba(121,192,255,.3); }
+    .m-put    { color: var(--yellow); background: rgba(227,179,65,.08);  border-color: rgba(227,179,65,.3); }
+    .m-patch  { color: var(--purple); background: rgba(188,140,255,.08); border-color: rgba(188,140,255,.3); }
+    .m-delete { color: var(--orange); background: rgba(247,129,102,.08); border-color: rgba(247,129,102,.3); }
+
+    /* ── Error code chips ── */
+    .err-code { font-family: 'Cascadia Code','Fira Code',monospace; font-size: .75rem; color: var(--orange); background: rgba(247,129,102,.08); border: 1px solid rgba(247,129,102,.25); border-radius: 4px; padding: .05rem .4rem; }
+
+    /* ── Field tag ── */
+    .field { font-family: 'Cascadia Code','Fira Code',monospace; font-size: .78rem; color: var(--blue); background: var(--tag); border: 1px solid var(--border); border-radius: 4px; padding: .05rem .4rem; }
+    .req { font-size: .68rem; font-weight: 700; color: var(--orange); background: rgba(247,129,102,.08); border: 1px solid rgba(247,129,102,.25); border-radius: 4px; padding: .05rem .35rem; margin-left: .2rem; }
+    .opt { font-size: .68rem; font-weight: 700; color: var(--muted); background: var(--tag); border: 1px solid var(--border); border-radius: 4px; padding: .05rem .35rem; margin-left: .2rem; }
+
+    /* ── Convention grid ── */
+    .conv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px,1fr)); gap: .9rem; }
+    .conv-card { background: var(--surf); border: 1px solid var(--border); border-radius: var(--r); padding: 1rem 1.15rem; }
+    .conv-card h4 { font-size: .85rem; font-weight: 700; margin-bottom: .4rem; display: flex; align-items: center; gap: .4rem; }
+    .conv-card p  { font-size: .8rem; color: var(--muted); line-height: 1.55; }
+    .conv-example { font-family: 'Cascadia Code','Fira Code',monospace; font-size: .76rem; margin-top: .5rem; background: var(--surf2); border-radius: 5px; padding: .45rem .65rem; }
+    .conv-good { color: var(--green); }
+    .conv-bad  { color: var(--orange); text-decoration: line-through; opacity: .6; }
+
+    /* ── Scope table row colors ── */
+    .row-done td:first-child { border-left: 3px solid var(--green); }
+    .row-ph15 td:first-child { border-left: 3px solid var(--purple); }
+    .row-ph2  td:first-child { border-left: 3px solid var(--blue); }
+
+    code { font-family: 'Cascadia Code','Fira Code','Consolas',monospace; font-size: .8rem; background: var(--tag); border: 1px solid var(--border); border-radius: 4px; padding: .05rem .4rem; color: var(--blue); }
+
+    footer { margin-top: 4rem; padding-top: 1.25rem; border-top: 1px solid var(--border); font-size: .78rem; color: var(--muted); }
+  </style>
+</head>
+<body>
+<div class="layout">
+
+  <!-- ── NAV ── -->
+  <nav class="nav">
+    <div class="nav-logo">rejki<span>-backend</span></div>
+
+    <div class="nav-group">
+      <div class="nav-group-label">Navigasi</div>
+      <a class="nav-link back" href="index.html">← Architecture Overview</a>
+      <a class="nav-link back" href="phase-1-setup.html">← Phase 1 Guide</a>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-group-label">Scope & Prinsip</div>
+      <a class="nav-link" href="#scope">Scope Standarisasi</a>
+      <a class="nav-link" href="#prinsip">Prinsip Utama</a>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-group-label">Request</div>
+      <a class="nav-link" href="#request-headers">Headers</a>
+      <a class="nav-link" href="#request-body">Body & Validasi</a>
+      <a class="nav-link" href="#naming">Naming Convention</a>
+      <a class="nav-link" href="#versioning">Versioning</a>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-group-label">Response</div>
+      <a class="nav-link" href="#response-envelope">Envelope Format</a>
+      <a class="nav-link" href="#error-format">Error Format</a>
+      <a class="nav-link" href="#status-codes">HTTP Status Codes</a>
+      <a class="nav-link" href="#pagination">Pagination</a>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-group-label">Lanjutan</div>
+      <a class="nav-link" href="#idempotency">Idempotency</a>
+      <a class="nav-link" href="#date-format">Format Tanggal</a>
+      <a class="nav-link" href="#file-upload">File Upload</a>
+      <a class="nav-link" href="#examples">Contoh Lengkap</a>
+      <a class="nav-link" href="#impl">Implementasi Rust</a>
+      <a class="nav-link accent" href="#checklist">Checklist Phase 1.5</a>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-group-label">Dokumen Terkait</div>
+      <a class="nav-link" href="security-baseline.html">🔒 Security Baseline</a>
+    </div>
+  </nav>
+
+  <!-- ── MAIN ── -->
+  <main>
+
+    <!-- HERO -->
+    <div class="hero">
+      <div class="eyebrow">Phase 1.5 — API Standardization</div>
+      <h1>API Standard &amp; <em>Contract</em></h1>
+      <p>Dokumen ini mendefinisikan standar keseluruhan API Rejki Backend — dari format request hingga response, konvensi penamaan, pagination, error codes, hingga idempotency. Semua service wajib mengikuti kontrak ini sebelum Phase 2 dimulai.</p>
+      <div class="badges">
+        <span class="badge b-ph">Phase 1.5</span>
+        <span class="badge b-sl">REST / JSON</span>
+        <span class="badge b-fl">Envelope Flat</span>
+        <span class="badge b-fl">RFC 9457-inspired</span>
+      </div>
+    </div>
+
+    <!-- SCOPE -->
+    <section id="scope">
+      <h2 class="sec-title"><span class="sec-icon ic-p">📋</span>Scope Standarisasi</h2>
+      <p style="color:var(--muted);font-size:.88rem;margin-bottom:1rem;">Berikut seluruh area yang distandarkan dalam dokumen ini, beserta status implementasinya:</p>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Area</th><th>Cakupan</th><th>Implementasi</th></tr></thead>
+          <tbody>
+            <tr class="row-ph15"><td><strong>Request Headers</strong></td><td>Header wajib, Auth, Content-Type, Request-ID</td><td><span style="color:var(--purple);font-size:.75rem;font-weight:700;">Phase 1.5</span></td></tr>
+            <tr class="row-ph15"><td><strong>Response Envelope</strong></td><td><code>success</code>, <code>data</code>, <code>meta</code>, <code>request_id</code></td><td><span style="color:var(--purple);font-size:.75rem;font-weight:700;">Phase 1.5</span></td></tr>
+            <tr class="row-ph15"><td><strong>Error Format</strong></td><td><code>code</code>, <code>message</code>, <code>fields</code>, HTTP status mapping</td><td><span style="color:var(--purple);font-size:.75rem;font-weight:700;">Phase 1.5</span></td></tr>
+            <tr class="row-ph15"><td><strong>HTTP Status Codes</strong></td><td>Matrix kapan pakai 200/201/204/400/401/403/404/409/422/500</td><td><span style="color:var(--purple);font-size:.75rem;font-weight:700;">Phase 1.5</span></td></tr>
+            <tr class="row-ph15"><td><strong>Naming Convention</strong></td><td>Endpoint URL, field JSON, query param</td><td><span style="color:var(--purple);font-size:.75rem;font-weight:700;">Phase 1.5</span></td></tr>
+            <tr class="row-ph15"><td><strong>Pagination</strong></td><td>Offset-based + cursor-based, format <code>meta</code></td><td><span style="color:var(--purple);font-size:.75rem;font-weight:700;">Phase 1.5</span></td></tr>
+            <tr class="row-ph15"><td><strong>Date &amp; Time</strong></td><td>ISO 8601, selalu UTC, format field</td><td><span style="color:var(--purple);font-size:.75rem;font-weight:700;">Phase 1.5</span></td></tr>
+            <tr class="row-ph15"><td><strong>Versioning</strong></td><td>URL path <code>/api/v1/</code>, strategi deprecation</td><td><span style="color:var(--purple);font-size:.75rem;font-weight:700;">Phase 1.5</span></td></tr>
+            <tr class="row-ph15"><td><strong>Idempotency</strong></td><td><code>Idempotency-Key</code> header untuk POST kritis</td><td><span style="color:var(--purple);font-size:.75rem;font-weight:700;">Phase 1.5</span></td></tr>
+            <tr class="row-ph2"><td><strong>Rate Limiting Headers</strong></td><td><code>X-RateLimit-*</code> response headers</td><td><span style="color:var(--blue);font-size:.75rem;font-weight:700;">Phase 3</span></td></tr>
+            <tr class="row-ph2"><td><strong>Webhook Standard</strong></td><td>Signature, retry, payload format</td><td><span style="color:var(--blue);font-size:.75rem;font-weight:700;">Phase 3</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- PRINSIP -->
+    <section id="prinsip">
+      <h2 class="sec-title"><span class="sec-icon ic-p">🧭</span>Prinsip Utama</h2>
+      <div class="conv-grid">
+        <div class="conv-card">
+          <h4>🔒 Konsistensi di atas segalanya</h4>
+          <p>Satu format untuk semua 8 service. Frontend tidak boleh menulis parsing logic yang berbeda per service.</p>
+        </div>
+        <div class="conv-card">
+          <h4>🔍 Error harus dapat di-debug</h4>
+          <p>Setiap error membawa <code>request_id</code>, <code>code</code> mesin-readable, dan <code>message</code> human-readable. Tidak ada "Internal Server Error" tanpa trace-id.</p>
+        </div>
+        <div class="conv-card">
+          <h4>📦 Data selalu dibungkus envelope</h4>
+          <p>Response sukses dan error sama-sama membawa <code>success: bool</code>. Client hanya perlu cek satu field untuk tahu hasilnya.</p>
+        </div>
+        <div class="conv-card">
+          <h4>🔄 Idempoten secara eksplisit</h4>
+          <p>Operasi yang tidak idempoten secara alami (POST, pembayaran, kirim notifikasi) harus mendukung <code>Idempotency-Key</code>.</p>
+        </div>
+        <div class="conv-card">
+          <h4>📅 Waktu selalu UTC</h4>
+          <p>Semua timestamp dalam response menggunakan ISO 8601 UTC. Frontend bertanggung jawab konversi ke timezone user.</p>
+        </div>
+        <div class="conv-card">
+          <h4>🔢 HTTP status bermakna</h4>
+          <p>Jangan kembalikan <code>200</code> dengan body error. Status code harus mencerminkan kondisi nyata — gunakan matriks di bawah.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- REQUEST HEADERS -->
+    <section id="request-headers">
+      <h2 class="sec-title"><span class="sec-icon ic-b">📨</span>Request — Headers</h2>
+
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Header</th><th>Wajib?</th><th>Nilai</th><th>Keterangan</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><code>Content-Type</code></td>
+              <td><span style="color:var(--orange);font-size:.75rem;font-weight:700;">Wajib (body)</span></td>
+              <td><code>application/json</code></td>
+              <td>Wajib untuk POST, PUT, PATCH. Tidak perlu untuk GET/DELETE.</td>
+            </tr>
+            <tr>
+              <td><code>Authorization</code></td>
+              <td><span style="color:var(--orange);font-size:.75rem;font-weight:700;">Wajib (auth)</span></td>
+              <td><code>Bearer &lt;access_token&gt;</code></td>
+              <td>JWT RS256 access token. Token payload berisi <code>sub</code> (user UUID) dan <code>email</code>.</td>
+            </tr>
+            <tr>
+              <td><code>Accept</code></td>
+              <td><span style="color:var(--muted);font-size:.75rem;font-weight:700;">Opsional</span></td>
+              <td><code>application/json</code></td>
+              <td>Server selalu response JSON. Header ini boleh diabaikan.</td>
+            </tr>
+            <tr>
+              <td><code>X-Request-ID</code></td>
+              <td><span style="color:var(--muted);font-size:.75rem;font-weight:700;">Opsional</span></td>
+              <td>UUID v4</td>
+              <td>Jika dikirim client, server echo-back di response. Jika tidak ada, server generate UUID sendiri.</td>
+            </tr>
+            <tr>
+              <td><code>Idempotency-Key</code></td>
+              <td><span style="color:var(--yellow);font-size:.75rem;font-weight:700;">Wajib (POST kritis)</span></td>
+              <td>UUID v4 unik per operasi</td>
+              <td>Diperlukan untuk endpoint yang tidak idempoten: register, pembayaran, kirim notifikasi.</td>
+            </tr>
+            <tr>
+              <td><code>Accept-Language</code></td>
+              <td><span style="color:var(--muted);font-size:.75rem;font-weight:700;">Opsional</span></td>
+              <td><code>id</code> / <code>en</code></td>
+              <td>Default: <code>id</code> (Bahasa Indonesia). Server mengembalikan <code>message</code> sesuai bahasa.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout c-warn" style="margin-top:1rem;">
+        <span class="callout-icon">⚠️</span>
+        <div>
+          <strong>Jangan simpan token di localStorage</strong>
+          <p>Access token disimpan di memory (JS variable). Refresh token disimpan di <code>HttpOnly Secure SameSite=Strict</code> cookie — tidak bisa diakses JavaScript. Ini mencegah XSS token theft.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- REQUEST BODY & VALIDASI -->
+    <section id="request-body">
+      <h2 class="sec-title"><span class="sec-icon ic-b">📝</span>Request — Body &amp; Validasi</h2>
+
+      <div class="sub-title">Struktur Body</div>
+      <p style="color:var(--muted);font-size:.85rem;margin-bottom:.5rem;">Request body selalu JSON flat (tidak nested berlebihan). Field names menggunakan <code>snake_case</code>.</p>
+
+      <div class="code">
+        <pre><span class="cc">// POST /api/v1/auth/register</span>
+{
+  <span class="cs">"email"</span>: <span class="cs">"rizki@example.com"</span>,
+  <span class="cs">"password"</span>: <span class="cs">"MinLength8Chars!"</span>,
+  <span class="cs">"nama_lengkap"</span>: <span class="cs">"Rizki Ramadhan"</span>
+}</pre>
+      </div>
+
+      <div class="sub-title">Aturan Validasi</div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Field Type</th><th>Aturan</th><th>Error Code jika gagal</th></tr></thead>
+          <tbody>
+            <tr><td>String kosong</td><td>Wajib non-empty jika <span class="req">required</span></td><td><span class="err-code">VALIDATION_ERROR</span></td></tr>
+            <tr><td>Email</td><td>Format RFC 5322, max 254 karakter</td><td><span class="err-code">VALIDATION_ERROR</span></td></tr>
+            <tr><td>Password</td><td>Min 8 karakter, kombinasi huruf + angka</td><td><span class="err-code">VALIDATION_ERROR</span></td></tr>
+            <tr><td>UUID</td><td>Format UUID v4 valid</td><td><span class="err-code">VALIDATION_ERROR</span></td></tr>
+            <tr><td>Integer/amount</td><td>Non-negatif, dalam batas <code>i64</code></td><td><span class="err-code">VALIDATION_ERROR</span></td></tr>
+            <tr><td>Array</td><td>Max panjang didefinisikan per endpoint</td><td><span class="err-code">VALIDATION_ERROR</span></td></tr>
+            <tr><td>Content-Type</td><td>Harus <code>application/json</code> untuk body</td><td><span class="err-code">UNSUPPORTED_MEDIA_TYPE</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout c-info" style="margin-top:1rem;">
+        <span class="callout-icon">💡</span>
+        <div>
+          <strong>Validasi dilakukan di layer <code>interface/</code></strong>
+          <p>Gunakan <code>validator::Validate</code> derive macro pada DTO. Extractor <code>ValidatedJson&lt;T&gt;</code> di <code>common/errors</code> otomatis reject request dengan format error standar sebelum menyentuh <code>application/</code> layer.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- NAMING CONVENTION -->
+    <section id="naming">
+      <h2 class="sec-title"><span class="sec-icon ic-o">🏷️</span>Naming Convention</h2>
+
+      <div class="conv-grid">
+
+        <div class="conv-card">
+          <h4>URL Endpoint</h4>
+          <p>Lowercase, kata dipisah dengan hyphen (<code>kebab-case</code>), resource plural.</p>
+          <div class="conv-example">
+            <div class="conv-good">✓ /api/v1/iklan-pekerjaan</div>
+            <div class="conv-good">✓ /api/v1/users/{id}/profile</div>
+            <div class="conv-bad">✗ /api/v1/iklanPekerjaan</div>
+            <div class="conv-bad">✗ /api/v1/user/{id}/Profile</div>
+          </div>
+        </div>
+
+        <div class="conv-card">
+          <h4>JSON Field</h4>
+          <p>Selalu <code>snake_case</code>. Konsisten antara request dan response.</p>
+          <div class="conv-example">
+            <div class="conv-good">✓ "nama_lengkap", "created_at"</div>
+            <div class="conv-good">✓ "is_active", "foto_urls"</div>
+            <div class="conv-bad">✗ "namaLengkap", "CreatedAt"</div>
+            <div class="conv-bad">✗ "isActive", "fotoUrls"</div>
+          </div>
+        </div>
+
+        <div class="conv-card">
+          <h4>Query Parameter</h4>
+          <p><code>snake_case</code>. Gunakan nama yang deskriptif.</p>
+          <div class="conv-example">
+            <div class="conv-good">✓ ?page=1&amp;per_page=20</div>
+            <div class="conv-good">✓ ?sort_by=created_at&amp;order=desc</div>
+            <div class="conv-bad">✗ ?pageSize=20&amp;sortBy=date</div>
+          </div>
+        </div>
+
+        <div class="conv-card">
+          <h4>Error Code</h4>
+          <p><code>SCREAMING_SNAKE_CASE</code>. Mesin-readable, tidak berubah antar versi.</p>
+          <div class="conv-example">
+            <div class="conv-good">✓ "VALIDATION_ERROR"</div>
+            <div class="conv-good">✓ "USER_NOT_FOUND"</div>
+            <div class="conv-bad">✗ "validationError"</div>
+            <div class="conv-bad">✗ "user not found"</div>
+          </div>
+        </div>
+
+        <div class="conv-card">
+          <h4>Boolean Field</h4>
+          <p>Prefix <code>is_</code> atau <code>has_</code>. Jangan <code>status</code> untuk boolean.</p>
+          <div class="conv-example">
+            <div class="conv-good">✓ "is_active", "is_sold"</div>
+            <div class="conv-good">✓ "has_photo", "is_read"</div>
+            <div class="conv-bad">✗ "active", "status"</div>
+            <div class="conv-bad">✗ "sold_status"</div>
+          </div>
+        </div>
+
+        <div class="conv-card">
+          <h4>ID Field</h4>
+          <p>Selalu UUID v4. Field bernama <code>id</code> di root, referensi ke entity lain dengan suffix <code>_id</code>.</p>
+          <div class="conv-example">
+            <div class="conv-good">✓ "id": "uuid-v4"</div>
+            <div class="conv-good">✓ "user_id", "seller_id"</div>
+            <div class="conv-bad">✗ integer auto-increment</div>
+            <div class="conv-bad">✗ "userId", "sellerId"</div>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="sub-title">Konvensi HTTP Method</div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Method</th><th>Semantik</th><th>Idempoten?</th><th>Contoh</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><span class="method m-get">GET</span></td>
+              <td>Ambil resource. Tidak mengubah state.</td>
+              <td>Ya</td>
+              <td><code>GET /api/v1/iklan-pekerjaan/{id}</code></td>
+            </tr>
+            <tr>
+              <td><span class="method m-post">POST</span></td>
+              <td>Buat resource baru atau trigger aksi (login, logout).</td>
+              <td>Tidak</td>
+              <td><code>POST /api/v1/iklan-pekerjaan</code></td>
+            </tr>
+            <tr>
+              <td><span class="method m-put">PUT</span></td>
+              <td>Replace seluruh resource. Jarang dipakai — prefer PATCH.</td>
+              <td>Ya</td>
+              <td><code>PUT /api/v1/users/{id}/profile</code></td>
+            </tr>
+            <tr>
+              <td><span class="method m-patch">PATCH</span></td>
+              <td>Update sebagian field resource.</td>
+              <td>Ya (jika field eksplisit)</td>
+              <td><code>PATCH /api/v1/iklan-barang/{id}/sold</code></td>
+            </tr>
+            <tr>
+              <td><span class="method m-delete">DELETE</span></td>
+              <td>Hapus resource. Return <span class="sc sc-2">204</span> jika sukses.</td>
+              <td>Ya</td>
+              <td><code>DELETE /api/v1/iklan-pekerjaan/{id}</code></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- VERSIONING -->
+    <section id="versioning">
+      <h2 class="sec-title"><span class="sec-icon ic-b">🔢</span>Versioning</h2>
+
+      <p style="color:var(--muted);font-size:.85rem;margin-bottom:1rem;">Versi API menggunakan <strong>URL path prefix</strong>, bukan header. Ini lebih mudah di-debug, di-cache, dan diakses via browser.</p>
+
+      <div class="code">
+        <pre><span class="cc"># Format URL</span>
+/api/v{major}/{resource}
+
+<span class="cc"># Contoh</span>
+<span class="cv">GET</span>  /api/v1/iklan-pekerjaan
+<span class="cv">POST</span> /api/v1/auth/login
+<span class="cv">GET</span>  /api/v1/users/<span class="ct">{id}</span>/profile</pre>
+      </div>
+
+      <div class="sub-title">Kapan Bump Major Version?</div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Perubahan</th><th>Breaking?</th><th>Aksi</th></tr></thead>
+          <tbody>
+            <tr><td>Tambah field baru di response</td><td>Tidak</td><td>Deploy langsung — client harus ignore field unknown</td></tr>
+            <tr><td>Ubah tipe field (<code>string</code> → <code>int</code>)</td><td>Ya</td><td>Bump ke <code>v2</code>, pertahankan <code>v1</code> 90 hari</td></tr>
+            <tr><td>Hapus field dari response</td><td>Ya</td><td>Bump ke <code>v2</code>, deprecation notice di response header</td></tr>
+            <tr><td>Ubah semantik endpoint</td><td>Ya</td><td>Buat endpoint baru di <code>v2</code></td></tr>
+            <tr><td>Tambah validasi baru (field jadi required)</td><td>Ya</td><td>Bump ke <code>v2</code></td></tr>
+            <tr><td>Ubah error code</td><td>Ya</td><td>Bump ke <code>v2</code>, jangan ubah error code di versi yang sama</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout c-info">
+        <span class="callout-icon">💡</span>
+        <div>
+          <strong>Deprecation header</strong>
+          <p>Saat endpoint sudah deprecated, tambah response header: <code>Deprecation: true</code> dan <code>Sunset: Sat, 01 Jan 2027 00:00:00 GMT</code>. Client dapat mendeteksi ini dan log warning.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- RESPONSE ENVELOPE -->
+    <section id="response-envelope">
+      <h2 class="sec-title"><span class="sec-icon ic-g">📦</span>Response — Envelope Format</h2>
+
+      <p style="color:var(--muted);font-size:.85rem;margin-bottom:1rem;">Semua response (sukses maupun error) dibungkus dalam envelope yang sama. Client hanya perlu cek <code>success</code>.</p>
+
+      <div class="sub-title">Response Sukses — Single Resource</div>
+      <div class="code">
+        <pre>{
+  <span class="cs">"success"</span>: <span class="ck">true</span>,
+  <span class="cs">"data"</span>: {
+    <span class="cs">"id"</span>: <span class="cs">"550e8400-e29b-41d4-a716-446655440000"</span>,
+    <span class="cs">"judul"</span>: <span class="cs">"Software Engineer Rust"</span>,
+    <span class="cs">"perusahaan"</span>: <span class="cs">"PT Rejki Teknologi"</span>,
+    <span class="cs">"is_active"</span>: <span class="ck">true</span>,
+    <span class="cs">"created_at"</span>: <span class="cs">"2026-06-09T10:00:00Z"</span>
+  },
+  <span class="cs">"request_id"</span>: <span class="cs">"req_7f3a9c2d-1e4b-4f8a-b2d5-9e0c1a2b3d4e"</span>
+}</pre>
+      </div>
+
+      <div class="sub-title">Response Sukses — List dengan Pagination</div>
+      <div class="code">
+        <pre>{
+  <span class="cs">"success"</span>: <span class="ck">true</span>,
+  <span class="cs">"data"</span>: [
+    { <span class="cs">"id"</span>: <span class="cs">"..."</span>, <span class="cs">"judul"</span>: <span class="cs">"..."</span> },
+    { <span class="cs">"id"</span>: <span class="cs">"..."</span>, <span class="cs">"judul"</span>: <span class="cs">"..."</span> }
+  ],
+  <span class="cs">"meta"</span>: {
+    <span class="cs">"page"</span>: <span class="cv">1</span>,
+    <span class="cs">"per_page"</span>: <span class="cv">20</span>,
+    <span class="cs">"total"</span>: <span class="cv">157</span>,
+    <span class="cs">"total_pages"</span>: <span class="cv">8</span>
+  },
+  <span class="cs">"request_id"</span>: <span class="cs">"req_7f3a9c2d-1e4b-4f8a-b2d5-9e0c1a2b3d4e"</span>
+}</pre>
+      </div>
+
+      <div class="sub-title">Response Sukses — Tanpa Body (DELETE)</div>
+      <div class="code">
+        <pre><span class="cc"># HTTP 204 No Content</span>
+<span class="cc"># Body kosong — tidak ada JSON</span></pre>
+      </div>
+
+      <div class="sub-title">Definisi Field Envelope</div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Field</th><th>Tipe</th><th>Selalu Ada?</th><th>Keterangan</th></tr></thead>
+          <tbody>
+            <tr><td><span class="field">success</span></td><td><code>bool</code></td><td>Ya</td><td><code>true</code> jika operasi berhasil</td></tr>
+            <tr><td><span class="field">data</span></td><td><code>object | array | null</code></td><td>Saat sukses</td><td>Payload utama. <code>null</code> jika tidak ada data (misal: logout)</td></tr>
+            <tr><td><span class="field">meta</span></td><td><code>object | null</code></td><td>Saat list/paginated</td><td>Info pagination. Tidak ada untuk single resource.</td></tr>
+            <tr><td><span class="field">request_id</span></td><td><code>string</code></td><td>Ya</td><td>UUID unik per request. Echo dari header <code>X-Request-ID</code> atau di-generate server.</td></tr>
+            <tr><td><span class="field">error</span></td><td><code>object</code></td><td>Saat gagal</td><td>Ada hanya saat <code>success: false</code>. Lihat seksi Error Format.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ERROR FORMAT -->
+    <section id="error-format">
+      <h2 class="sec-title"><span class="sec-icon ic-o">❌</span>Error Format</h2>
+
+      <div class="sub-title">Struktur Error Response</div>
+      <div class="code">
+        <pre>{
+  <span class="cs">"success"</span>: <span class="ck">false</span>,
+  <span class="cs">"error"</span>: {
+    <span class="cs">"code"</span>: <span class="cs">"VALIDATION_ERROR"</span>,           <span class="cc">// mesin-readable, tidak berubah antar versi</span>
+    <span class="cs">"message"</span>: <span class="cs">"Data yang dikirim tidak valid"</span>, <span class="cc">// human-readable, bisa berubah</span>
+    <span class="cs">"fields"</span>: {                           <span class="cc">// ada hanya untuk VALIDATION_ERROR</span>
+      <span class="cs">"email"</span>: <span class="cs">"Format email tidak valid"</span>,
+      <span class="cs">"password"</span>: <span class="cs">"Minimal 8 karakter"</span>
+    }
+  },
+  <span class="cs">"request_id"</span>: <span class="cs">"req_7f3a9c2d-1e4b-4f8a-b2d5-9e0c1a2b3d4e"</span>
+}</pre>
+      </div>
+
+      <div class="sub-title">Daftar Error Code</div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Error Code</th><th>HTTP Status</th><th>Kapan Digunakan</th></tr></thead>
+          <tbody>
+            <tr><td><span class="err-code">VALIDATION_ERROR</span></td><td><span class="sc sc-4">422</span></td><td>Field tidak valid, format salah, constraint gagal. Sertakan <code>fields</code>.</td></tr>
+            <tr><td><span class="err-code">UNAUTHORIZED</span></td><td><span class="sc sc-4">401</span></td><td>Token tidak ada, expired, atau signature invalid.</td></tr>
+            <tr><td><span class="err-code">FORBIDDEN</span></td><td><span class="sc sc-4">403</span></td><td>Token valid tapi user tidak punya akses ke resource ini.</td></tr>
+            <tr><td><span class="err-code">NOT_FOUND</span></td><td><span class="sc sc-4">404</span></td><td>Resource tidak ditemukan atau sudah dihapus.</td></tr>
+            <tr><td><span class="err-code">CONFLICT</span></td><td><span class="sc sc-4">409</span></td><td>Email sudah terdaftar, slug duplikat, state tidak kompatibel.</td></tr>
+            <tr><td><span class="err-code">GONE</span></td><td><span class="sc sc-4">410</span></td><td>Resource soft-deleted — pernah ada tapi sudah dihapus permanen.</td></tr>
+            <tr><td><span class="err-code">RATE_LIMITED</span></td><td><span class="sc sc-4">429</span></td><td>Terlalu banyak request. Sertakan <code>Retry-After</code> header.</td></tr>
+            <tr><td><span class="err-code">UNSUPPORTED_MEDIA_TYPE</span></td><td><span class="sc sc-4">415</span></td><td>Content-Type bukan <code>application/json</code>.</td></tr>
+            <tr><td><span class="err-code">BAD_REQUEST</span></td><td><span class="sc sc-4">400</span></td><td>JSON malformed, body tidak bisa diparsing.</td></tr>
+            <tr><td><span class="err-code">IDEMPOTENCY_CONFLICT</span></td><td><span class="sc sc-4">409</span></td><td><code>Idempotency-Key</code> sudah dipakai dengan payload berbeda.</td></tr>
+            <tr><td><span class="err-code">INTERNAL_ERROR</span></td><td><span class="sc sc-5">500</span></td><td>Error tidak terduga di server. Jangan bocorkan detail ke client.</td></tr>
+            <tr><td><span class="err-code">SERVICE_UNAVAILABLE</span></td><td><span class="sc sc-5">503</span></td><td>Server sedang maintenance atau overload.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout c-danger">
+        <span class="callout-icon">🚫</span>
+        <div>
+          <strong>Jangan bocorkan detail internal ke client</strong>
+          <p>Untuk <span class="err-code">INTERNAL_ERROR</span>, hanya kirimkan <code>request_id</code>. Detail stack trace, SQL error, atau path file hanya boleh ada di server log — tidak di response body.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- STATUS CODES -->
+    <section id="status-codes">
+      <h2 class="sec-title"><span class="sec-icon ic-y">🔢</span>HTTP Status Code Matrix</h2>
+
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Status</th><th>Nama</th><th>Kapan Digunakan di Rejki</th></tr></thead>
+          <tbody>
+            <tr><td><span class="sc sc-2">200 OK</span></td><td>OK</td><td>GET sukses, POST aksi (login, logout sukses dengan body), PATCH sukses dengan body</td></tr>
+            <tr><td><span class="sc sc-2">201 Created</span></td><td>Created</td><td>POST buat resource baru (register, buat iklan). Sertakan <code>Location</code> header: <code>/api/v1/iklan-pekerjaan/{id}</code></td></tr>
+            <tr><td><span class="sc sc-2">204 No Content</span></td><td>No Content</td><td>DELETE sukses, logout (jika tidak ada body), PATCH tanpa return body</td></tr>
+            <tr><td><span class="sc sc-3">301 Moved Permanently</span></td><td>Moved</td><td>Endpoint deprecated, redirect permanen ke versi baru</td></tr>
+            <tr><td><span class="sc sc-4">400 Bad Request</span></td><td>Bad Request</td><td>JSON malformed, body kosong padahal wajib ada</td></tr>
+            <tr><td><span class="sc sc-4">401 Unauthorized</span></td><td>Unauthorized</td><td>Token tidak ada, expired, signature invalid. Response sertakan <code>WWW-Authenticate: Bearer</code></td></tr>
+            <tr><td><span class="sc sc-4">403 Forbidden</span></td><td>Forbidden</td><td>Token valid, tapi user bukan pemilik resource atau tidak punya role yang cukup</td></tr>
+            <tr><td><span class="sc sc-4">404 Not Found</span></td><td>Not Found</td><td>Resource tidak ada di DB, atau URL endpoint tidak terdaftar</td></tr>
+            <tr><td><span class="sc sc-4">409 Conflict</span></td><td>Conflict</td><td>Email duplikat saat register, state konflik (iklan sudah sold)</td></tr>
+            <tr><td><span class="sc sc-4">410 Gone</span></td><td>Gone</td><td>Resource pernah ada tapi sudah dihapus. Bedakan dari 404 jika perlu.</td></tr>
+            <tr><td><span class="sc sc-4">415 Unsupported Media Type</span></td><td>Bad Media</td><td>Content-Type bukan <code>application/json</code></td></tr>
+            <tr><td><span class="sc sc-4">422 Unprocessable</span></td><td>Validation Failed</td><td>Body valid JSON tapi konten gagal validasi bisnis. Gunakan ini untuk validasi field.</td></tr>
+            <tr><td><span class="sc sc-4">429 Too Many Requests</span></td><td>Rate Limited</td><td>Sertakan <code>Retry-After: 60</code> header (dalam detik)</td></tr>
+            <tr><td><span class="sc sc-5">500 Internal Server Error</span></td><td>Server Error</td><td>Panic, DB connection gagal, error tak terduga. Log detail, kirim hanya <code>request_id</code> ke client.</td></tr>
+            <tr><td><span class="sc sc-5">503 Service Unavailable</span></td><td>Unavailable</td><td>Health check gagal, maintenance mode. Sertakan <code>Retry-After</code>.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout c-warn">
+        <span class="callout-icon">⚠️</span>
+        <div>
+          <strong>400 vs 422 — perbedaan penting</strong>
+          <p><span class="sc sc-4">400</span> untuk JSON yang tidak bisa diparsing sama sekali (syntax error). <span class="sc sc-4">422</span> untuk JSON valid tapi konten gagal validasi (email format salah, field required kosong). Jangan campur keduanya.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- PAGINATION -->
+    <section id="pagination">
+      <h2 class="sec-title"><span class="sec-icon ic-b">📄</span>Pagination</h2>
+
+      <p style="color:var(--muted);font-size:.85rem;margin-bottom:1rem;">Rejki menggunakan dua strategi pagination sesuai use case:</p>
+
+      <div class="sub-title">Offset-based Pagination</div>
+      <p style="color:var(--muted);font-size:.83rem;margin-bottom:.5rem;">Untuk endpoint yang bisa loncat halaman: iklan listing, riwayat transaksi, daftar user.</p>
+
+      <div class="code-cols">
+        <div>
+          <div class="code-col-label">Request</div>
+          <div class="code">
+            <pre>GET /api/v1/iklan-pekerjaan
+  ?page=2
+  &amp;per_page=20
+  &amp;sort_by=created_at
+  &amp;order=desc</pre>
+          </div>
+        </div>
+        <div>
+          <div class="code-col-label">Response meta</div>
+          <div class="code">
+            <pre><span class="cs">"meta"</span>: {
+  <span class="cs">"page"</span>: <span class="cv">2</span>,
+  <span class="cs">"per_page"</span>: <span class="cv">20</span>,
+  <span class="cs">"total"</span>: <span class="cv">157</span>,
+  <span class="cs">"total_pages"</span>: <span class="cv">8</span>
+}</pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="sub-title">Cursor-based Pagination</div>
+      <p style="color:var(--muted);font-size:.83rem;margin-bottom:.5rem;">Untuk real-time feed yang terus berubah: chat messages, notifikasi. Lebih efisien karena tidak pakai <code>COUNT(*)</code>.</p>
+
+      <div class="code-cols">
+        <div>
+          <div class="code-col-label">Request (halaman pertama)</div>
+          <div class="code">
+            <pre>GET /api/v1/chat/messages
+  ?limit=30</pre>
+          </div>
+        </div>
+        <div>
+          <div class="code-col-label">Request (halaman berikut)</div>
+          <div class="code">
+            <pre>GET /api/v1/chat/messages
+  ?limit=30
+  &amp;before=<span class="ct">{cursor}</span></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="code" style="margin-top:.75rem;">
+        <pre><span class="cc">// Response cursor pagination</span>
+{
+  <span class="cs">"success"</span>: <span class="ck">true</span>,
+  <span class="cs">"data"</span>: [ <span class="cc">/* array messages */</span> ],
+  <span class="cs">"meta"</span>: {
+    <span class="cs">"limit"</span>: <span class="cv">30</span>,
+    <span class="cs">"has_more"</span>: <span class="ck">true</span>,
+    <span class="cs">"next_cursor"</span>: <span class="cs">"2026-06-09T09:55:00Z_msg-uuid"</span>,  <span class="cc">// opaque string</span>
+    <span class="cs">"prev_cursor"</span>: <span class="ck">null</span>
+  },
+  <span class="cs">"request_id"</span>: <span class="cs">"req_..."</span>
+}</pre>
+      </div>
+
+      <div class="sub-title">Aturan Pagination</div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Parameter</th><th>Default</th><th>Max</th><th>Keterangan</th></tr></thead>
+          <tbody>
+            <tr><td><span class="field">page</span></td><td>1</td><td>—</td><td>1-indexed. Page 0 dianggap invalid, return 422.</td></tr>
+            <tr><td><span class="field">per_page</span></td><td>20</td><td>100</td><td>Lebih dari 100 return 422 dengan <span class="err-code">VALIDATION_ERROR</span>.</td></tr>
+            <tr><td><span class="field">sort_by</span></td><td><code>created_at</code></td><td>—</td><td>Whitelist field yang boleh di-sort. Reject field tidak dikenal.</td></tr>
+            <tr><td><span class="field">order</span></td><td><code>desc</code></td><td>—</td><td>Hanya <code>asc</code> atau <code>desc</code>. Nilai lain return 422.</td></tr>
+            <tr><td><span class="field">limit</span> (cursor)</td><td>20</td><td>100</td><td>Untuk cursor pagination.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- IDEMPOTENCY -->
+    <section id="idempotency">
+      <h2 class="sec-title"><span class="sec-icon ic-g">🔁</span>Idempotency</h2>
+
+      <p style="color:var(--muted);font-size:.85rem;margin-bottom:1rem;">Operasi POST yang tidak idempoten secara alami harus mendukung <code>Idempotency-Key</code> header untuk mencegah double-submit akibat retry jaringan.</p>
+
+      <div class="sub-title">Endpoint yang Memerlukan Idempotency-Key</div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Endpoint</th><th>Alasan</th></tr></thead>
+          <tbody>
+            <tr><td><code>POST /api/v1/auth/register</code></td><td>Double register bisa buat dua akun dengan email sama jika request di-retry</td></tr>
+            <tr><td><code>POST /api/v1/auth/send-otp</code></td><td>Bisa kirim OTP berkali-kali jika di-retry</td></tr>
+            <tr><td><code>POST /api/v1/notifikasi</code></td><td>Notifikasi duplikat mengganggu user</td></tr>
+            <tr><td><code>POST /api/v1/chat/messages</code></td><td>Pesan terkirim ganda jika client retry</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sub-title">Cara Kerja</div>
+      <div class="code">
+        <pre><span class="cc"># Request pertama — diproses normal</span>
+<span class="cv">POST</span> /api/v1/auth/register
+Idempotency-Key: <span class="cs">550e8400-e29b-41d4-a716-446655440000</span>
+<span class="cc">→ HTTP 201 Created</span>
+
+<span class="cc"># Request kedua dengan key yang sama — return hasil yang sama, tidak proses ulang</span>
+<span class="cv">POST</span> /api/v1/auth/register
+Idempotency-Key: <span class="cs">550e8400-e29b-41d4-a716-446655440000</span>
+<span class="cc">→ HTTP 201 Created (cached, tidak buat akun baru)</span>
+
+<span class="cc"># Request dengan key sama tapi payload berbeda — conflict</span>
+<span class="cv">POST</span> /api/v1/auth/register
+Idempotency-Key: <span class="cs">550e8400-e29b-41d4-a716-446655440000</span>
+<span class="cc">→ HTTP 409 IDEMPOTENCY_CONFLICT</span></pre>
+      </div>
+
+      <div class="callout c-info">
+        <span class="callout-icon">💡</span>
+        <div>
+          <strong>Idempotency key disimpan di mana?</strong>
+          <p>Simpan di tabel <code>idempotency_keys</code> di schema <code>common</code> atau per-service. Key kedaluwarsa setelah 24 jam. Di Phase 1.5, ini bisa disederhanakan dengan cek uniqueness constraint di DB.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- DATE FORMAT -->
+    <section id="date-format">
+      <h2 class="sec-title"><span class="sec-icon ic-y">📅</span>Format Tanggal &amp; Waktu</h2>
+
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Konteks</th><th>Format</th><th>Contoh</th></tr></thead>
+          <tbody>
+            <tr><td>Timestamp DB (<code>TIMESTAMPTZ</code>)</td><td>Disimpan UTC di PostgreSQL</td><td><code>2026-06-09 10:00:00+00</code></td></tr>
+            <tr><td>Timestamp JSON response</td><td>ISO 8601 UTC dengan <code>Z</code></td><td><code>"created_at": "2026-06-09T10:00:00Z"</code></td></tr>
+            <tr><td>Tanggal saja (tanpa jam)</td><td>ISO 8601 date</td><td><code>"tanggal_mulai": "2026-07-01"</code></td></tr>
+            <tr><td>Durasi</td><td>ISO 8601 duration</td><td><code>"duration": "PT2H30M"</code></td></tr>
+            <tr><td>Request body (input user)</td><td>ISO 8601 (server parse)</td><td><code>"tanggal_selesai": "2026-08-31T00:00:00Z"</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout c-purple">
+        <span class="callout-icon">🌍</span>
+        <div>
+          <strong>Selalu UTC di server, timezone di client</strong>
+          <p>Server tidak pernah mengembalikan timestamp dengan offset timezone lokal (misal <code>+07:00</code>). Frontend (Flutter) bertanggung jawab mengkonversi UTC ke timezone user menggunakan <code>DateTime.toLocal()</code> atau library intl.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- CONTOH LENGKAP -->
+    <section id="examples">
+      <h2 class="sec-title"><span class="sec-icon ic-g">📚</span>Contoh Lengkap per Use Case</h2>
+
+      <!-- Register -->
+      <div class="sub-title">1. Register User Baru</div>
+      <div class="code-cols">
+        <div>
+          <div class="code-col-label">Request</div>
+          <div class="code">
+            <pre><span class="cv">POST</span> /api/v1/auth/register
+Content-Type: application/json
+Idempotency-Key: 550e8400-e29b-41d4-a716-446655440000
+
+{
+  <span class="cs">"email"</span>: <span class="cs">"rizki@example.com"</span>,
+  <span class="cs">"password"</span>: <span class="cs">"Rahasia123!"</span>,
+  <span class="cs">"nama_lengkap"</span>: <span class="cs">"Rizki R"</span>
+}</pre>
+          </div>
+        </div>
+        <div>
+          <div class="code-col-label">Response 201</div>
+          <div class="code">
+            <pre>HTTP/1.1 <span class="cv">201 Created</span>
+Location: /api/v1/users/uuid
+
+{
+  <span class="cs">"success"</span>: <span class="ck">true</span>,
+  <span class="cs">"data"</span>: {
+    <span class="cs">"user_id"</span>: <span class="cs">"uuid"</span>,
+    <span class="cs">"email"</span>: <span class="cs">"rizki@example.com"</span>
+  },
+  <span class="cs">"request_id"</span>: <span class="cs">"req_..."</span>
+}</pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- Validation error -->
+      <div class="sub-title" style="margin-top:1.5rem;">2. Validasi Gagal</div>
+      <div class="code-cols">
+        <div>
+          <div class="code-col-label">Request (password terlalu pendek)</div>
+          <div class="code">
+            <pre><span class="cv">POST</span> /api/v1/auth/register
+Content-Type: application/json
+
+{
+  <span class="cs">"email"</span>: <span class="cs">"bukan-email"</span>,
+  <span class="cs">"password"</span>: <span class="cs">"123"</span>
+}</pre>
+          </div>
+        </div>
+        <div>
+          <div class="code-col-label">Response 422</div>
+          <div class="code">
+            <pre>HTTP/1.1 <span class="sc-4">422 Unprocessable</span>
+
+{
+  <span class="cs">"success"</span>: <span class="ck">false</span>,
+  <span class="cs">"error"</span>: {
+    <span class="cs">"code"</span>: <span class="cs">"VALIDATION_ERROR"</span>,
+    <span class="cs">"message"</span>: <span class="cs">"Data tidak valid"</span>,
+    <span class="cs">"fields"</span>: {
+      <span class="cs">"email"</span>: <span class="cs">"Format email tidak valid"</span>,
+      <span class="cs">"password"</span>: <span class="cs">"Minimal 8 karakter"</span>,
+      <span class="cs">"nama_lengkap"</span>: <span class="cs">"Wajib diisi"</span>
+    }
+  },
+  <span class="cs">"request_id"</span>: <span class="cs">"req_..."</span>
+}</pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- Login sukses -->
+      <div class="sub-title" style="margin-top:1.5rem;">3. Login Sukses</div>
+      <div class="code-cols">
+        <div>
+          <div class="code-col-label">Request</div>
+          <div class="code">
+            <pre><span class="cv">POST</span> /api/v1/auth/login
+Content-Type: application/json
+
+{
+  <span class="cs">"email"</span>: <span class="cs">"rizki@example.com"</span>,
+  <span class="cs">"password"</span>: <span class="cs">"Rahasia123!"</span>
+}</pre>
+          </div>
+        </div>
+        <div>
+          <div class="code-col-label">Response 200</div>
+          <div class="code">
+            <pre>HTTP/1.1 <span class="cv">200 OK</span>
+Set-Cookie: refresh_token=...; HttpOnly; Secure; SameSite=Strict
+
+{
+  <span class="cs">"success"</span>: <span class="ck">true</span>,
+  <span class="cs">"data"</span>: {
+    <span class="cs">"access_token"</span>: <span class="cs">"eyJ..."</span>,
+    <span class="cs">"expires_in"</span>: <span class="cv">900</span>
+  },
+  <span class="cs">"request_id"</span>: <span class="cs">"req_..."</span>
+}</pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- List dengan pagination -->
+      <div class="sub-title" style="margin-top:1.5rem;">4. List Resource dengan Pagination</div>
+      <div class="code-cols">
+        <div>
+          <div class="code-col-label">Request</div>
+          <div class="code">
+            <pre><span class="cv">GET</span> /api/v1/iklan-pekerjaan
+  ?page=1&amp;per_page=20&amp;order=desc
+Authorization: Bearer eyJ...</pre>
+          </div>
+        </div>
+        <div>
+          <div class="code-col-label">Response 200</div>
+          <div class="code">
+            <pre>HTTP/1.1 <span class="cv">200 OK</span>
+
+{
+  <span class="cs">"success"</span>: <span class="ck">true</span>,
+  <span class="cs">"data"</span>: [ <span class="cc">/* array */</span> ],
+  <span class="cs">"meta"</span>: {
+    <span class="cs">"page"</span>: <span class="cv">1</span>,
+    <span class="cs">"per_page"</span>: <span class="cv">20</span>,
+    <span class="cs">"total"</span>: <span class="cv">157</span>,
+    <span class="cs">"total_pages"</span>: <span class="cv">8</span>
+  },
+  <span class="cs">"request_id"</span>: <span class="cs">"req_..."</span>
+}</pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- DELETE -->
+      <div class="sub-title" style="margin-top:1.5rem;">5. Delete Resource</div>
+      <div class="code-cols">
+        <div>
+          <div class="code-col-label">Request</div>
+          <div class="code">
+            <pre><span class="cv">DELETE</span> /api/v1/iklan-pekerjaan/{id}
+Authorization: Bearer eyJ...</pre>
+          </div>
+        </div>
+        <div>
+          <div class="code-col-label">Response 204</div>
+          <div class="code">
+            <pre>HTTP/1.1 <span class="cv">204 No Content</span>
+
+<span class="cc"># Body kosong</span></pre>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FILE UPLOAD -->
+    <section id="file-upload">
+      <h2 class="sec-title"><span class="sec-icon ic-p">📎</span>File Upload</h2>
+
+      <p style="color:var(--muted);font-size:.85rem;margin-bottom:1rem;">Rejki menggunakan pola <strong>Presigned URL</strong> — server tidak pernah menerima bytes file secara langsung. Client upload langsung ke object storage (Cloudflare R2 / AWS S3). Ini mencegah server menjadi bottleneck dan menyederhanakan scaling.</p>
+
+      <div class="sub-title">Flow Presigned URL</div>
+      <div class="code">
+        <pre><span class="cc">┌─────────────┐        ┌──────────────────┐        ┌──────────────┐</span>
+<span class="cc">│   Flutter   │        │   Rejki Backend  │        │  R2 / S3     │</span>
+<span class="cc">└──────┬──────┘        └────────┬─────────┘        └──────┬───────┘</span>
+       │                        │                          │
+       │  1. POST /api/v1/uploads/presign                  │
+       │     { type, size, mime_type }                     │
+       │ ─────────────────────►  │                         │
+       │                        │  2. Generate presigned   │
+       │                        │     PUT URL (TTL 5 menit)│
+       │                        │ ──────────────────────►  │
+       │  3. { upload_url, file_key, expires_at }          │
+       │ ◄─────────────────────  │                         │
+       │                        │                          │
+       │  4. PUT {upload_url} (binary, langsung ke R2/S3)  │
+       │ ─────────────────────────────────────────────── ► │
+       │  5. 200 OK (dari R2/S3)                           │
+       │ ◄──────────────────────────────────────────────   │
+       │                        │                          │
+       │  6. POST /api/v1/iklan-barang/{id}                │
+       │     { ..., "foto_urls": ["file_key"] }            │
+       │ ─────────────────────► │                          │
+       │  7. 201 Created        │                          │
+       │ ◄─────────────────────  │                         │</pre>
+      </div>
+
+      <div class="sub-title">Request — Minta Presigned URL</div>
+      <div class="code-cols">
+        <div>
+          <div class="code-col-label">Request</div>
+          <div class="code">
+            <pre><span class="cv">POST</span> /api/v1/uploads/presign
+Authorization: Bearer eyJ...
+Content-Type: application/json
+
+{
+  <span class="cs">"mime_type"</span>: <span class="cs">"image/jpeg"</span>,
+  <span class="cs">"size_bytes"</span>: <span class="cv">2097152</span>,   <span class="cc">// 2 MB</span>
+  <span class="cs">"context"</span>: <span class="cs">"iklan_foto"</span>  <span class="cc">// scope penggunaan</span>
+}</pre>
+          </div>
+        </div>
+        <div>
+          <div class="code-col-label">Response 200</div>
+          <div class="code">
+            <pre>{
+  <span class="cs">"success"</span>: <span class="ck">true</span>,
+  <span class="cs">"data"</span>: {
+    <span class="cs">"upload_url"</span>: <span class="cs">"https://r2.../..."</span>,
+    <span class="cs">"file_key"</span>: <span class="cs">"uploads/iklan_foto/uuid.jpg"</span>,
+    <span class="cs">"expires_at"</span>: <span class="cs">"2026-06-09T10:05:00Z"</span>
+  },
+  <span class="cs">"request_id"</span>: <span class="cs">"req_..."</span>
+}</pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="sub-title">Aturan Validasi File</div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Parameter</th><th>Aturan</th><th>Error Code</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><span class="field">mime_type</span></td>
+              <td>Whitelist: <code>image/jpeg</code>, <code>image/png</code>, <code>image/webp</code>, <code>application/pdf</code>. Mime lain ditolak.</td>
+              <td><span class="err-code">UNSUPPORTED_MEDIA_TYPE</span></td>
+            </tr>
+            <tr>
+              <td><span class="field">size_bytes</span></td>
+              <td>Gambar max <strong>5 MB</strong>. PDF max <strong>10 MB</strong>. Video (Phase 2+) max <strong>50 MB</strong>.</td>
+              <td><span class="err-code">FILE_TOO_LARGE</span></td>
+            </tr>
+            <tr>
+              <td><span class="field">context</span></td>
+              <td>Whitelist: <code>iklan_foto</code>, <code>avatar</code>, <code>dokumen</code>. Menentukan folder dan aturan tambahan.</td>
+              <td><span class="err-code">VALIDATION_ERROR</span></td>
+            </tr>
+            <tr>
+              <td>Jumlah file per iklan</td>
+              <td>Max <strong>8 foto</strong> per iklan barang bekas. Max <strong>1 avatar</strong> per user.</td>
+              <td><span class="err-code">LIMIT_EXCEEDED</span></td>
+            </tr>
+            <tr>
+              <td>Extension vs MIME</td>
+              <td>Server verifikasi MIME type dari magic bytes — jangan percaya ekstensi file dari client.</td>
+              <td><span class="err-code">UNSUPPORTED_MEDIA_TYPE</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sub-title">Format URL File di Response</div>
+      <p style="color:var(--muted);font-size:.83rem;margin-bottom:.5rem;">Field yang menyimpan URL file di response selalu berupa array <code>string</code> meskipun hanya satu file. Frontend tidak perlu handle dua tipe berbeda.</p>
+      <div class="code">
+        <pre><span class="cc">// Response iklan-barang-bekas</span>
+{
+  <span class="cs">"id"</span>: <span class="cs">"uuid"</span>,
+  <span class="cs">"judul"</span>: <span class="cs">"Laptop Bekas Mulus"</span>,
+  <span class="cs">"foto_urls"</span>: [          <span class="cc">// selalu array, bukan string tunggal</span>
+    <span class="cs">"https://cdn.rejki.id/uploads/iklan_foto/abc.jpg"</span>,
+    <span class="cs">"https://cdn.rejki.id/uploads/iklan_foto/def.jpg"</span>
+  ],
+  ...
+}
+
+<span class="cc">// Response user profile</span>
+{
+  <span class="cs">"avatar_url"</span>: <span class="cs">"https://cdn.rejki.id/uploads/avatar/xyz.webp"</span>,
+  <span class="cc">// null jika belum upload avatar</span>
+  ...
+}</pre>
+      </div>
+
+      <div class="callout c-warn">
+        <span class="callout-icon">⚠️</span>
+        <div>
+          <strong>Presigned URL bersifat sementara — jangan simpan di DB</strong>
+          <p>Yang disimpan di DB adalah <code>file_key</code> (path relatif). URL publik dibentuk saat response dengan prefix CDN: <code>cdn.rejki.id/{file_key}</code>. Ini memungkinkan migrasi storage tanpa mengubah DB.</p>
+        </div>
+      </div>
+
+      <div class="callout c-info">
+        <span class="callout-icon">💡</span>
+        <div>
+          <strong>Implementasi Phase 2</strong>
+          <p>Endpoint <code>POST /api/v1/uploads/presign</code> bisa menjadi bagian dari <code>user-service</code> atau service tersendiri (<code>upload-service</code>). Keputusan ini diambil saat Phase 2 dimulai. Yang penting: kontrak request/response di atas tidak berubah.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- IMPLEMENTASI RUST -->
+    <section id="impl">
+      <h2 class="sec-title"><span class="sec-icon ic-o">⚙️</span>Implementasi Rust — common/errors</h2>
+
+      <p style="color:var(--muted);font-size:.85rem;margin-bottom:1rem;">Seluruh standar di atas diimplementasikan di crate <code>common/errors</code>. Service hanya perlu menggunakan tipe dan extractor yang tersedia.</p>
+
+      <div class="sub-title">Tipe yang Ditambahkan ke common/errors</div>
+      <div class="code">
+        <pre><span class="cc">// common/errors/src/lib.rs (tambahan Phase 1.5)</span>
+
+<span class="cc">// ── Response envelope ──────────────────────────────────────────────</span>
+<span class="ck">pub struct</span> <span class="ct">ApiResponse</span>&lt;T: <span class="ct">Serialize</span>&gt; {
+    <span class="ck">pub</span> success: <span class="ct">bool</span>,
+    <span class="ck">pub</span> data: <span class="ct">Option</span>&lt;T&gt;,
+    <span class="ck">pub</span> meta: <span class="ct">Option</span>&lt;<span class="ct">serde_json::Value</span>&gt;,
+    <span class="ck">pub</span> request_id: <span class="ct">String</span>,
+}
+
+<span class="ck">impl</span>&lt;T: <span class="ct">Serialize</span>&gt; <span class="ct">ApiResponse</span>&lt;T&gt; {
+    <span class="ck">pub fn</span> <span class="cfn">ok</span>(data: T, request_id: <span class="ct">String</span>) -&gt; Self { <span class="cc">/* ... */</span> }
+    <span class="ck">pub fn</span> <span class="cfn">ok_paginated</span>(data: T, meta: <span class="ct">PaginatedMeta</span>, request_id: <span class="ct">String</span>) -&gt; Self { <span class="cc">/* ... */</span> }
+}
+
+<span class="cc">// ── Pagination meta ────────────────────────────────────────────────</span>
+<span class="ck">pub struct</span> <span class="ct">PaginatedMeta</span> {
+    <span class="ck">pub</span> page: <span class="ct">u64</span>,
+    <span class="ck">pub</span> per_page: <span class="ct">u64</span>,
+    <span class="ck">pub</span> total: <span class="ct">u64</span>,
+    <span class="ck">pub</span> total_pages: <span class="ct">u64</span>,
+}
+
+<span class="cc">// ── Cursor pagination meta ──────────────────────────────────────────</span>
+<span class="ck">pub struct</span> <span class="ct">CursorMeta</span> {
+    <span class="ck">pub</span> limit: <span class="ct">u64</span>,
+    <span class="ck">pub</span> has_more: <span class="ct">bool</span>,
+    <span class="ck">pub</span> next_cursor: <span class="ct">Option</span>&lt;<span class="ct">String</span>&gt;,
+    <span class="ck">pub</span> prev_cursor: <span class="ct">Option</span>&lt;<span class="ct">String</span>&gt;,
+}
+
+<span class="cc">// ── Validating extractor ────────────────────────────────────────────</span>
+<span class="cc">// Gantikan axum::Json — otomatis validasi + return error standar</span>
+<span class="ck">pub struct</span> <span class="ct">ValidatedJson</span>&lt;T&gt;(<span class="ck">pub</span> T);
+
+<span class="cc">// ── AppError sudah ada, tambah variant baru ────────────────────────</span>
+<span class="ck">pub enum</span> <span class="ct">AppError</span> {
+    Validation(<span class="ct">HashMap</span>&lt;<span class="ct">String</span>, <span class="ct">String</span>&gt;),  <span class="cc">// 422</span>
+    Unauthorized(<span class="ct">String</span>),                  <span class="cc">// 401</span>
+    Forbidden(<span class="ct">String</span>),                     <span class="cc">// 403</span>
+    NotFound(<span class="ct">String</span>),                      <span class="cc">// 404</span>
+    Conflict(<span class="ct">String</span>),                      <span class="cc">// 409</span>
+    Internal(<span class="ct">anyhow::Error</span>),              <span class="cc">// 500 — detail tidak di-expose</span>
+}</pre>
+      </div>
+
+      <div class="sub-title">Contoh Penggunaan di Handler</div>
+      <div class="code">
+        <pre><span class="cc">// interface/handlers.rs di service manapun</span>
+<span class="ck">pub async fn</span> <span class="cfn">list_iklan</span>(
+    <span class="ct">State</span>(state): <span class="ct">State</span>&lt;<span class="ct">AppState</span>&gt;,
+    <span class="ct">Query</span>(params): <span class="ct">Query</span>&lt;<span class="ct">ListQuery</span>&gt;,
+) -&gt; <span class="ct">Result</span>&lt;<span class="ct">Json</span>&lt;<span class="ct">ApiResponse</span>&lt;<span class="ct">Vec</span>&lt;<span class="ct">IklanResponse</span>&gt;&gt;&gt;, <span class="ct">AppError</span>&gt; {
+    <span class="ck">let</span> (items, total) = state.service.<span class="cfn">list</span>(&amp;params).<span class="cfn">await</span>?;
+    <span class="ck">let</span> meta = <span class="ct">PaginatedMeta</span> {
+        page: params.page, per_page: params.per_page,
+        total, total_pages: (total + params.per_page - <span class="cv">1</span>) / params.per_page,
+    };
+    <span class="ct">Ok</span>(<span class="ct">Json</span>(<span class="ct">ApiResponse</span>::<span class="cfn">ok_paginated</span>(items, meta, <span class="cfn">gen_request_id</span>())))
+}
+
+<span class="cc">// Dengan ValidatedJson extractor</span>
+<span class="ck">pub async fn</span> <span class="cfn">create_iklan</span>(
+    <span class="ct">State</span>(state): <span class="ct">State</span>&lt;<span class="ct">AppState</span>&gt;,
+    <span class="ct">ValidatedJson</span>(body): <span class="ct">ValidatedJson</span>&lt;<span class="ct">CreateIklanInput</span>&gt;,  <span class="cc">// otomatis validasi</span>
+) -&gt; <span class="ct">Result</span>&lt;(<span class="ct">StatusCode</span>, <span class="ct">Json</span>&lt;<span class="ct">ApiResponse</span>&lt;<span class="ct">IklanResponse</span>&gt;&gt;), <span class="ct">AppError</span>&gt; {
+    <span class="ck">let</span> iklan = state.service.<span class="cfn">create</span>(body).<span class="cfn">await</span>?;
+    <span class="ct">Ok</span>((<span class="ct">StatusCode</span>::<span class="cv">CREATED</span>, <span class="ct">Json</span>(<span class="ct">ApiResponse</span>::<span class="cfn">ok</span>(iklan, <span class="cfn">gen_request_id</span>()))))
+}</pre>
+      </div>
+
+      <div class="callout c-ok">
+        <span class="callout-icon">✅</span>
+        <div>
+          <strong>Satu crate, semua service konsisten</strong>
+          <p>Dengan mengimplementasikan <code>ApiResponse</code>, <code>ValidatedJson</code>, dan <code>AppError</code> di <code>common/errors</code>, semua 8 service otomatis mengikuti standar yang sama tanpa duplikasi kode.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- CHECKLIST -->
+    <section id="checklist">
+      <h2 class="sec-title"><span class="sec-icon ic-y">✅</span>Checklist Phase 1.5</h2>
+      <p style="color:var(--muted);font-size:.85rem;margin-bottom:1rem;">Item berikut harus selesai sebelum Phase 2 (Core Services) dimulai:</p>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Item</th><th>Lokasi</th></tr></thead>
+          <tbody>
+            <tr><td>Tambah <code>ApiResponse&lt;T&gt;</code> ke <code>common/errors</code></td><td><code>common/errors/src/lib.rs</code></td></tr>
+            <tr><td>Tambah <code>PaginatedMeta</code> + <code>CursorMeta</code></td><td><code>common/errors/src/lib.rs</code></td></tr>
+            <tr><td>Implementasi <code>ValidatedJson&lt;T&gt;</code> extractor</td><td><code>common/errors/src/lib.rs</code></td></tr>
+            <tr><td>Update <code>AppError</code> dengan semua variant + HTTP status mapping</td><td><code>common/errors/src/lib.rs</code></td></tr>
+            <tr><td>Tambah <code>X-Request-ID</code> middleware ke <code>rejki-app</code></td><td><code>rejki-app/src/main.rs</code></td></tr>
+            <tr><td>Update URL prefix ke <code>/api/v1/</code> di semua service router</td><td><code>rejki-app/src/main.rs</code></td></tr>
+            <tr><td>Update semua handler pakai <code>ApiResponse</code> + <code>Location</code> header pada 201 Created</td><td>Semua <code>interface/handlers.rs</code></td></tr>
+            <tr><td>Kontrak File Upload: mime whitelist, magic bytes, size limit, presigned URL flow</td><td><code>api-standard.html#file-upload</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <footer>
+      <p>Rejki Backend — API Standard &amp; Contract · 9 Juni 2026 · Phase 1.5</p>
+      <p style="margin-top:.3rem;">Stack: Rust · Axum 0.8 · JSON Envelope Flat · ISO 8601 UTC</p>
+    </footer>
+
+  </main>
+</div>
+</body>
+</html>

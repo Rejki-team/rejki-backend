@@ -1,0 +1,65 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO chat.conversations (id, user_a, user_b)\n               VALUES (gen_random_uuid(), $1, $2)\n               ON CONFLICT (user_a, user_b) DO UPDATE SET id = chat.conversations.id\n               RETURNING id, user_a, user_b, created_at",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "chat.conversations",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "user_a",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "chat.conversations",
+            "name": "user_a"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "user_b",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "chat.conversations",
+            "name": "user_b"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "chat.conversations",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "f8a705ead657ca45f63fb6ba72a8110224971c9c20eadf429ceda7323f351bb7"
+}

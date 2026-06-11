@@ -1,0 +1,1463 @@
+﻿<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rejki Backend — Phase 1 Setup Guide</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:      #0d1117;
+      --surf:    #161b22;
+      --surf2:   #1c2230;
+      --border:  #30363d;
+      --text:    #e6edf3;
+      --muted:   #8b949e;
+      --tag:     #21262d;
+      --green:   #56d364;
+      --blue:    #79c0ff;
+      --orange:  #f78166;
+      --yellow:  #e3b341;
+      --purple:  #bc8cff;
+      --r:       10px;
+    }
+
+    html { scroll-behavior: smooth; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; font-size: 15px; }
+
+    .layout { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
+    @media (max-width: 840px) { .layout { grid-template-columns: 1fr; } .nav { display: none; } }
+
+    .nav {
+      position: sticky; top: 0; height: 100vh; overflow-y: auto;
+      background: var(--surf); border-right: 1px solid var(--border);
+      padding: 1.75rem 1rem;
+    }
+    .nav-logo { font-size: 1.1rem; font-weight: 800; color: var(--orange); margin-bottom: .25rem; }
+    .nav-logo span { color: var(--text); }
+    .nav-phase { font-size: .7rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--green); margin-bottom: 1.75rem; }
+    .nav-group { margin-bottom: 1.5rem; }
+    .nav-group-label { font-size: .67rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: .4rem; }
+    .nav-link { display: block; padding: .32rem .6rem; border-radius: 6px; font-size: .85rem; color: var(--muted); text-decoration: none; transition: background .12s, color .12s; }
+    .nav-link:hover { background: var(--tag); color: var(--text); }
+
+    main { max-width: 900px; margin: 0 auto; padding: 3rem 2rem 6rem; }
+    @media (max-width: 600px) { main { padding: 2rem 1rem 4rem; } }
+
+    .hero { border-bottom: 1px solid var(--border); margin-bottom: 3rem; padding-bottom: 2.5rem; }
+    .breadcrumb { font-size: .78rem; color: var(--muted); margin-bottom: .75rem; }
+    .breadcrumb a { color: var(--blue); text-decoration: none; }
+    .eyebrow { display: inline-block; font-size: .73rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--green); background: rgba(86,211,100,.07); border: 1px solid rgba(86,211,100,.25); border-radius: 20px; padding: .22rem .75rem; margin-bottom: .9rem; }
+    .hero h1 { font-size: clamp(1.6rem,3.5vw,2.4rem); font-weight: 800; line-height: 1.2; letter-spacing: -.3px; margin-bottom: .9rem; }
+    .hero p { color: var(--muted); font-size: 1rem; max-width: 660px; line-height: 1.75; }
+
+    .phases { display: flex; gap: 0; margin: 1.5rem 0 0; border-radius: var(--r); overflow: hidden; border: 1px solid var(--border); }
+    .phase-item { flex: 1; padding: .5rem .75rem; font-size: .72rem; font-weight: 600; text-align: center; }
+    .ph-active { background: rgba(86,211,100,.12); color: var(--green); }
+    .ph-idle   { background: var(--surf); color: var(--muted); }
+
+    section { margin-bottom: 3.5rem; }
+    .sec-title { display: flex; align-items: center; gap: .6rem; font-size: 1.2rem; font-weight: 700; margin-bottom: 1.25rem; padding-bottom: .55rem; border-bottom: 1px solid var(--border); }
+    .sec-icon { width: 30px; height: 30px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: .95rem; flex-shrink: 0; }
+    .ic-g { background: rgba(86,211,100,.1); }
+    .ic-b { background: rgba(121,192,255,.1); }
+    .ic-o { background: rgba(247,129,102,.1); }
+    .ic-y { background: rgba(227,179,65,.1); }
+    .ic-p { background: rgba(188,140,255,.1); }
+
+    .steps { display: flex; flex-direction: column; gap: 1.25rem; }
+    .step { display: flex; gap: 1.1rem; background: var(--surf); border: 1px solid var(--border); border-radius: var(--r); padding: 1.25rem; }
+    .step-num { font-size: .75rem; font-weight: 800; color: var(--bg); background: var(--green); width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 2px; }
+    .step-body h3 { font-size: .95rem; font-weight: 700; margin-bottom: .4rem; }
+    .step-body p { font-size: .84rem; color: var(--muted); margin-bottom: .65rem; line-height: 1.6; }
+    .step-body p:last-child { margin-bottom: 0; }
+
+    .cblock { background: var(--surf2); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-top: .6rem; }
+    .cblock-header { display: flex; align-items: center; justify-content: space-between; padding: .45rem .9rem; border-bottom: 1px solid var(--border); }
+    .cblock-lang { font-size: .68rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+    .cblock-file { font-size: .72rem; color: var(--blue); font-family: 'Cascadia Code','Fira Code','Consolas',monospace; }
+    .cblock pre { font-family: 'Cascadia Code','Fira Code','Consolas',monospace; font-size: .8rem; line-height: 1.75; padding: .9rem 1.1rem; overflow-x: auto; }
+    .ck  { color: #ff7b72; }
+    .cs  { color: #a5d6ff; }
+    .cc  { color: #6e7681; }
+    .ct  { color: #ffa657; }
+    .cfn { color: #d2a8ff; }
+    .cn  { color: #79c0ff; }
+
+    .callout { border-radius: var(--r); padding: .85rem 1.1rem; margin-top: .85rem; font-size: .86rem; display: flex; gap: .65rem; line-height: 1.65; }
+    .callout-icon { flex-shrink: 0; font-size: 1rem; margin-top: 1px; }
+    .callout p { color: var(--muted); }
+    .callout strong { color: var(--text); display: block; margin-bottom: .15rem; }
+    .c-info   { background: rgba(121,192,255,.06); border: 1px solid rgba(121,192,255,.22); }
+    .c-warn   { background: rgba(227,179,65,.06);  border: 1px solid rgba(227,179,65,.22);  }
+    .c-ok     { background: rgba(86,211,100,.06);  border: 1px solid rgba(86,211,100,.22);  }
+    .c-danger { background: rgba(247,129,102,.06); border: 1px solid rgba(247,129,102,.22); }
+
+    code { font-family: 'Cascadia Code','Fira Code','Consolas',monospace; font-size: .8rem; background: var(--tag); border: 1px solid var(--border); border-radius: 4px; padding: .05rem .4rem; color: var(--blue); }
+
+    .tbl { width: 100%; border-collapse: collapse; font-size: .85rem; background: var(--surf); border: 1px solid var(--border); border-radius: var(--r); overflow: hidden; }
+    .tbl th { background: var(--surf2); padding: .6rem 1rem; text-align: left; font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+    .tbl td { padding: .65rem 1rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+    .tbl tr:last-child td { border-bottom: none; }
+    .tbl tr:hover td { background: var(--surf2); }
+
+    .checklist { display: flex; flex-direction: column; gap: .45rem; }
+    .chk { display: flex; align-items: flex-start; gap: .75rem; background: var(--surf); border: 1px solid var(--border); border-radius: 8px; padding: .7rem .9rem; font-size: .85rem; }
+    .chk-box { width: 16px; height: 16px; border: 2px solid var(--border); border-radius: 4px; flex-shrink: 0; margin-top: 2px; position: relative; }
+    .chk-box.done { background: var(--green); border-color: var(--green); }
+    .chk-box.done::after { content: '✓'; position: absolute; top: -2px; left: 1px; font-size: .7rem; color: var(--bg); font-weight: 800; }
+    .chk-text { flex: 1; line-height: 1.55; }
+    .chk-text.done { color: var(--muted); text-decoration: line-through; }
+    .chk-label { font-size: .7rem; font-weight: 700; border-radius: 4px; padding: .08rem .4rem; flex-shrink: 0; margin-top: 2px; }
+    .lbl-must { background: rgba(247,129,102,.1); color: var(--orange); border: 1px solid rgba(247,129,102,.25); }
+    .lbl-opt  { background: rgba(121,192,255,.08); color: var(--blue);   border: 1px solid rgba(121,192,255,.2); }
+
+    .layers { display: flex; flex-direction: column; gap: 0; background: var(--surf); border: 1px solid var(--border); border-radius: var(--r); overflow: hidden; }
+    .layer { padding: .75rem 1.25rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 1rem; }
+    .layer:last-child { border-bottom: none; }
+    .layer-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+    .layer-name { font-size: .88rem; font-weight: 700; min-width: 130px; }
+    .layer-desc { font-size: .82rem; color: var(--muted); }
+    .layer-ex { font-size: .75rem; color: var(--muted); margin-left: auto; font-family: 'Cascadia Code','Fira Code',monospace; }
+
+    .filetree { font-family: 'Cascadia Code','Fira Code','Consolas',monospace; font-size: .8rem; line-height: 1.85; background: var(--surf2); border: 1px solid var(--border); border-radius: 8px; padding: .9rem 1.1rem; color: var(--muted); overflow-x: auto; }
+    .ft-dir  { color: var(--blue); font-weight: 700; }
+    .ft-hi   { color: var(--green); font-weight: 700; }
+    .ft-note { color: var(--muted); font-style: italic; }
+
+    .svc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px,1fr)); gap: .75rem; margin-bottom: 1rem; }
+    .svc-card { background: var(--surf); border: 1px solid var(--border); border-radius: var(--r); padding: .85rem 1rem; }
+    .svc-card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: .45rem; }
+    .svc-name { font-size: .88rem; font-weight: 700; font-family: 'Cascadia Code','Fira Code',monospace; color: var(--blue); }
+    .svc-port { font-size: .72rem; color: var(--muted); font-family: 'Cascadia Code','Fira Code',monospace; }
+    .svc-schema { font-size: .75rem; color: var(--muted); margin-bottom: .4rem; }
+    .svc-badges { display: flex; gap: .35rem; flex-wrap: wrap; }
+    .badge { font-size: .65rem; font-weight: 700; border-radius: 4px; padding: .1rem .45rem; }
+    .bdg-done { background: rgba(86,211,100,.1); color: var(--green); border: 1px solid rgba(86,211,100,.25); }
+    .bdg-todo { background: rgba(227,179,65,.08); color: var(--yellow); border: 1px solid rgba(227,179,65,.2); }
+
+    footer { margin-top: 4rem; padding-top: 1.25rem; border-top: 1px solid var(--border); font-size: .78rem; color: var(--muted); }
+  </style>
+</head>
+<body>
+<div class="layout">
+
+  <nav class="nav">
+    <div class="nav-logo">rejki<span>-backend</span></div>
+    <div class="nav-phase">Phase 1 — Foundation</div>
+    <div class="nav-group">
+      <div class="nav-group-label">Persiapan</div>
+      <a class="nav-link" href="#prereq">Prerequisites</a>
+      <a class="nav-link" href="#workspace">Workspace (sudah ✓)</a>
+      <a class="nav-link" href="#env">Environment Variables</a>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-label">Database</div>
+      <a class="nav-link" href="#docker">Docker Compose</a>
+      <a class="nav-link" href="#schema">Schema per Service</a>
+      <a class="nav-link" href="#migrations">Migrations</a>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-label">Service Layers</div>
+      <a class="nav-link" href="#layer-structure">Struktur Layer</a>
+      <a class="nav-link" href="#common">Common Crates</a>
+      <a class="nav-link" href="#jwt">JWT Key Setup</a>
+      <a class="nav-link" href="#jwt-impl">JWT Implementasi ✓</a>
+      <a class="nav-link" href="#all-services">Status Semua Service ✓</a>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-label">Implementasi</div>
+      <a class="nav-link" href="#auth-service">auth-service</a>
+      <a class="nav-link" href="#auth-client">auth-service-client</a>
+      <a class="nav-link" href="#rejki-app">rejki-app wiring</a>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-label">Referensi</div>
+      <a class="nav-link" href="#checklist">Checklist Phase 1</a>
+      <a class="nav-link" href="index.html">← Architecture Overview</a>
+    </div>
+  </nav>
+
+  <main>
+
+    <div class="hero">
+      <div class="breadcrumb"><a href="index.html">Architecture</a> / Phase 1 Setup</div>
+      <div class="eyebrow">Phase 1 — Foundation</div>
+      <h1>Setup &amp; Konfigurasi Awal</h1>
+      <p>Panduan langkah-demi-langkah untuk menyiapkan foundation proyek <strong>rejki-backend</strong>. Setelah phase ini selesai, workspace Cargo siap, database terkonfigurasi, dan <code>auth-service</code> berjalan end-to-end.</p>
+      <div class="phases">
+        <div class="phase-item ph-active">Phase 1: Foundation</div>
+        <div class="phase-item ph-idle">Phase 2: Core Services</div>
+        <div class="phase-item ph-idle">Phase 3: Hardening</div>
+        <div class="phase-item ph-idle">Phase 4: Extraction</div>
+      </div>
+    </div>
+
+    <!-- PREREQUISITES -->
+    <section id="prereq">
+      <h2 class="sec-title"><span class="sec-icon ic-g">🛠️</span>Prerequisites</h2>
+      <div class="steps">
+
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <h3>Install Rust</h3>
+            <p>Install Rust stable via rustup. Minimum versi: <strong>1.75</strong> (diperlukan untuk native async fn in trait).</p>
+            <div class="cblock">
+              <div class="cblock-header"><span class="cblock-lang">shell</span></div>
+              <pre>curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+rustup update stable
+rustc --version   <span class="cc"># harus >= 1.75</span></pre>
+            </div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <h3>Install sqlx-cli</h3>
+            <p>Digunakan untuk menjalankan migration dan generate prepared statement untuk compile-time query check.</p>
+            <div class="cblock">
+              <div class="cblock-header"><span class="cblock-lang">shell</span></div>
+              <pre>cargo install sqlx-cli --no-default-features --features postgres</pre>
+            </div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <h3>Install Docker Desktop</h3>
+            <p>Diperlukan untuk menjalankan PostgreSQL lokal via <code>docker compose</code>.</p>
+            <div class="callout c-info" style="margin-top:0;">
+              <span class="callout-icon">ℹ️</span>
+              <div><p>Pastikan <code>docker compose version</code> berhasil (V2 — perintah tanpa tanda strip).</p></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">4</div>
+          <div class="step-body">
+            <h3>cargo-watch (opsional)</h3>
+            <p>Hot-reload saat development — compile ulang otomatis saat file berubah.</p>
+            <div class="cblock">
+              <div class="cblock-header"><span class="cblock-lang">shell</span></div>
+              <pre>cargo install cargo-watch</pre>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- WORKSPACE -->
+    <section id="workspace">
+      <h2 class="sec-title"><span class="sec-icon ic-o">📦</span>Cargo Workspace (sudah selesai ✓)</h2>
+
+      <div class="callout c-ok" style="margin-top:0;margin-bottom:1rem;">
+        <span class="callout-icon">✅</span>
+        <div><strong>Sudah selesai</strong>
+        <p>Workspace root <code>Cargo.toml</code>, semua 20 crate members, dan versi dependency sudah terkonfigurasi. Bagian ini adalah referensi untuk memahami strukturnya.</p></div>
+      </div>
+
+      <div class="cblock">
+        <div class="cblock-header"><span class="cblock-lang">toml</span><span class="cblock-file">Cargo.toml (workspace root)</span></div>
+        <pre>[workspace]
+resolver = <span class="cs">"2"</span>
+members = [
+    <span class="cs">"rejki-app"</span>,
+    <span class="cs">"auth-service"</span>, <span class="cs">"user-service"</span>, <span class="cs">"chat-service"</span>, <span class="cs">"notification-service"</span>,
+    <span class="cs">"iklan-pekerjaan-service"</span>, <span class="cs">"iklan-pekerja-service"</span>,
+    <span class="cs">"iklan-barang-bekas-service"</span>, <span class="cs">"iklan-pelatihan-service"</span>,
+    <span class="cs">"auth-service-client"</span>, <span class="cs">"user-service-client"</span>, <span class="cs">"chat-service-client"</span>,
+    <span class="cs">"notification-service-client"</span>, <span class="cs">"iklan-pekerjaan-service-client"</span>,
+    <span class="cs">"iklan-pekerja-service-client"</span>, <span class="cs">"iklan-barang-bekas-service-client"</span>,
+    <span class="cs">"iklan-pelatihan-service-client"</span>,
+    <span class="cs">"common/errors"</span>, <span class="cs">"common/tracing-setup"</span>, <span class="cs">"common/auth-middleware"</span>,
+]
+
+[workspace.dependencies]
+axum               = { version = <span class="cs">"0.8"</span>,  features = [<span class="cs">"ws"</span>, <span class="cs">"macros"</span>] }
+tokio              = { version = <span class="cs">"1"</span>,    features = [<span class="cs">"full"</span>] }
+sqlx               = { version = <span class="cs">"0.9"</span>,  features = [<span class="cs">"postgres"</span>, <span class="cs">"runtime-tokio"</span>, <span class="cs">"macros"</span>, <span class="cs">"uuid"</span>, <span class="cs">"chrono"</span>] }
+serde              = { version = <span class="cs">"1"</span>,    features = [<span class="cs">"derive"</span>] }
+serde_json         = <span class="cs">"1"</span>
+uuid               = { version = <span class="cs">"1"</span>,    features = [<span class="cs">"v7"</span>, <span class="cs">"serde"</span>] }
+chrono             = { version = <span class="cs">"0.4"</span>,  features = [<span class="cs">"serde"</span>] }
+tracing            = <span class="cs">"0.1"</span>
+tracing-subscriber = { version = <span class="cs">"0.3"</span>,  features = [<span class="cs">"json"</span>, <span class="cs">"env-filter"</span>] }
+tower-http         = { version = <span class="cs">"0.6"</span>,  features = [<span class="cs">"cors"</span>, <span class="cs">"trace"</span>, <span class="cs">"compression-gzip"</span>] }
+thiserror          = <span class="cs">"2"</span>
+validator          = { version = <span class="cs">"0.20"</span>, features = [<span class="cs">"derive"</span>] }
+jsonwebtoken       = <span class="cs">"10"</span>
+bcrypt             = <span class="cs">"0.19"</span>
+rand               = <span class="cs">"0.9"</span>
+dotenvy            = <span class="cs">"0.15"</span>
+anyhow             = <span class="cs">"1"</span>
+common-errors      = { path = <span class="cs">"common/errors"</span> }
+common-tracing     = { path = <span class="cs">"common/tracing-setup"</span> }
+common-auth-mw     = { path = <span class="cs">"common/auth-middleware"</span> }
+
+[profile.release]
+opt-level = <span class="cn">3</span>
+lto       = <span class="cs">"thin"</span>
+strip     = <span class="cs">"symbols"</span></pre>
+      </div>
+
+      <div class="callout c-info" style="margin-top:.85rem;">
+        <span class="callout-icon">ℹ️</span>
+        <div><strong>Prinsip workspace dependencies</strong>
+        <p>Semua versi library dipinned di sini. Setiap crate menggunakan <code>{ workspace = true }</code> — tidak ada versi berbeda antar crate.</p></div>
+      </div>
+    </section>
+
+    <!-- LAYER STRUCTURE -->
+    <section id="layer-structure">
+      <h2 class="sec-title"><span class="sec-icon ic-b">🏗️</span>Pola Struktur Service</h2>
+
+      <p style="color:var(--muted);font-size:.88rem;margin-bottom:1rem;">Setiap <code>*-service</code> mengikuti dua pola sekaligus: dual Cargo target dan empat layer domain.</p>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem;">
+        <div>
+          <p style="font-size:.75rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin-bottom:.5rem;">Dual Cargo Target</p>
+          <div class="cblock">
+            <div class="cblock-header"><span class="cblock-lang">toml</span><span class="cblock-file">*-service/Cargo.toml</span></div>
+            <pre><span class="cc"># Library — diimport oleh rejki-app</span>
+[lib]
+name = <span class="cs">"auth_service"</span>
+path = <span class="cs">"src/lib.rs"</span>
+
+<span class="cc"># Binary — untuk ekstraksi future</span>
+[[bin]]
+name = <span class="cs">"auth-service"</span>
+path = <span class="cs">"src/main.rs"</span></pre>
+          </div>
+        </div>
+        <div>
+          <p style="font-size:.75rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin-bottom:.5rem;">lib.rs — Expose router publik</p>
+          <div class="cblock">
+            <div class="cblock-header"><span class="cblock-lang">rust</span><span class="cblock-file">*-service/src/lib.rs</span></div>
+            <pre><span class="ck">pub mod</span> domain;
+<span class="ck">pub mod</span> application;
+<span class="ck">pub mod</span> infrastructure;
+<span class="ck">pub mod</span> interface;
+
+<span class="ck">pub use</span> interface::router;</pre>
+          </div>
+        </div>
+      </div>
+
+      <p style="font-size:.75rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin-bottom:.5rem;">Empat Layer Domain</p>
+      <div class="layers">
+        <div class="layer">
+          <div class="layer-dot" style="background:var(--purple);"></div>
+          <div class="layer-name">domain/</div>
+          <div class="layer-desc">Entity, value object, repository trait — tidak tahu database atau HTTP</div>
+          <div class="layer-ex">User, AuthSession, UserRepository</div>
+        </div>
+        <div class="layer">
+          <div class="layer-dot" style="background:var(--blue);"></div>
+          <div class="layer-name">application/</div>
+          <div class="layer-desc">Use case — orchestrate domain logic, panggil repo trait</div>
+          <div class="layer-ex">RegisterUseCase, LoginUseCase</div>
+        </div>
+        <div class="layer">
+          <div class="layer-dot" style="background:var(--yellow);"></div>
+          <div class="layer-name">infrastructure/</div>
+          <div class="layer-desc">Implementasi konkret repo trait — PostgreSQL via sqlx</div>
+          <div class="layer-ex">PgUserRepository, PgAuthRepository</div>
+        </div>
+        <div class="layer">
+          <div class="layer-dot" style="background:var(--green);"></div>
+          <div class="layer-name">interface/</div>
+          <div class="layer-desc">Axum handler, request/response DTO, dan fungsi router()</div>
+          <div class="layer-ex">pub fn router() -&gt; Router</div>
+        </div>
+      </div>
+
+      <div class="callout c-info" style="margin-top:.85rem;">
+        <span class="callout-icon">ℹ️</span>
+        <div><strong>Aturan dependency antar layer</strong>
+        <p><code>domain</code> tidak boleh import <code>infrastructure</code> atau <code>interface</code>. <code>application</code> hanya boleh import <code>domain</code>. <code>infrastructure</code> implement trait dari <code>domain</code>. <code>interface</code> panggil <code>application</code>. Wiring konkret terjadi di <code>router()</code> atau di <code>rejki-app</code>.</p></div>
+      </div>
+    </section>
+
+    <!-- ENVIRONMENT -->
+    <section id="env">
+      <h2 class="sec-title"><span class="sec-icon ic-y">⚙️</span>Environment Variables</h2>
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <h3>Buat file .env di root proyek</h3>
+            <p>File <code>.env</code> tidak boleh di-commit — sudah ada di <code>.gitignore</code>.</p>
+            <div class="cblock">
+              <div class="cblock-header"><span class="cblock-lang">env</span><span class="cblock-file">.env</span></div>
+              <pre><span class="cc"># Environment — wajib: "development" atau "production"</span>
+APP_ENV=development   <span class="cc"># production → JSON logging; development → pretty logging</span>
+RUST_LOG=info
+
+<span class="cc"># Database</span>
+DATABASE_URL=postgres://rejki:secret@localhost:5432/rejki_db
+
+<span class="cc"># Server — hanya APP_PORT yang ada default (8080); APP_ENV wajib di-set</span>
+APP_PORT=8080
+
+<span class="cc"># JWT — RS256</span>
+JWT_PRIVATE_KEY_PATH=./keys/private.pem
+JWT_PUBLIC_KEY_PATH=./keys/public.pem
+JWT_ACCESS_TTL_SECS=900        <span class="cc"># 15 menit</span>
+JWT_REFRESH_TTL_SECS=2592000   <span class="cc"># 30 hari</span></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- DOCKER -->
+    <section id="docker">
+      <h2 class="sec-title"><span class="sec-icon ic-g">🐳</span>Docker Compose — Database Lokal</h2>
+      <div class="steps">
+
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <h3>docker-compose.yml</h3>
+            <div class="cblock">
+              <div class="cblock-header"><span class="cblock-lang">yaml</span><span class="cblock-file">docker-compose.yml</span></div>
+              <pre>services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: rejki
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: rejki_db
+    ports:
+      - <span class="cs">"5432:5432"</span>
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./scripts/init-schemas.sql:/docker-entrypoint-initdb.d/init.sql
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - <span class="cs">"6379:6379"</span>
+
+volumes:
+  pgdata:</pre>
+            </div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <h3>Jalankan database</h3>
+            <div class="cblock">
+              <div class="cblock-header"><span class="cblock-lang">shell</span></div>
+              <pre>docker compose up -d postgres redis
+docker compose logs -f postgres   <span class="cc"># tunggu sampai "ready to accept connections"</span></pre>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- SCHEMA -->
+    <section id="schema">
+      <h2 class="sec-title"><span class="sec-icon ic-g">🐘</span>Schema PostgreSQL per Service</h2>
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <h3>Buat scripts/init-schemas.sql</h3>
+            <p>Dieksekusi otomatis saat container PostgreSQL pertama kali dibuat via volume mount.</p>
+            <div class="cblock">
+              <div class="cblock-header"><span class="cblock-lang">sql</span><span class="cblock-file">scripts/init-schemas.sql</span></div>
+              <pre><span class="ck">CREATE SCHEMA IF NOT EXISTS</span> auth;
+<span class="ck">CREATE SCHEMA IF NOT EXISTS</span> user_svc;
+<span class="ck">CREATE SCHEMA IF NOT EXISTS</span> chat;
+<span class="ck">CREATE SCHEMA IF NOT EXISTS</span> notification;
+<span class="ck">CREATE SCHEMA IF NOT EXISTS</span> iklan_pekerjaan;
+<span class="ck">CREATE SCHEMA IF NOT EXISTS</span> iklan_pekerja;
+<span class="ck">CREATE SCHEMA IF NOT EXISTS</span> iklan_barang_bekas;
+<span class="ck">CREATE SCHEMA IF NOT EXISTS</span> iklan_pelatihan;
+
+<span class="ck">GRANT USAGE, CREATE ON SCHEMA</span> auth               <span class="ck">TO</span> rejki;
+<span class="ck">GRANT USAGE, CREATE ON SCHEMA</span> user_svc           <span class="ck">TO</span> rejki;
+<span class="ck">GRANT USAGE, CREATE ON SCHEMA</span> chat               <span class="ck">TO</span> rejki;
+<span class="ck">GRANT USAGE, CREATE ON SCHEMA</span> notification       <span class="ck">TO</span> rejki;
+<span class="ck">GRANT USAGE, CREATE ON SCHEMA</span> iklan_pekerjaan    <span class="ck">TO</span> rejki;
+<span class="ck">GRANT USAGE, CREATE ON SCHEMA</span> iklan_pekerja      <span class="ck">TO</span> rejki;
+<span class="ck">GRANT USAGE, CREATE ON SCHEMA</span> iklan_barang_bekas <span class="ck">TO</span> rejki;
+<span class="ck">GRANT USAGE, CREATE ON SCHEMA</span> iklan_pelatihan    <span class="ck">TO</span> rejki;</pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- MIGRATIONS -->
+    <section id="migrations">
+      <h2 class="sec-title"><span class="sec-icon ic-b">📋</span>Migration Strategy</h2>
+      <div class="steps">
+
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <h3>Buat file migration auth-service</h3>
+            <p>Setiap service mengelola migrasi sendiri di folder <code>migrations/</code>-nya.</p>
+            <div class="cblock">
+              <div class="cblock-header"><span class="cblock-lang">shell</span></div>
+              <pre>cd rust-services/auth-service
+export DATABASE_URL=postgres://rejki:secret@localhost:5432/rejki_db
+sqlx migrate add -r create_auth_tables</pre>
+            </div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <h3>Isi migration — tabel auth</h3>
+            <div class="cblock">
+              <div class="cblock-header"><span class="cblock-lang">sql</span><span class="cblock-file">auth-service/migrations/YYYYMMDD_create_auth_tables.up.sql</span></div>
+              <pre><span class="ck">CREATE TABLE</span> auth.users (
+    id            UUID         <span class="ck">PRIMARY KEY DEFAULT</span> gen_random_uuid(),
+    email         TEXT         <span class="ck">NOT NULL UNIQUE</span>,
+    password_hash TEXT         <span class="ck">NOT NULL</span>,
+    is_verified   BOOLEAN      <span class="ck">NOT NULL DEFAULT false</span>,
+    created_at    TIMESTAMPTZ  <span class="ck">NOT NULL DEFAULT</span> now(),
+    updated_at    TIMESTAMPTZ  <span class="ck">NOT NULL DEFAULT</span> now()
+);
+
+<span class="ck">CREATE TABLE</span> auth.refresh_tokens (
+    id         UUID        <span class="ck">PRIMARY KEY DEFAULT</span> gen_random_uuid(),
+    user_id    UUID        <span class="ck">NOT NULL</span>,   <span class="cc">-- no FK ke user_svc.users</span>
+    token_hash TEXT        <span class="ck">NOT NULL UNIQUE</span>,
+    expires_at TIMESTAMPTZ <span class="ck">NOT NULL</span>,
+    created_at TIMESTAMPTZ <span class="ck">NOT NULL DEFAULT</span> now()
+);
+
+<span class="ck">CREATE TABLE</span> auth.otp_verifications (
+    id         UUID        <span class="ck">PRIMARY KEY DEFAULT</span> gen_random_uuid(),
+    user_id    UUID        <span class="ck">NOT NULL</span>,
+    otp_hash   TEXT        <span class="ck">NOT NULL</span>,
+    purpose    TEXT        <span class="ck">NOT NULL</span>,   <span class="cc">-- 'register' | 'reset_password'</span>
+    expires_at TIMESTAMPTZ <span class="ck">NOT NULL</span>,
+    created_at TIMESTAMPTZ <span class="ck">NOT NULL DEFAULT</span> now()
+);
+
+<span class="ck">CREATE INDEX</span> ON auth.otp_verifications (user_id, expires_at);</pre>
+            </div>
+            <div class="callout c-info">
+              <span class="callout-icon">💡</span>
+              <div><strong>OTP di auth-service</strong>
+              <p>OTP adalah bagian dari authentication flow. Disimpan di <code>auth.otp_verifications</code>. Pengiriman dilakukan via <code>NotificationClient</code> trait — auth-service tidak tahu provider pengiriman (email/SMS/push).</p></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <h3>Jalankan migrasi semua service</h3>
+            <p>Setiap service memiliki folder <code>migrations/</code> sendiri. Jalankan sekali per service:</p>
+            <div class="cblock">
+              <div class="cblock-header"><span class="cblock-lang">shell</span></div>
+              <pre><span class="cc"># Set DATABASE_URL terlebih dahulu</span>
+export DATABASE_URL=postgres://rejki:secret@localhost:5432/rejki_db
+
+<span class="cc"># Jalankan per service</span>
+sqlx migrate run --source rust-services/auth-service/migrations
+sqlx migrate run --source rust-services/user-service/migrations
+sqlx migrate run --source rust-services/chat-service/migrations
+sqlx migrate run --source rust-services/notification-service/migrations
+sqlx migrate run --source rust-services/iklan-pekerjaan-service/migrations
+sqlx migrate run --source rust-services/iklan-pekerja-service/migrations
+sqlx migrate run --source rust-services/iklan-barang-bekas-service/migrations
+sqlx migrate run --source rust-services/iklan-pelatihan-service/migrations</pre>
+            </div>
+            <p style="margin-top:.75rem;">Atau biarkan otomatis saat startup — setiap service memanggil ini di <code>main.rs</code>:</p>
+            <div class="cblock">
+              <div class="cblock-header"><span class="cblock-lang">rust</span><span class="cblock-file">*-service/src/main.rs</span></div>
+              <pre>sqlx::<span class="cfn">migrate!</span>(<span class="cs">"./migrations"</span>).<span class="cfn">run</span>(&pool).await.<span class="cfn">expect</span>(<span class="cs">"Migration failed"</span>);</pre>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- COMMON CRATES -->
+    <section id="common">
+      <h2 class="sec-title"><span class="sec-icon ic-p">🔧</span>Common Crates</h2>
+
+      <div style="overflow-x:auto;margin-bottom:1.25rem;">
+        <table class="tbl">
+          <thead><tr><th>Crate</th><th>Isi</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><code>common/errors</code></td>
+              <td><code>AppError</code> enum + impl <code>IntoResponse</code> — response body <strong>JSON</strong>. Variant: NotFound, Unauthorized, Validation, Conflict, Forbidden, Internal.</td>
+              <td style="color:var(--green);">✓ Selesai</td>
+            </tr>
+            <tr>
+              <td><code>common/tracing-setup</code></td>
+              <td><code>fn init_tracing()</code> — JSON format jika <code>APP_ENV=production</code>, pretty jika development. Dibaca dari <code>RUST_LOG</code>.</td>
+              <td style="color:var(--green);">✓ Selesai</td>
+            </tr>
+            <tr>
+              <td><code>common/auth-middleware</code></td>
+              <td><code>async fn require_auth</code> — Axum middleware function. Extract Bearer token, validasi via <code>Arc&lt;dyn AuthClient&gt;</code>, inject <code>AuthClaims</code> ke Extension. Tidak decode JWT sendiri.</td>
+              <td style="color:var(--green);">✓ Selesai</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="steps">
+
+        <div class="step">
+          <div class="step-num" style="background:var(--orange);">!</div>
+          <div class="step-body">
+            <h3>AppError — JSON response body (standar industri)</h3>
+            <p>Semua error response mengembalikan JSON dengan field <code>error</code> (kode mesin) dan <code>message</code> (pesan human-readable). Bukan plain text.</p>
+            <div class="cblock">
+              <div class="cblock-header"><span class="cblock-lang">rust</span><span class="cblock-file">common/errors/src/lib.rs</span></div>
+              <pre><span class="ck">use</span> axum::response::{IntoResponse, Json, Response};
+<span class="ck">use</span> serde::Serialize;
+
+<span class="ck">#[derive(</span><span class="ct">Serialize</span><span class="ck">)]</span>
+<span class="ck">struct</span> <span class="ct">ErrorBody</span> {
+    error:   &'static str,   <span class="cc">// kode mesin: "NOT_FOUND", "VALIDATION_ERROR", dll.</span>
+    message: String,         <span class="cc">// pesan human-readable</span>
+}
+
+<span class="ck">impl</span> <span class="ct">IntoResponse</span> <span class="ck">for</span> <span class="ct">AppError</span> {
+    <span class="ck">fn</span> <span class="cfn">into_response</span>(<span class="ck">self</span>) -> <span class="ct">Response</span> {
+        <span class="ck">let</span> (status, code, message) = <span class="ck">match self</span> {
+            <span class="ct">AppError</span>::<span class="ct">NotFound</span>(m)   => (<span class="ct">StatusCode</span>::<span class="ct">NOT_FOUND</span>,             <span class="cs">"NOT_FOUND"</span>,        m),
+            <span class="ct">AppError</span>::<span class="ct">Unauthorized</span>  => (<span class="ct">StatusCode</span>::<span class="ct">UNAUTHORIZED</span>,          <span class="cs">"UNAUTHORIZED"</span>,     <span class="cs">"unauthorized"</span>.<span class="cfn">into</span>()),
+            <span class="ct">AppError</span>::<span class="ct">Validation</span>(m) => (<span class="ct">StatusCode</span>::<span class="ct">UNPROCESSABLE_ENTITY</span>, <span class="cs">"VALIDATION_ERROR"</span>, m),
+            <span class="ct">AppError</span>::<span class="ct">Conflict</span>(m)   => (<span class="ct">StatusCode</span>::<span class="ct">CONFLICT</span>,             <span class="cs">"CONFLICT"</span>,         m),
+            <span class="ct">AppError</span>::<span class="ct">Forbidden</span>(m)  => (<span class="ct">StatusCode</span>::<span class="ct">FORBIDDEN</span>,             <span class="cs">"FORBIDDEN"</span>,        m),
+            <span class="ct">AppError</span>::<span class="ct">Internal</span>(e)   => {
+                tracing::<span class="cfn">error!</span>(error = ?e, <span class="cs">"internal server error"</span>);
+                (<span class="ct">StatusCode</span>::<span class="ct">INTERNAL_SERVER_ERROR</span>, <span class="cs">"INTERNAL_ERROR"</span>, <span class="cs">"internal server error"</span>.<span class="cfn">into</span>())
+            }
+        };
+        (status, <span class="ct">Json</span>(<span class="ct">ErrorBody</span> { error: code, message })).<span class="cfn">into_response</span>()
+    }
+}</pre>
+            </div>
+            <div class="callout c-info">
+              <span class="callout-icon">💡</span>
+              <div><strong>Response format</strong>
+              <p>Client mobile/web selalu bisa <code>JSON.parse</code> response body tanpa <code>Content-Type</code> check terlebih dahulu. Field <code>error</code> digunakan untuk switch-case di client, <code>message</code> untuk ditampilkan ke user.</p>
+              <div style="font-family:monospace;font-size:.8rem;background:var(--tag);border:1px solid var(--border);border-radius:6px;padding:.6rem .9rem;margin-top:.5rem;color:var(--muted);">HTTP 422<br/>{"error":"VALIDATION_ERROR","message":"email tidak valid"}</div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num" style="background:var(--orange);">!</div>
+          <div class="step-body">
+            <h3>auth-middleware — Dependency Inversion, bukan decode JWT sendiri</h3>
+            <p>Middleware tidak boleh decode JWT secara langsung (butuh public key tersebar ke semua service). Middleware hanya memanggil <code>AuthClient</code> trait yang di-inject oleh rejki-app.</p>
+            <div class="cblock">
+              <div class="cblock-header"><span class="cblock-lang">rust</span><span class="cblock-file">common/auth-middleware/src/lib.rs</span></div>
+              <pre><span class="cc">// Cara pakai di router yang butuh auth:</span>
+<span class="cc">// .layer(axum::middleware::from_fn_with_state(auth_client, require_auth))</span>
+
+<span class="ck">pub async fn</span> <span class="cfn">require_auth</span>(
+    <span class="ct">State</span>(auth): <span class="ct">State</span>&lt;Arc&lt;<span class="ck">dyn</span> <span class="ct">AuthClient</span>&gt;&gt;,
+    <span class="ck">mut</span> req: <span class="ct">Request</span>,
+    next: <span class="ct">Next</span>,
+) -> <span class="ct">Result</span>&lt;<span class="ct">Response</span>, <span class="ct">AppError</span>&gt; {
+    <span class="ck">let</span> token = <span class="cfn">extract_bearer</span>(req.<span class="cfn">headers</span>())
+        .<span class="cfn">ok_or</span>(<span class="ct">AppError</span>::<span class="ct">Unauthorized</span>)?;
+
+    <span class="ck">let</span> claims = auth
+        .<span class="cfn">validate_token</span>(token).await
+        .<span class="cfn">map_err</span>(|_| <span class="ct">AppError</span>::<span class="ct">Unauthorized</span>)?;
+
+    req.<span class="cfn">extensions_mut</span>().<span class="cfn">insert</span>(claims);
+    <span class="ct">Ok</span>(next.<span class="cfn">run</span>(req).await)
+}</pre>
+            </div>
+            <div class="callout c-ok">
+              <span class="callout-icon">✅</span>
+              <div><strong>Kenapa pola ini benar</strong>
+              <p>Public key JWT hanya ada di <code>auth-service</code>. Middleware tidak decode — ia hanya delegasikan ke <code>AuthClient</code> trait. Saat service diekstrak, implementasi trait berubah dari in-process call menjadi HTTP call; middleware tidak perlu diubah.</p></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- JWT SETUP -->
+    <section id="jwt">
+      <h2 class="sec-title"><span class="sec-icon ic-y">🔐</span>JWT Key Setup (RS256)</h2>
+      <div class="steps">
+
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <h3>Generate RSA keypair</h3>
+            <p>Private key hanya ada di auth-service. Public key dibagikan ke service yang perlu validasi JWT.</p>
+            <div class="cblock">
+              <div class="cblock-header"><span class="cblock-lang">shell</span></div>
+              <pre>mkdir -p keys
+openssl genrsa -out keys/private.pem 2048
+openssl rsa -in keys/private.pem -pubout -out keys/public.pem</pre>
+            </div>
+            <div class="callout c-warn">
+              <span class="callout-icon">⚠️</span>
+              <div><strong>Jangan commit keys/</strong>
+              <p>Pastikan <code>keys/</code> dan <code>.env</code> ada di <code>.gitignore</code>. Untuk production gunakan secrets manager.</p></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <h3>Struktur JWT Claims</h3>
+            <div class="cblock">
+              <div class="cblock-header"><span class="cblock-lang">rust</span><span class="cblock-file">auth-service/src/domain/token.rs</span></div>
+              <pre><span class="ck">use</span> serde::{Deserialize, Serialize};
+<span class="ck">use</span> uuid::Uuid;
+
+<span class="ck">#[derive(</span><span class="ct">Debug, Serialize, Deserialize</span><span class="ck">)]</span>
+<span class="ck">pub struct</span> <span class="ct">Claims</span> {
+    <span class="ck">pub</span> sub:   Uuid,    <span class="cc">// user_id</span>
+    <span class="ck">pub</span> email: String,
+    <span class="ck">pub</span> iat:   i64,
+    <span class="ck">pub</span> exp:   i64,
+}</pre>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ALL SERVICES STATUS -->
+    <section id="all-services">
+      <h2 class="sec-title"><span class="sec-icon ic-g">🗂️</span>Status Implementasi — Semua Service</h2>
+
+      <div class="callout c-ok" style="margin-bottom:1.25rem;">
+        <span class="callout-icon">✅</span>
+        <div><strong>Semua 8 service sudah siap</strong>
+        <p>Setiap service memiliki struktur 4 layer lengkap, migration SQL, dan standalone binary. Siap untuk pengerjaan fitur di Phase 2.</p></div>
+      </div>
+
+      <div class="svc-grid">
+        <div class="svc-card">
+          <div class="svc-card-head"><span class="svc-name">auth-service</span><span class="svc-port">:3001</span></div>
+          <div class="svc-schema">schema: <code>auth</code></div>
+          <div class="svc-badges">
+            <span class="badge bdg-done">domain ✓</span>
+            <span class="badge bdg-done">application ✓</span>
+            <span class="badge bdg-done">infrastructure ✓</span>
+            <span class="badge bdg-done">interface ✓</span>
+            <span class="badge bdg-done">migrations ✓</span>
+          </div>
+        </div>
+        <div class="svc-card">
+          <div class="svc-card-head"><span class="svc-name">user-service</span><span class="svc-port">:3002</span></div>
+          <div class="svc-schema">schema: <code>user_svc</code></div>
+          <div class="svc-badges">
+            <span class="badge bdg-done">domain ✓</span>
+            <span class="badge bdg-done">application ✓</span>
+            <span class="badge bdg-done">infrastructure ✓</span>
+            <span class="badge bdg-done">interface ✓</span>
+            <span class="badge bdg-done">migrations ✓</span>
+          </div>
+        </div>
+        <div class="svc-card">
+          <div class="svc-card-head"><span class="svc-name">chat-service</span><span class="svc-port">:3003</span></div>
+          <div class="svc-schema">schema: <code>chat</code></div>
+          <div class="svc-badges">
+            <span class="badge bdg-done">domain ✓</span>
+            <span class="badge bdg-done">application ✓</span>
+            <span class="badge bdg-done">infrastructure ✓</span>
+            <span class="badge bdg-done">interface ✓</span>
+            <span class="badge bdg-done">migrations ✓</span>
+          </div>
+        </div>
+        <div class="svc-card">
+          <div class="svc-card-head"><span class="svc-name">notification-service</span><span class="svc-port">:3004</span></div>
+          <div class="svc-schema">schema: <code>notification</code></div>
+          <div class="svc-badges">
+            <span class="badge bdg-done">domain ✓</span>
+            <span class="badge bdg-done">application ✓</span>
+            <span class="badge bdg-done">infrastructure ✓</span>
+            <span class="badge bdg-done">interface ✓</span>
+            <span class="badge bdg-done">migrations ✓</span>
+          </div>
+        </div>
+        <div class="svc-card">
+          <div class="svc-card-head"><span class="svc-name">iklan-pekerjaan-service</span><span class="svc-port">:3005</span></div>
+          <div class="svc-schema">schema: <code>iklan_pekerjaan</code></div>
+          <div class="svc-badges">
+            <span class="badge bdg-done">domain ✓</span>
+            <span class="badge bdg-done">application ✓</span>
+            <span class="badge bdg-done">infrastructure ✓</span>
+            <span class="badge bdg-done">interface ✓</span>
+            <span class="badge bdg-done">migrations ✓</span>
+          </div>
+        </div>
+        <div class="svc-card">
+          <div class="svc-card-head"><span class="svc-name">iklan-pekerja-service</span><span class="svc-port">:3006</span></div>
+          <div class="svc-schema">schema: <code>iklan_pekerja</code></div>
+          <div class="svc-badges">
+            <span class="badge bdg-done">domain ✓</span>
+            <span class="badge bdg-done">application ✓</span>
+            <span class="badge bdg-done">infrastructure ✓</span>
+            <span class="badge bdg-done">interface ✓</span>
+            <span class="badge bdg-done">migrations ✓</span>
+          </div>
+        </div>
+        <div class="svc-card">
+          <div class="svc-card-head"><span class="svc-name">iklan-barang-bekas-service</span><span class="svc-port">:3007</span></div>
+          <div class="svc-schema">schema: <code>iklan_barang_bekas</code></div>
+          <div class="svc-badges">
+            <span class="badge bdg-done">domain ✓</span>
+            <span class="badge bdg-done">application ✓</span>
+            <span class="badge bdg-done">infrastructure ✓</span>
+            <span class="badge bdg-done">interface ✓</span>
+            <span class="badge bdg-done">migrations ✓</span>
+          </div>
+        </div>
+        <div class="svc-card">
+          <div class="svc-card-head"><span class="svc-name">iklan-pelatihan-service</span><span class="svc-port">:3008</span></div>
+          <div class="svc-schema">schema: <code>iklan_pelatihan</code></div>
+          <div class="svc-badges">
+            <span class="badge bdg-done">domain ✓</span>
+            <span class="badge bdg-done">application ✓</span>
+            <span class="badge bdg-done">infrastructure ✓</span>
+            <span class="badge bdg-done">interface ✓</span>
+            <span class="badge bdg-done">migrations ✓</span>
+          </div>
+        </div>
+      </div>
+
+      <p style="font-size:.75rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin-bottom:.6rem;">Catatan teknis per domain</p>
+      <table class="tbl" style="margin-bottom:.85rem;">
+        <thead><tr><th>Service</th><th>Fitur Domain Khusus</th></tr></thead>
+        <tbody>
+          <tr><td><code>auth-service</code></td><td>OTP consume atomik (DELETE + rows_affected), ON CONFLICT untuk idempotent OTP save, bcrypt password hash</td></tr>
+          <tr><td><code>user-service</code></td><td>COALESCE untuk PATCH partial update, auth_id UNIQUE (denormalized — tanpa FK lintas schema)</td></tr>
+          <tr><td><code>chat-service</code></td><td>UUID pair normalization: <code>(lo,hi) = if user_a &lt; user_b { (user_a,user_b) } else { (user_b,user_a) }</code> — ON CONFLICT idempotent, cursor-based pagination</td></tr>
+          <tr><td><code>notification-service</code></td><td>JSONB <code>data</code> column, partial index <code>WHERE is_read=false</code>, send_bulk via INSERT ... SELECT</td></tr>
+          <tr><td><code>iklan-pekerjaan-service</code></td><td>Filter berdasarkan <code>tipe</code> (full_time/part_time/freelance/internship), partial index WHERE is_active</td></tr>
+          <tr><td><code>iklan-pekerja-service</code></td><td><code>keahlian TEXT[]</code> — GIN index untuk pencarian array, stored as PostgreSQL text array</td></tr>
+          <tr><td><code>iklan-barang-bekas-service</code></td><td><code>mark_sold</code> endpoint (PATCH), <code>foto_urls TEXT[]</code>, partial index WHERE is_sold=false</td></tr>
+          <tr><td><code>iklan-pelatihan-service</code></td><td><code>tanggal_mulai</code> + <code>tanggal_selesai TIMESTAMPTZ</code>, index on tanggal_mulai WHERE is_active</td></tr>
+        </tbody>
+      </table>
+
+      <div class="callout c-info">
+        <span class="callout-icon">ℹ️</span>
+        <div><strong>Semua service menggunakan pola yang sama</strong>
+        <p>Service menggunakan <code>AuthService&lt;R: AuthRepository&gt;</code> — generic atas trait, bukan <code>Box&lt;dyn Trait&gt;</code>. Ini menghindari vtable overhead dan memastikan wiring diverifikasi saat compile time. Semua wiring konkret terjadi di fungsi <code>router(pool)</code>.</p></div>
+      </div>
+    </section>
+
+    <!-- AUTH-SERVICE -->
+    <section id="auth-service">
+      <h2 class="sec-title"><span class="sec-icon ic-o">🔒</span>auth-service — Implementasi</h2>
+
+      <p style="color:var(--muted);font-size:.88rem;margin-bottom:1rem;">Struktur folder yang harus dibuat di dalam <code>auth-service/src/</code>:</p>
+
+      <div class="filetree" style="margin-bottom:1.25rem;">
+<span class="ft-dir">auth-service/</span>
+├── rust-services/Cargo.toml
+├── <span class="ft-hi">migrations/</span>
+│   ├── 20260609000001_create_auth_tables.up.sql
+│   └── 20260609000001_create_auth_tables.down.sql
+└── src/
+    ├── lib.rs                           <span class="ft-note"># pub use interface::router</span>
+    ├── main.rs                          <span class="ft-note"># standalone binary</span>
+    ├── <span class="ft-hi">domain/</span>
+    │   ├── mod.rs
+    │   ├── entity.rs                    <span class="ft-note"># AuthUser, OtpVerification, OtpPurpose</span>
+    │   └── repository.rs               <span class="ft-note"># trait AuthRepository</span>
+    ├── <span class="ft-hi">application/</span>
+    │   ├── mod.rs
+    │   ├── dto.rs                       <span class="ft-note"># RegisterInput, LoginInput, TokenPair, ...</span>
+    │   └── service.rs                   <span class="ft-note"># AuthService&lt;R: AuthRepository&gt;</span>
+    ├── <span class="ft-hi">infrastructure/</span>
+    │   ├── mod.rs
+    │   └── pg_repository.rs            <span class="ft-note"># PgAuthRepository impl AuthRepository</span>
+    └── <span class="ft-hi">interface/</span>
+        ├── mod.rs                       <span class="ft-note"># AppState, pub fn router(pool) -&gt; Router</span>
+        └── handlers.rs                  <span class="ft-note"># Axum handler per endpoint</span></div>
+
+      <div class="steps">
+
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <h3>domain/entity.rs — Data model, tidak tahu DB atau HTTP</h3>
+            <div class="cblock">
+              <div class="cblock-header"><span class="cblock-lang">rust</span><span class="cblock-file">auth-service/src/domain/entity.rs</span></div>
+              <pre><span class="ck">pub struct</span> <span class="ct">AuthUser</span> {
+    <span class="ck">pub</span> id:            Uuid,
+    <span class="ck">pub</span> email:         String,
+    <span class="ck">pub</span> password_hash: String,
+    <span class="ck">pub</span> is_verified:   bool,
+    <span class="ck">pub</span> created_at:    <span class="ct">DateTime</span>&lt;<span class="ct">Utc</span>&gt;,
+    <span class="ck">pub</span> updated_at:    <span class="ct">DateTime</span>&lt;<span class="ct">Utc</span>&gt;,
+}
+
+<span class="ck">pub enum</span> <span class="ct">OtpPurpose</span> { <span class="ct">Register</span>, <span class="ct">ResetPassword</span> }
+
+<span class="ck">impl</span> <span class="ct">OtpPurpose</span> {
+    <span class="ck">pub fn</span> <span class="cfn">as_str</span>(&<span class="ck">self</span>) -> &'static str {
+        <span class="ck">match self</span> {
+            <span class="ct">OtpPurpose</span>::<span class="ct">Register</span>      => <span class="cs">"register"</span>,
+            <span class="ct">OtpPurpose</span>::<span class="ct">ResetPassword</span> => <span class="cs">"reset_password"</span>,
+        }
+    }
+}</pre>
+            </div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <h3>domain/repository.rs — Trait, bukan implementasi</h3>
+            <div class="cblock">
+              <div class="cblock-header"><span class="cblock-lang">rust</span><span class="cblock-file">auth-service/src/domain/repository.rs</span></div>
+              <pre><span class="ck">pub trait</span> <span class="ct">AuthRepository</span>: <span class="ct">Send</span> + <span class="ct">Sync</span> {
+    <span class="ck">async fn</span> <span class="cfn">find_by_email</span>(&<span class="ck">self</span>, email: &str)
+        -> <span class="ct">Result</span>&lt;<span class="ct">Option</span>&lt;<span class="ct">AuthUser</span>&gt;, anyhow::Error&gt;;
+    <span class="ck">async fn</span> <span class="cfn">create_user</span>(&<span class="ck">self</span>, email: &str, password_hash: &str)
+        -> <span class="ct">Result</span>&lt;<span class="ct">AuthUser</span>, anyhow::Error&gt;;
+    <span class="ck">async fn</span> <span class="cfn">save_otp</span>(&<span class="ck">self</span>, user_id: <span class="ct">Uuid</span>, otp_hash: &str, purpose: &str, expires_at: <span class="ct">DateTime</span>&lt;<span class="ct">Utc</span>&gt;)
+        -> <span class="ct">Result</span>&lt;(), anyhow::Error&gt;;
+    <span class="ck">async fn</span> <span class="cfn">consume_otp</span>(&<span class="ck">self</span>, user_id: <span class="ct">Uuid</span>, otp_hash: &str, purpose: &str)
+        -> <span class="ct">Result</span>&lt;bool, anyhow::Error&gt;;  <span class="cc">// true = valid & consumed</span>
+    <span class="ck">async fn</span> <span class="cfn">mark_verified</span>(&<span class="ck">self</span>, user_id: <span class="ct">Uuid</span>)
+        -> <span class="ct">Result</span>&lt;(), anyhow::Error&gt;;
+    <span class="cc">// ... save_refresh_token, revoke_refresh_token, dst.</span>
+}</pre>
+            </div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <h3>application/service.rs — Use case, generic atas repo trait</h3>
+            <div class="cblock">
+              <div class="cblock-header"><span class="cblock-lang">rust</span><span class="cblock-file">auth-service/src/application/service.rs</span></div>
+              <pre><span class="ck">pub struct</span> <span class="ct">AuthService</span>&lt;<span class="ct">R</span>: <span class="ct">AuthRepository</span>&gt; {
+    repo: <span class="ct">Arc</span>&lt;<span class="ct">R</span>&gt;,
+}
+
+<span class="ck">impl</span>&lt;<span class="ct">R</span>: <span class="ct">AuthRepository</span>&gt; <span class="ct">AuthService</span>&lt;<span class="ct">R</span>&gt; {
+    <span class="ck">pub async fn</span> <span class="cfn">register</span>(&<span class="ck">self</span>, input: <span class="ct">RegisterInput</span>) -> <span class="ct">Result</span>&lt;(), anyhow::Error&gt; {
+        <span class="cc">// 1. cek email belum ada</span>
+        <span class="cc">// 2. hash password dengan bcrypt</span>
+        <span class="cc">// 3. simpan user</span>
+        <span class="cc">// 4. generate & simpan OTP (expires 10 menit)</span>
+        <span class="cc">// 5. TODO: kirim OTP via NotificationClient</span>
+    }
+
+    <span class="ck">pub async fn</span> <span class="cfn">verify_otp</span>(&<span class="ck">self</span>, input: <span class="ct">VerifyOtpInput</span>) -> <span class="ct">Result</span>&lt;(), anyhow::Error&gt; {
+        <span class="cc">// 1. cari user by email</span>
+        <span class="cc">// 2. consume_otp — cek valid, belum expired, hapus sekaligus (sekali pakai)</span>
+        <span class="cc">// 3. jika purpose = register → mark_verified</span>
+    }
+}</pre>
+            </div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">4</div>
+          <div class="step-body">
+            <h3>infrastructure/pg_repository.rs — Implementasi dengan sqlx</h3>
+            <div class="cblock">
+              <div class="cblock-header"><span class="cblock-lang">rust</span><span class="cblock-file">auth-service/src/infrastructure/pg_repository.rs</span></div>
+              <pre><span class="ck">pub struct</span> <span class="ct">PgAuthRepository</span> { pool: <span class="ct">PgPool</span> }
+
+<span class="ck">impl</span> <span class="ct">AuthRepository</span> <span class="ck">for</span> <span class="ct">PgAuthRepository</span> {
+    <span class="ck">async fn</span> <span class="cfn">consume_otp</span>(&<span class="ck">self</span>, user_id: <span class="ct">Uuid</span>, otp_hash: &str, purpose: &str)
+        -> <span class="ct">Result</span>&lt;bool, anyhow::Error&gt;
+    {
+        <span class="ck">let</span> result = sqlx::<span class="cfn">query!</span>(
+            <span class="cs">r#"DELETE FROM auth.otp_verifications
+               WHERE user_id = $1 AND otp_hash = $2 AND purpose = $3
+                 AND expires_at > now()"#</span>,
+            user_id, otp_hash, purpose
+        ).<span class="cfn">execute</span>(&<span class="ck">self</span>.pool).await?;
+        <span class="ct">Ok</span>(result.<span class="cfn">rows_affected</span>() > <span class="cn">0</span>)
+    }
+}</pre>
+            </div>
+            <div class="callout c-info">
+              <span class="callout-icon">💡</span>
+              <div><strong>OTP consume atomik</strong>
+              <p>DELETE + cek <code>rows_affected</code> dalam satu query. Tidak ada race condition — dua request yang datang bersamaan tidak bisa sama-sama consume OTP yang sama.</p></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">5</div>
+          <div class="step-body">
+            <h3>interface/mod.rs — router() dan AppState</h3>
+            <div class="cblock">
+              <div class="cblock-header"><span class="cblock-lang">rust</span><span class="cblock-file">auth-service/src/interface/mod.rs</span></div>
+              <pre><span class="ck">#[derive(</span><span class="ct">Clone</span><span class="ck">)]</span>
+<span class="ck">pub struct</span> <span class="ct">AppState</span> {
+    <span class="ck">pub</span> auth_svc: <span class="ct">Arc</span>&lt;<span class="ct">AuthService</span>&lt;<span class="ct">PgAuthRepository</span>&gt;&gt;,
+}
+
+<span class="ck">pub fn</span> <span class="cfn">router</span>(pool: <span class="ct">PgPool</span>) -> <span class="ct">Router</span> {
+    <span class="ck">let</span> repo  = <span class="ct">Arc</span>::<span class="cfn">new</span>(<span class="ct">PgAuthRepository</span>::<span class="cfn">new</span>(pool));
+    <span class="ck">let</span> state = <span class="ct">AppState</span> { auth_svc: <span class="ct">Arc</span>::<span class="cfn">new</span>(<span class="ct">AuthService</span>::<span class="cfn">new</span>(repo)) };
+
+    <span class="ct">Router</span>::<span class="cfn">new</span>()
+        .<span class="cfn">route</span>(<span class="cs">"/health"</span>,     get(handlers::<span class="cfn">health</span>))
+        .<span class="cfn">route</span>(<span class="cs">"/register"</span>,  post(handlers::<span class="cfn">register</span>))
+        .<span class="cfn">route</span>(<span class="cs">"/login"</span>,     post(handlers::<span class="cfn">login</span>))
+        .<span class="cfn">route</span>(<span class="cs">"/verify-otp"</span>,post(handlers::<span class="cfn">verify_otp</span>))
+        .<span class="cfn">route</span>(<span class="cs">"/resend-otp"</span>,post(handlers::<span class="cfn">resend_otp</span>))
+        .<span class="cfn">route</span>(<span class="cs">"/refresh"</span>,   post(handlers::<span class="cfn">refresh_token</span>))
+        .<span class="cfn">route</span>(<span class="cs">"/logout"</span>,    post(handlers::<span class="cfn">logout</span>))
+        .<span class="cfn">with_state</span>(state)
+}</pre>
+            </div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">6</div>
+          <div class="step-body">
+            <h3>main.rs — Standalone binary, tidak ada mod config</h3>
+            <div class="cblock">
+              <div class="cblock-header"><span class="cblock-lang">rust</span><span class="cblock-file">auth-service/src/main.rs</span></div>
+              <pre><span class="ck">#[tokio::main]</span>
+<span class="ck">async fn</span> <span class="cfn">main</span>() {
+    <span class="ck">let</span> app_env = std::env::<span class="cfn">var</span>(<span class="cs">"APP_ENV"</span>).<span class="cfn">expect</span>(<span class="cs">"APP_ENV tidak di-set (development | production)"</span>);
+    <span class="ck">if</span> app_env == <span class="cs">"development"</span> {
+        dotenvy::<span class="cfn">dotenv</span>().ok();
+    }
+    common_tracing::<span class="cfn">init_tracing</span>();
+
+    <span class="ck">let</span> db_url = std::env::<span class="cfn">var</span>(<span class="cs">"AUTH_DATABASE_URL"</span>).<span class="cfn">expect</span>(<span class="cs">"AUTH_DATABASE_URL tidak di-set"</span>);
+    <span class="ck">let</span> pool   = sqlx::<span class="ct">PgPool</span>::<span class="cfn">connect</span>(&db_url).await.<span class="cfn">expect</span>(<span class="cs">"gagal connect ke PostgreSQL"</span>);
+
+    sqlx::<span class="cfn">migrate!</span>(<span class="cs">"./migrations"</span>).<span class="cfn">run</span>(&pool).await.<span class="cfn">expect</span>(<span class="cs">"Migration failed"</span>);
+
+    <span class="ck">let</span> port     = std::env::<span class="cfn">var</span>(<span class="cs">"AUTH_PORT"</span>).<span class="cfn">unwrap_or_else</span>(|_| <span class="cs">"3001"</span>.<span class="cfn">into</span>());
+    <span class="ck">let</span> listener = tokio::net::<span class="ct">TcpListener</span>::<span class="cfn">bind</span>(<span class="cfn">format!</span>(<span class="cs">"0.0.0.0:{port}"</span>)).await.<span class="cfn">unwrap</span>();
+    tracing::<span class="cfn">info!</span>(<span class="cs">"auth-service (standalone) listening on :{port}"</span>);
+    axum::<span class="cfn">serve</span>(listener, auth_service::<span class="cfn">router</span>(pool)).await.<span class="cfn">unwrap</span>();
+}</pre>
+            </div>
+            <div class="callout c-warn">
+              <span class="callout-icon">⚠️</span>
+              <div><strong>Jangan tambah <code>mod config</code> tanpa file-nya</strong>
+              <p><code>main.rs</code> tidak boleh mendeklarasikan <code>mod config</code> kecuali file <code>src/config.rs</code> sudah ada. Rust akan gagal kompilasi jika module dideklarasikan tapi file-nya tidak ada.</p></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- JWT IMPLEMENTATION -->
+    <section id="jwt-impl">
+      <h2 class="sec-title"><span class="sec-icon ic-y">🔑</span>JWT — Implementasi Lengkap</h2>
+
+      <p style="color:var(--muted);font-size:.88rem;margin-bottom:1.25rem;">JwtService hidup di <code>infrastructure/</code> — bukan di <code>domain/</code>. JWT adalah detail implementasi, bukan bisnis rule. Service layer hanya tahu "issue token" dan "validate token", tidak tahu RS256 atau library jsonwebtoken.</p>
+
+      <div class="steps">
+
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <h3>infrastructure/jwt.rs — JwtService (RS256)</h3>
+            <div class="cblock">
+              <div class="cblock-header"><span class="cblock-lang">rust</span><span class="cblock-file">auth-service/src/infrastructure/jwt.rs</span></div>
+              <pre><span class="ck">use</span> jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
+
+<span class="ck">pub struct</span> <span class="ct">JwtService</span> {
+    encoding_key: <span class="ct">EncodingKey</span>,
+    decoding_key: <span class="ct">DecodingKey</span>,
+    access_ttl:   i64, <span class="cc">// detik</span>
+}
+
+<span class="ck">impl</span> <span class="ct">JwtService</span> {
+    <span class="ck">pub fn</span> <span class="cfn">from_files</span>(private_pem: &str, public_pem: &str, access_ttl_secs: i64)
+        -> anyhow::<span class="ct">Result</span>&lt;<span class="ct">Self</span>&gt;
+    {
+        <span class="ck">let</span> encoding_key = <span class="ct">EncodingKey</span>::<span class="cfn">from_rsa_pem</span>(private_pem.<span class="cfn">as_bytes</span>())?;
+        <span class="ck">let</span> decoding_key = <span class="ct">DecodingKey</span>::<span class="cfn">from_rsa_pem</span>(public_pem.<span class="cfn">as_bytes</span>())?;
+        <span class="ct">Ok</span>(<span class="ct">Self</span> { encoding_key, decoding_key, access_ttl: access_ttl_secs })
+    }
+
+    <span class="ck">pub fn</span> <span class="cfn">issue_access_token</span>(&<span class="ck">self</span>, user_id: <span class="ct">Uuid</span>, email: &str)
+        -> anyhow::<span class="ct">Result</span>&lt;<span class="ct">String</span>&gt;
+    {
+        <span class="ck">let</span> now = <span class="ct">Utc</span>::<span class="cfn">now</span>().<span class="cfn">timestamp</span>();
+        <span class="ck">let</span> claims = <span class="ct">JwtClaims</span> { sub: user_id.<span class="cfn">to_string</span>(), email: email.<span class="cfn">into</span>(),
+                                   iat: now, exp: now + <span class="ck">self</span>.access_ttl };
+        <span class="cfn">encode</span>(&<span class="ct">Header</span>::<span class="cfn">new</span>(<span class="ct">Algorithm</span>::<span class="ct">RS256</span>), &claims, &<span class="ck">self</span>.encoding_key)
+            .<span class="cfn">map_err</span>(|e| anyhow::anyhow!(<span class="cs">"gagal sign token: {e}"</span>))
+    }
+
+    <span class="ck">pub fn</span> <span class="cfn">validate_token</span>(&<span class="ck">self</span>, token: &str)
+        -> <span class="ct">Result</span>&lt;<span class="ct">AuthClaims</span>, <span class="ct">AuthClientError</span>&gt;
+    {
+        <span class="ck">let</span> data = <span class="cfn">decode</span>::&lt;<span class="ct">JwtClaims</span>&gt;(token, &<span class="ck">self</span>.decoding_key,
+                       &<span class="ct">Validation</span>::<span class="cfn">new</span>(<span class="ct">Algorithm</span>::<span class="ct">RS256</span>))
+            .<span class="cfn">map_err</span>(|_| <span class="ct">AuthClientError</span>::<span class="ct">InvalidToken</span>)?;
+        <span class="ck">let</span> user_id = <span class="ct">Uuid</span>::<span class="cfn">parse_str</span>(&data.claims.sub)
+            .<span class="cfn">map_err</span>(|_| <span class="ct">AuthClientError</span>::<span class="ct">InvalidToken</span>)?;
+        <span class="ct">Ok</span>(<span class="ct">AuthClaims</span> { user_id, email: data.claims.email })
+    }
+}</pre>
+            </div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <h3>infrastructure/auth_client.rs — AuthInProcessClient</h3>
+            <p>Implementasi <code>AuthClient</code> trait untuk mode in-process. Saat service diekstrak, ganti dengan <code>HttpAuthClient</code> — middleware tidak berubah.</p>
+            <div class="cblock">
+              <div class="cblock-header"><span class="cblock-lang">rust</span><span class="cblock-file">auth-service/src/infrastructure/auth_client.rs</span></div>
+              <pre><span class="ck">pub struct</span> <span class="ct">AuthInProcessClient</span> { jwt: <span class="ct">Arc</span>&lt;<span class="ct">JwtService</span>&gt; }
+
+<span class="ck">impl</span> <span class="ct">AuthClient</span> <span class="ck">for</span> <span class="ct">AuthInProcessClient</span> {
+    <span class="ck">async fn</span> <span class="cfn">validate_token</span>(&<span class="ck">self</span>, token: &str) -> <span class="ct">Result</span>&lt;<span class="ct">AuthClaims</span>, <span class="ct">AuthClientError</span>&gt; {
+        <span class="ck">self</span>.jwt.<span class="cfn">validate_token</span>(token)
+    }
+}</pre>
+            </div>
+            <div class="callout c-ok">
+              <span class="callout-icon">✅</span>
+              <div><strong>Private key hanya di auth-service</strong>
+              <p>Tidak ada service lain yang memegang private key. Middleware hanya memanggil <code>validate_token</code> via trait — tidak tahu RS256 atau lokasi key.</p></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <h3>application/service.rs — Login + Refresh + Logout lengkap</h3>
+            <p>OTP di-hash dengan SHA-256. Refresh token di-hash sebelum disimpan di DB. Rotasi refresh token: token lama dihapus, token baru diissue dalam satu login cycle.</p>
+            <div class="cblock">
+              <div class="cblock-header"><span class="cblock-lang">rust</span><span class="cblock-file">auth-service/src/application/service.rs</span></div>
+              <pre><span class="ck">pub struct</span> <span class="ct">AuthService</span>&lt;<span class="ct">R</span>: <span class="ct">AuthRepository</span>&gt; {
+    repo:        <span class="ct">Arc</span>&lt;<span class="ct">R</span>&gt;,
+    jwt:         <span class="ct">Arc</span>&lt;<span class="ct">JwtService</span>&gt;,
+    refresh_ttl: i64,
+}
+
+<span class="ck">impl</span>&lt;<span class="ct">R</span>: <span class="ct">AuthRepository</span>&gt; <span class="ct">AuthService</span>&lt;<span class="ct">R</span>&gt; {
+    <span class="ck">pub async fn</span> <span class="cfn">login</span>(&<span class="ck">self</span>, input: <span class="ct">LoginInput</span>) -> <span class="ct">Result</span>&lt;<span class="ct">TokenPair</span>, anyhow::Error&gt; {
+        <span class="ck">let</span> user = <span class="ck">self</span>.repo.<span class="cfn">find_by_email</span>(&input.email).await?
+            .<span class="cfn">ok_or_else</span>(|| anyhow!(<span class="cs">"email atau password salah"</span>))?;
+        <span class="cfn">verify</span>(&input.password, &user.password_hash)?;
+
+        <span class="ck">let</span> access_token  = <span class="ck">self</span>.jwt.<span class="cfn">issue_access_token</span>(user.id, &user.email)?;
+        <span class="ck">let</span> refresh_token = <span class="cfn">generate_refresh_token</span>(); <span class="cc">// 32 bytes random hex</span>
+        <span class="ck">let</span> refresh_hash  = <span class="cfn">hash_token</span>(&refresh_token); <span class="cc">// SHA-256 sebelum simpan ke DB</span>
+        <span class="ck">self</span>.repo.<span class="cfn">save_refresh_token</span>(user.id, &refresh_hash, expires_at).await?;
+
+        <span class="ct">Ok</span>(<span class="ct">TokenPair</span> { access_token, refresh_token, token_type: <span class="cs">"Bearer"</span>.<span class="cfn">into</span>(), expires_in: <span class="cn">900</span> })
+    }
+
+    <span class="ck">pub async fn</span> <span class="cfn">refresh</span>(&<span class="ck">self</span>, input: <span class="ct">RefreshInput</span>) -> <span class="ct">Result</span>&lt;<span class="ct">TokenPair</span>, anyhow::Error&gt; {
+        <span class="ck">let</span> token_hash = <span class="cfn">hash_token</span>(&input.refresh_token);
+        <span class="ck">let</span> user_id    = <span class="ck">self</span>.repo.<span class="cfn">find_user_by_refresh_token</span>(&token_hash).await?
+            .<span class="cfn">ok_or_else</span>(|| anyhow!(<span class="cs">"refresh token tidak valid"</span>))?;
+        <span class="ck">self</span>.repo.<span class="cfn">revoke_refresh_token</span>(&token_hash).await?; <span class="cc">// rotasi</span>
+        <span class="cc">// ... issue access + refresh token baru</span>
+    }
+
+    <span class="ck">pub async fn</span> <span class="cfn">logout</span>(&<span class="ck">self</span>, refresh_token: &str) -> <span class="ct">Result</span>&lt;(), anyhow::Error&gt; {
+        <span class="ck">let</span> token_hash = <span class="cfn">hash_token</span>(refresh_token);
+        <span class="ck">self</span>.repo.<span class="cfn">revoke_refresh_token</span>(&token_hash).await
+    }
+}</pre>
+            </div>
+            <div class="callout c-info">
+              <span class="callout-icon">💡</span>
+              <div><strong>Token rotation</strong>
+              <p>Setiap <code>/refresh</code> → token lama direvoke, token baru diissue. Jika refresh token bocor, penyerang hanya bisa pakai sekali — rotasi membatalkan session mereka di request berikutnya.</p></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- AUTH-SERVICE-CLIENT -->
+    <section id="auth-client">
+      <h2 class="sec-title"><span class="sec-icon ic-b">📦</span>auth-service-client — Kontrak Publik</h2>
+      <div class="steps">
+
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <h3>Trait publik — native async fn (Rust 1.75+)</h3>
+            <div class="cblock">
+              <div class="cblock-header"><span class="cblock-lang">rust</span><span class="cblock-file">auth-service-client/src/lib.rs</span></div>
+              <pre><span class="ck">use</span> uuid::Uuid;
+
+<span class="ck">#[derive(</span><span class="ct">Debug, Clone, serde::Serialize, serde::Deserialize</span><span class="ck">)]</span>
+<span class="ck">pub struct</span> <span class="ct">AuthClaims</span> {
+    <span class="ck">pub</span> user_id: Uuid,
+    <span class="ck">pub</span> email:   String,
+}
+
+<span class="cc">// Native async fn in trait — tidak perlu crate async-trait</span>
+<span class="ck">pub trait</span> <span class="ct">AuthClient</span>: <span class="ct">Send</span> + <span class="ct">Sync</span> {
+    <span class="ck">async fn</span> <span class="cfn">validate_token</span>(&<span class="ck">self</span>, jwt: &str) -> <span class="ct">Result</span>&lt;<span class="ct">AuthClaims</span>, <span class="ct">AuthClientError</span>&gt;;
+}
+
+<span class="ck">#[derive(</span><span class="ct">Debug, thiserror::Error</span><span class="ck">)]</span>
+<span class="ck">pub enum</span> <span class="ct">AuthClientError</span> {
+    <span class="ck">#[error(</span><span class="cs">"token invalid or expired"</span><span class="ck">)]</span> <span class="ct">InvalidToken</span>,
+    <span class="ck">#[error(</span><span class="cs">"auth service unavailable"</span><span class="ck">)]</span>  <span class="ct">Unavailable</span>,
+}</pre>
+            </div>
+            <div class="callout c-ok">
+              <span class="callout-icon">✅</span>
+              <div><strong>Tidak ada async-trait crate</strong>
+              <p>Sejak Rust 1.75, <code>async fn</code> di dalam <code>trait</code> didukung native. Crate <code>async-trait</code> sudah dihapus dari seluruh workspace.</p></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <h3>Cargo.toml auth-service-client</h3>
+            <div class="cblock">
+              <div class="cblock-header"><span class="cblock-lang">toml</span><span class="cblock-file">auth-service-client/Cargo.toml</span></div>
+              <pre>[package]
+name    = <span class="cs">"auth-service-client"</span>
+version = <span class="cs">"0.1.0"</span>
+edition = <span class="cs">"2021"</span>
+
+[lib]
+name = <span class="cs">"auth_service_client"</span>
+path = <span class="cs">"src/lib.rs"</span>
+
+[dependencies]
+uuid      = { workspace = <span class="ck">true</span> }
+serde     = { workspace = <span class="ck">true</span> }
+thiserror = { workspace = <span class="ck">true</span> }
+
+<span class="cc"># TIDAK ada axum, sqlx, tokio — hanya trait + DTO</span></pre>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- REJKI-APP -->
+    <section id="rejki-app">
+      <h2 class="sec-title"><span class="sec-icon ic-p">🏗️</span>rejki-app — Composition Root</h2>
+      <div class="steps">
+
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <h3>Cargo.toml rejki-app</h3>
+            <p>Import semua <code>*-service</code> (library), bukan <code>*-service-client</code>.</p>
+            <div class="cblock">
+              <div class="cblock-header"><span class="cblock-lang">toml</span><span class="cblock-file">rejki-app/Cargo.toml</span></div>
+              <pre>[package]
+name    = <span class="cs">"rejki-app"</span>
+version = <span class="cs">"0.1.0"</span>
+edition = <span class="cs">"2021"</span>
+
+[[bin]]
+name = <span class="cs">"rejki-app"</span>
+path = <span class="cs">"src/main.rs"</span>
+
+[dependencies]
+common-errors  = { workspace = <span class="ck">true</span> }
+common-tracing = { workspace = <span class="ck">true</span> }
+axum           = { workspace = <span class="ck">true</span> }
+tokio          = { workspace = <span class="ck">true</span> }
+sqlx           = { workspace = <span class="ck">true</span> }
+tower-http     = { workspace = <span class="ck">true</span> }
+tracing        = { workspace = <span class="ck">true</span> }
+dotenvy        = { workspace = <span class="ck">true</span> }
+
+<span class="cc"># Import *-service (impl) — BUKAN *-service-client</span>
+auth-service               = { path = <span class="cs">"../auth-service"</span> }
+user-service               = { path = <span class="cs">"../user-service"</span> }
+chat-service               = { path = <span class="cs">"../chat-service"</span> }
+notification-service       = { path = <span class="cs">"../notification-service"</span> }
+iklan-pekerjaan-service    = { path = <span class="cs">"../iklan-pekerjaan-service"</span> }
+iklan-pekerja-service      = { path = <span class="cs">"../iklan-pekerja-service"</span> }
+iklan-barang-bekas-service = { path = <span class="cs">"../iklan-barang-bekas-service"</span> }
+iklan-pelatihan-service    = { path = <span class="cs">"../iklan-pelatihan-service"</span> }</pre>
+            </div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <h3>main.rs — Wire semua service + JwtService + CORS + Compression</h3>
+            <div class="cblock">
+              <div class="cblock-header"><span class="cblock-lang">rust</span><span class="cblock-file">rejki-app/src/main.rs</span></div>
+              <pre><span class="ck">use</span> std::sync::Arc;
+<span class="ck">use</span> tower_http::{cors::{Any, CorsLayer}, trace::TraceLayer, compression::CompressionLayer};
+
+<span class="ck">#[tokio::main]</span>
+<span class="ck">async fn</span> <span class="cfn">main</span>() {
+    <span class="cc">// APP_ENV wajib di-set: "development" | "production"</span>
+    <span class="ck">let</span> app_env = std::env::<span class="cfn">var</span>(<span class="cs">"APP_ENV"</span>).<span class="cfn">expect</span>(<span class="cs">"APP_ENV tidak di-set (development | production)"</span>);
+    <span class="ck">if</span> app_env == <span class="cs">"development"</span> {
+        dotenvy::<span class="cfn">dotenv</span>().ok(); <span class="cc">// .env hanya di-load saat development</span>
+    }
+    common_tracing::<span class="cfn">init_tracing</span>();
+
+    <span class="ck">let</span> pool = sqlx::<span class="ct">PgPool</span>::<span class="cfn">connect</span>(
+        &std::env::<span class="cfn">var</span>(<span class="cs">"DATABASE_URL"</span>).<span class="cfn">expect</span>(<span class="cs">"DATABASE_URL tidak di-set"</span>)
+    ).<span class="cfn">await</span>.<span class="cfn">expect</span>(<span class="cs">"gagal connect ke PostgreSQL"</span>);
+
+    <span class="cc">// JwtService — diinisiasi sekali, di-share via Arc</span>
+    <span class="ck">let</span> private_pem = std::fs::<span class="cfn">read_to_string</span>(
+        std::env::<span class="cfn">var</span>(<span class="cs">"JWT_PRIVATE_KEY_PATH"</span>).<span class="cfn">unwrap_or_else</span>(|_| <span class="cs">"./keys/private.pem"</span>.<span class="cfn">into</span>())
+    ).<span class="cfn">expect</span>(<span class="cs">"JWT_PRIVATE_KEY_PATH tidak ditemukan"</span>);
+    <span class="ck">let</span> public_pem = std::fs::<span class="cfn">read_to_string</span>(
+        std::env::<span class="cfn">var</span>(<span class="cs">"JWT_PUBLIC_KEY_PATH"</span>).<span class="cfn">unwrap_or_else</span>(|_| <span class="cs">"./keys/public.pem"</span>.<span class="cfn">into</span>())
+    ).<span class="cfn">expect</span>(<span class="cs">"JWT_PUBLIC_KEY_PATH tidak ditemukan"</span>);
+    <span class="ck">let</span> access_ttl: i64 = std::env::<span class="cfn">var</span>(<span class="cs">"JWT_ACCESS_TTL_SECS"</span>)
+        .<span class="cfn">ok</span>().<span class="cfn">and_then</span>(|v| v.<span class="cfn">parse</span>().<span class="cfn">ok</span>()).<span class="cfn">unwrap_or</span>(<span class="cn">900</span>);
+    <span class="ck">let</span> jwt = <span class="ct">Arc</span>::<span class="cfn">new</span>(
+        auth_service::<span class="ct">JwtService</span>::<span class="cfn">from_files</span>(&private_pem, &public_pem, access_ttl)
+            .<span class="cfn">expect</span>(<span class="cs">"gagal inisiasi JwtService"</span>)
+    );
+
+    <span class="cc">// AuthClient — in-process implementasi, di-inject ke middleware semua service</span>
+    <span class="ck">let</span> auth_client: <span class="ct">Arc</span>&lt;<span class="ck">dyn</span> auth_service_client::<span class="ct">AuthClient</span>&gt; =
+        <span class="ct">Arc</span>::<span class="cfn">new</span>(auth_service::<span class="ct">AuthInProcessClient</span>::<span class="cfn">new</span>(jwt.<span class="cfn">clone</span>()));
+
+    <span class="ck">let</span> app = <span class="ct">Router</span>::<span class="cfn">new</span>()
+        .<span class="cfn">nest</span>(<span class="cs">"/api/auth"</span>,      auth_service::<span class="cfn">router_with_jwt</span>(pool.<span class="cfn">clone</span>(), jwt.<span class="cfn">clone</span>()))
+        .<span class="cfn">nest</span>(<span class="cs">"/api/users"</span>,     user_service::<span class="cfn">router</span>(pool.<span class="cfn">clone</span>()))
+        .<span class="cfn">nest</span>(<span class="cs">"/api/chat"</span>,      chat_service::<span class="cfn">router</span>(pool.<span class="cfn">clone</span>()))
+        .<span class="cfn">nest</span>(<span class="cs">"/api/notif"</span>,     notification_service::<span class="cfn">router</span>(pool.<span class="cfn">clone</span>()))
+        .<span class="cfn">nest</span>(<span class="cs">"/api/pekerjaan"</span>, iklan_pekerjaan_service::<span class="cfn">router</span>(pool.<span class="cfn">clone</span>()))
+        .<span class="cfn">nest</span>(<span class="cs">"/api/pekerja"</span>,   iklan_pekerja_service::<span class="cfn">router</span>(pool.<span class="cfn">clone</span>()))
+        .<span class="cfn">nest</span>(<span class="cs">"/api/barang"</span>,    iklan_barang_bekas_service::<span class="cfn">router</span>(pool.<span class="cfn">clone</span>()))
+        .<span class="cfn">nest</span>(<span class="cs">"/api/pelatihan"</span>, iklan_pelatihan_service::<span class="cfn">router</span>(pool.<span class="cfn">clone</span>()))
+        .<span class="cfn">layer</span>(<span class="ct">CompressionLayer</span>::<span class="cfn">new</span>())
+        .<span class="cfn">layer</span>(<span class="ct">TraceLayer</span>::<span class="cfn">new_for_http</span>())
+        .<span class="cfn">layer</span>(<span class="ct">CorsLayer</span>::<span class="cfn">new</span>().<span class="cfn">allow_origin</span>(<span class="ct">Any</span>).<span class="cfn">allow_methods</span>(<span class="ct">Any</span>).<span class="cfn">allow_headers</span>(<span class="ct">Any</span>));
+
+    <span class="ck">let</span> port     = std::env::<span class="cfn">var</span>(<span class="cs">"APP_PORT"</span>).<span class="cfn">unwrap_or_else</span>(|_| <span class="cs">"8080"</span>.<span class="cfn">into</span>());
+    <span class="ck">let</span> listener = tokio::net::<span class="ct">TcpListener</span>::<span class="cfn">bind</span>(<span class="cfn">format!</span>(<span class="cs">"0.0.0.0:{port}"</span>)).<span class="cfn">await</span>.<span class="cfn">unwrap</span>();
+    tracing::<span class="cfn">info!</span>(port = %port, <span class="cs">"rejki-app listening"</span>);
+    axum::<span class="cfn">serve</span>(listener, app).<span class="cfn">await</span>.<span class="cfn">unwrap</span>();
+}</pre>
+            </div>
+            <div class="callout c-ok">
+              <span class="callout-icon">✅</span>
+              <div><strong>APP_ENV fail-fast — .env hanya di development</strong>
+              <p><code>APP_ENV</code> wajib di-set sebelum apapun berjalan — service langsung panic jika tidak ada. <code>dotenvy::dotenv()</code> hanya dipanggil jika <code>APP_ENV=development</code>; di production env var dibaca langsung dari system environment tanpa file <code>.env</code>.</p></div>
+            </div>
+            <div class="callout c-info" style="margin-top:.65rem;">
+              <span class="callout-icon">💡</span>
+              <div><strong>JwtService di-share, bukan dicopy</strong>
+              <p><code>Arc&lt;JwtService&gt;</code> dibuat sekali di Composition Root. <code>auth_service::router_with_jwt</code> menerimanya langsung — tidak perlu baca file PEM dua kali. Saat diekstrak, <code>AuthInProcessClient</code> diganti <code>HttpAuthClient</code> tanpa perubahan pada router service lain.</p></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <h3>Build dan jalankan</h3>
+            <div class="cblock">
+              <div class="cblock-header"><span class="cblock-lang">shell</span></div>
+              <pre><span class="cc"># Check compile</span>
+cargo check --manifest-path rust-services/Cargo.toml -p rejki-app
+
+<span class="cc"># Build release</span>
+cargo build --release -p rejki-app
+
+<span class="cc"># Hot-reload development</span>
+cargo watch -x "run -p rejki-app"</pre>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- CHECKLIST -->
+    <section id="checklist">
+      <h2 class="sec-title"><span class="sec-icon ic-g">✅</span>Checklist Phase 1</h2>
+
+      <div class="callout c-ok" style="margin-bottom:1.25rem;">
+        <span class="callout-icon">🎉</span>
+        <div><strong>Phase 1 selesai — semua item wajib done</strong>
+        <p>Item yang tersisa hanya langkah manual per-developer (install tools, generate keys, isi .env) yang tidak bisa diotomasi.</p></div>
+      </div>
+
+      <p style="font-size:.75rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin:.5rem 0 .75rem;">Kode &amp; Konfigurasi</p>
+      <div class="checklist">
+        <div class="chk"><div class="chk-box done"></div><div class="chk-text done">Cargo workspace dikonfigurasi — 20 crate members, semua dependency dipinned di root</div><span class="chk-label lbl-must">Wajib</span></div>
+        <div class="chk"><div class="chk-box done"></div><div class="chk-text done">common/errors — <code>AppError</code> dengan JSON response body, variant: NotFound, Unauthorized, Validation, Conflict, Forbidden, Internal</div><span class="chk-label lbl-must">Wajib</span></div>
+        <div class="chk"><div class="chk-box done"></div><div class="chk-text done">common/tracing-setup — <code>init_tracing()</code> selesai, JSON jika <code>APP_ENV=production</code></div><span class="chk-label lbl-must">Wajib</span></div>
+        <div class="chk"><div class="chk-box done"></div><div class="chk-text done">common/auth-middleware — <code>require_auth</code> via <code>Arc&lt;dyn AuthClient&gt;</code>, Dependency Inversion, tidak decode JWT sendiri</div><span class="chk-label lbl-must">Wajib</span></div>
+        <div class="chk"><div class="chk-box done"></div><div class="chk-text done">Semua 8 *-service — <code>[lib]</code> + <code>[[bin]]</code> dual target, 4 layer domain, migrations SQL</div><span class="chk-label lbl-must">Wajib</span></div>
+        <div class="chk"><div class="chk-box done"></div><div class="chk-text done">Semua 8 *-service-client — trait + DTO + Error enum, native async fn (tanpa async-trait)</div><span class="chk-label lbl-must">Wajib</span></div>
+        <div class="chk"><div class="chk-box done"></div><div class="chk-text done">scripts/init-schemas.sql — 8 schema PostgreSQL terisolasi + GRANT ke user rejki</div><span class="chk-label lbl-must">Wajib</span></div>
+        <div class="chk"><div class="chk-box done"></div><div class="chk-text done">.gitignore — keys/, .env, *.pem terlindungi dari commit</div><span class="chk-label lbl-must">Wajib</span></div>
+        <div class="chk"><div class="chk-box done"></div><div class="chk-text done">.env.example — template lengkap semua env var untuk semua 8 service + JWT</div><span class="chk-label lbl-must">Wajib</span></div>
+        <div class="chk"><div class="chk-box done"></div><div class="chk-text done">auth-service — <code>JwtService</code> RS256, <code>AuthInProcessClient</code>, register/login/verify-otp/resend-otp/refresh/logout semua selesai</div><span class="chk-label lbl-must">Wajib</span></div>
+        <div class="chk"><div class="chk-box done"></div><div class="chk-text done">auth-service — OTP hash SHA-256, refresh token hash SHA-256, token rotation on refresh, consume_otp atomik</div><span class="chk-label lbl-must">Wajib</span></div>
+        <div class="chk"><div class="chk-box done"></div><div class="chk-text done">rejki-app — <code>main.rs</code> wiring nyata: semua service, JwtService shared, CorsLayer + TraceLayer + CompressionLayer, <code>APP_ENV</code> fail-fast, <code>dotenvy</code> hanya di development</div><span class="chk-label lbl-must">Wajib</span></div>
+      </div>
+
+      <p style="font-size:.75rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin:1.25rem 0 .75rem;">Langkah Manual Developer (per mesin)</p>
+      <div class="checklist">
+        <div class="chk"><div class="chk-box"></div><div class="chk-text">Install Rust 1.75+ — <code>rustup update stable &amp;&amp; rustc --version</code></div><span class="chk-label lbl-must">Wajib</span></div>
+        <div class="chk"><div class="chk-box"></div><div class="chk-text">Install sqlx-cli — <code>cargo install sqlx-cli --no-default-features --features postgres</code></div><span class="chk-label lbl-must">Wajib</span></div>
+        <div class="chk"><div class="chk-box"></div><div class="chk-text">Jalankan Docker Compose — <code>docker compose up -d postgres redis</code></div><span class="chk-label lbl-must">Wajib</span></div>
+        <div class="chk"><div class="chk-box"></div><div class="chk-text">Generate RSA keypair — <code>mkdir keys &amp;&amp; openssl genrsa -out keys/private.pem 2048 &amp;&amp; openssl rsa -in keys/private.pem -pubout -out keys/public.pem</code></div><span class="chk-label lbl-must">Wajib</span></div>
+        <div class="chk"><div class="chk-box"></div><div class="chk-text">Salin <code>.env.example</code> → <code>.env</code> lalu isi DATABASE_URL + JWT_*_PATH</div><span class="chk-label lbl-must">Wajib</span></div>
+        <div class="chk"><div class="chk-box"></div><div class="chk-text">Jalankan migrasi — <code>sqlx migrate run --source rust-services/auth-service/migrations</code> (dan semua service lain)</div><span class="chk-label lbl-must">Wajib</span></div>
+        <div class="chk"><div class="chk-box"></div><div class="chk-text">Verifikasi compile — <code>cargo check --manifest-path rust-services/Cargo.toml -p rejki-app</code></div><span class="chk-label lbl-must">Wajib</span></div>
+      </div>
+    </section>
+
+    <footer>
+      <p>Rejki Backend · Phase 1 Setup Guide · Terakhir diperbarui: 9 Juni 2026 · Diperbarui: inkonsistensi <code>ENV</code>→<code>APP_ENV</code> diperbaiki · <strong style="color:var(--green);">Phase 1 selesai ✓</strong></p>
+      <p style="margin-top:.3rem;"><a href="index.html" style="color:var(--blue);text-decoration:none;">← Kembali ke Architecture Overview</a></p>
+    </footer>
+
+  </main>
+</div>
+</body>
+</html>

@@ -1,0 +1,176 @@
+name: CI
+
+on:
+  push:
+    branches: [develop, main]
+  pull_request:
+    branches: [develop, main]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  # ── Check: format + clippy + build ───────────────────────────────────────
+  check:
+    name: Check (fmt + clippy + build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust-services
+          cache-on-failure: true
+
+      - name: Check formatting
+        working-directory: rust-services
+        run: cargo fmt --all -- --check
+
+      - name: Clippy (warnings as errors)
+        working-directory: rust-services
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Build workspace (dev profile)
+        working-directory: rust-services
+        run: cargo build --workspace
+
+  # ── Unit tests (tanpa DB) ─────────────────────────────────────────────────
+  unit-test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    needs: check
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust-services
+          cache-on-failure: true
+
+      - name: Run unit tests (lib only — tanpa integration tests)
+        working-directory: rust-services
+        run: cargo test --workspace --lib
+        env:
+          APP_ENV: development
+
+  # ── Integration tests (dengan PostgreSQL nyata) ───────────────────────────
+  integration-test:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: check
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER:     rejki_test
+          POSTGRES_PASSWORD: rejki_test
+          POSTGRES_DB:       rejki_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U rejki_test -d rejki_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust-services
+          cache-on-failure: true
+
+      - name: Install sqlx-cli
+        run: cargo install sqlx-cli --no-default-features --features postgres
+
+      - name: Generate RSA key pair untuk JWT test
+        run: |
+          mkdir -p rust-services/rejki-app/keys
+          openssl genrsa -out rust-services/rejki-app/keys/private.pem 2048
+          openssl rsa -in rust-services/rejki-app/keys/private.pem -pubout -out rust-services/rejki-app/keys/public.pem
+
+      - name: Run all service migrations
+        env:
+          PGPASSWORD: rejki_test
+        run: |
+          export DATABASE_URL="postgres://rejki_test:rejki_test@localhost:5432/rejki_test"
+
+          # Init schemas
+          psql -h localhost -U rejki_test -d rejki_test -c "
+            CREATE SCHEMA IF NOT EXISTS auth;
+            CREATE SCHEMA IF NOT EXISTS user_svc;
+            CREATE SCHEMA IF NOT EXISTS chat;
+            CREATE SCHEMA IF NOT EXISTS notification;
+            CREATE SCHEMA IF NOT EXISTS iklan_pekerjaan;
+            CREATE SCHEMA IF NOT EXISTS iklan_pekerja;
+            CREATE SCHEMA IF NOT EXISTS iklan_barang_bekas;
+            CREATE SCHEMA IF NOT EXISTS iklan_pelatihan;
+          "
+
+          # Run sqlx migrations per service (dari rust-services/)
+          for dir in auth-service user-service chat-service notification-service \
+                     iklan-pekerjaan-service iklan-pekerja-service \
+                     iklan-barang-bekas-service iklan-pelatihan-service; do
+            if [ -d "rust-services/$dir/migrations" ]; then
+              echo "==> Migrating $dir"
+              sqlx migrate run --source "rust-services/$dir/migrations" --database-url "$DATABASE_URL"
+            fi
+          done
+
+      - name: Run integration tests
+        working-directory: rust-services/rejki-app
+        run: cargo test --test auth_integration_test -- --test-threads=1
+        env:
+          APP_ENV:              development
+          DATABASE_URL:         postgres://rejki_test:rejki_test@localhost:5432/rejki_test
+          REDIS_URL:            ""
+          APP_PORT:             "0"
+          SERVICE_NAME:         rejki-test
+          JWT_PRIVATE_KEY_PATH: ./keys/private.pem
+          JWT_PUBLIC_KEY_PATH:  ./keys/public.pem
+          JWT_ACCESS_TTL_SECS:  "900"
+
+  # ── Docker build check ────────────────────────────────────────────────────
+  docker-build-check:
+    name: Docker Build Check
+    runs-on: ubuntu-latest
+    needs: check
+    if: github.ref == 'refs/heads/main' || github.base_ref == 'main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build rejki-app image (no push)
+        uses: docker/build-push-action@v5
+        with:
+          context: ./rust-services
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build bun-notification image (no push)
+        uses: docker/build-push-action@v5
+        with:
+          context: ./bun-notification-service
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rejki Backend — CI/CD Setup</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0d1117; --surf: #161b22; --surf2: #1c2230; --border: #30363d;
+      --text: #e6edf3; --muted: #8b949e; --tag: #21262d;
+      --green: #56d364; --blue: #79c0ff; --orange: #f78166;
+      --yellow: #e3b341; --purple: #bc8cff; --cyan: #56b6d4; --r: 10px;
+    }
+    html { scroll-behavior: smooth; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; font-size: 15px; }
+    .layout { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
+    @media (max-width: 840px) { .layout { grid-template-columns: 1fr; } .nav { display: none; } }
+    .nav { position: sticky; top: 0; height: 100vh; overflow-y: auto; background: var(--surf); border-right: 1px solid var(--border); padding: 1.75rem 1rem; }
+    .nav-logo { font-size: 1.1rem; font-weight: 800; color: var(--yellow); margin-bottom: 1.75rem; }
+    .nav-logo span { color: var(--text); }
+    .nav-group { margin-bottom: 1.5rem; }
+    .nav-group-label { font-size: .67rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: .4rem; }
+    .nav-link { display: block; padding: .32rem .6rem; border-radius: 6px; font-size: .85rem; color: var(--muted); text-decoration: none; transition: background .12s, color .12s; }
+    .nav-link:hover { background: var(--tag); color: var(--text); }
+    .nav-link.accent { color: var(--yellow); }
+    .nav-link.back { color: var(--blue); font-size: .8rem; }
+    .nav-link.active { background: rgba(227,179,65,.08); color: var(--yellow); font-weight: 600; }
+    main { max-width: 920px; margin: 0 auto; padding: 3rem 2rem 6rem; }
+    @media (max-width: 600px) { main { padding: 2rem 1rem 4rem; } }
+    .hero { border-bottom: 1px solid var(--border); margin-bottom: 3rem; padding-bottom: 2.5rem; }
+    .eyebrow { display: inline-block; font-size: .73rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--green); background: rgba(86,211,100,.07); border: 1px solid rgba(86,211,100,.25); border-radius: 20px; padding: .22rem .75rem; margin-bottom: .9rem; }
+    .hero h1 { font-size: clamp(1.7rem,4vw,2.5rem); font-weight: 800; line-height: 1.15; letter-spacing: -.4px; margin-bottom: .9rem; }
+    .hero h1 em { font-style: normal; color: var(--green); }
+    .hero p { color: var(--muted); font-size: 1rem; max-width: 680px; line-height: 1.75; }
+    .badges { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: 1.2rem; }
+    .badge { font-size: .76rem; font-weight: 600; padding: .25rem .75rem; border-radius: 20px; border: 1px solid; }
+    .b-y  { color: var(--yellow); border-color: rgba(227,179,65,.4);  background: rgba(227,179,65,.06); }
+    .b-g  { color: var(--green);  border-color: rgba(86,211,100,.4);  background: rgba(86,211,100,.06); }
+    .b-b  { color: var(--blue);   border-color: rgba(121,192,255,.4); background: rgba(121,192,255,.06); }
+    .b-c  { color: var(--cyan);   border-color: rgba(86,182,212,.4);  background: rgba(86,182,212,.06); }
+    .b-o  { color: var(--orange); border-color: rgba(247,129,102,.4); background: rgba(247,129,102,.06); }
+    .b-ph { color: var(--purple); border-color: rgba(188,140,255,.4); background: rgba(188,140,255,.06); }
+    section { margin-bottom: 3.5rem; }
+    .sec-title { display: flex; align-items: center; gap: .6rem; font-size: 1.2rem; font-weight: 700; margin-bottom: 1.25rem; padding-bottom: .55rem; border-bottom: 1px solid var(--border); }
+    .sec-icon { width: 30px; height: 30px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: .95rem; flex-shrink: 0; }
+    .ic-g { background: rgba(86,211,100,.1); } .ic-b { background: rgba(121,192,255,.1); }
+    .ic-o { background: rgba(247,129,102,.1); } .ic-y { background: rgba(227,179,65,.1); }
+    .ic-c { background: rgba(86,182,212,.1); } .ic-p { background: rgba(188,140,255,.1); }
+    .sub-title { font-size: .95rem; font-weight: 700; margin: 1.6rem 0 .65rem; display: flex; align-items: center; gap: .5rem; }
+    .sub-title::before { content: ''; display: inline-block; width: 3px; height: 14px; background: var(--green); border-radius: 2px; }
+    .tbl { width: 100%; border-collapse: collapse; font-size: .84rem; background: var(--surf); border: 1px solid var(--border); border-radius: var(--r); overflow: hidden; }
+    .tbl th { background: var(--surf2); padding: .6rem 1rem; text-align: left; font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+    .tbl td { padding: .65rem 1rem; border-bottom: 1px solid var(--border); vertical-align: top; line-height: 1.55; }
+    .tbl tr:last-child td { border-bottom: none; }
+    .tbl tr:hover td { background: var(--surf2); }
+    .tbl-wrap { overflow-x: auto; }
+    .cblock { background: var(--surf2); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-top: .6rem; }
+    .cblock-header { display: flex; align-items: center; justify-content: space-between; padding: .45rem .9rem; border-bottom: 1px solid var(--border); }
+    .cblock-lang { font-size: .68rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+    .cblock-file { font-size: .72rem; color: var(--blue); font-family: 'Cascadia Code','Fira Code','Consolas',monospace; }
+    .cblock pre { font-family: 'Cascadia Code','Fira Code','Consolas',monospace; font-size: .8rem; line-height: 1.75; padding: .9rem 1.1rem; overflow-x: auto; }
+    .ck  { color: #ff7b72; } .cs  { color: #a5d6ff; } .cc  { color: #6e7681; }
+    .ct  { color: #ffa657; } .cfn { color: #d2a8ff; } .cv  { color: #56d364; }
+    .cn  { color: #79c0ff; }
+    .callout { border-radius: var(--r); padding: .85rem 1.1rem; margin-top: .9rem; font-size: .86rem; display: flex; gap: .65rem; line-height: 1.65; }
+    .callout-icon { flex-shrink: 0; font-size: 1rem; margin-top: 2px; }
+    .callout p { color: var(--muted); } .callout strong { color: var(--text); display: block; margin-bottom: .15rem; }
+    .c-info { background: rgba(121,192,255,.06); border: 1px solid rgba(121,192,255,.22); }
+    .c-warn { background: rgba(227,179,65,.06);  border: 1px solid rgba(227,179,65,.22); }
+    .c-ok   { background: rgba(86,211,100,.06);  border: 1px solid rgba(86,211,100,.22); }
+    .c-danger { background: rgba(247,129,102,.06); border: 1px solid rgba(247,129,102,.22); }
+    code { font-family: 'Cascadia Code','Fira Code','Consolas',monospace; font-size: .8rem; background: var(--tag); border: 1px solid var(--border); border-radius: 4px; padding: .05rem .4rem; color: var(--blue); }
+    .flow { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin: 1rem 0; }
+    .flow-box { background: var(--surf2); border: 1px solid var(--border); border-radius: 8px; padding: .5rem .9rem; font-size: .82rem; font-family: 'Cascadia Code','Fira Code','Consolas',monospace; white-space: nowrap; }
+    .flow-box.green  { border-color: rgba(86,211,100,.4);  background: rgba(86,211,100,.06);  color: var(--green); }
+    .flow-box.blue   { border-color: rgba(121,192,255,.4); background: rgba(121,192,255,.06); color: var(--blue); }
+    .flow-box.yellow { border-color: rgba(227,179,65,.4);  background: rgba(227,179,65,.06);  color: var(--yellow); }
+    .flow-box.orange { border-color: rgba(247,129,102,.4); background: rgba(247,129,102,.06); color: var(--orange); }
+    .flow-arr { color: var(--muted); font-size: .85rem; }
+    .checklist { display: flex; flex-direction: column; gap: .45rem; }
+    .chk { display: flex; align-items: flex-start; gap: .75rem; background: var(--surf); border: 1px solid var(--border); border-radius: 8px; padding: .7rem .9rem; font-size: .85rem; }
+    .chk-box { width: 16px; height: 16px; border: 2px solid var(--border); border-radius: 4px; flex-shrink: 0; margin-top: 2px; position: relative; }
+    .chk-box.done { background: var(--green); border-color: var(--green); }
+    .chk-box.done::after { content: '✓'; position: absolute; top: -2px; left: 1px; font-size: .7rem; color: var(--bg); font-weight: 800; }
+    .chk-text { flex: 1; line-height: 1.55; }
+    .chk-text.done { color: var(--muted); text-decoration: line-through; }
+    footer { margin-top: 4rem; padding-top: 1.25rem; border-top: 1px solid var(--border); font-size: .78rem; color: var(--muted); }
+  </style>
+</head>
+<body>
+<div class="layout">
+  <nav class="nav">
+    <div class="nav-logo">rejki<span>-backend</span></div>
+    <div class="nav-group">
+      <div class="nav-group-label">Navigasi</div>
+      <a class="nav-link back" href="index.html">← Architecture Overview</a>
+      <a class="nav-link back" href="vps-deployment.html">← VPS Deployment</a>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-label">Sections</div>
+      <a class="nav-link" href="#overview">Overview</a>
+      <a class="nav-link" href="#workflows">Workflow Files</a>
+      <a class="nav-link" href="#github-secrets">GitHub Secrets</a>
+      <a class="nav-link" href="#github-environments">Environments</a>
+      <a class="nav-link" href="#branch-strategy">Branch Strategy</a>
+      <a class="nav-link" href="#flow-dev">Flow: Push ke develop</a>
+      <a class="nav-link" href="#flow-prod">Flow: Push ke main</a>
+      <a class="nav-link" href="#ssh-deploy-key">SSH Deploy Key</a>
+      <a class="nav-link" href="#checklist">Checklist</a>
+    </div>
+  </nav>
+
+  <main>
+    <!-- ── Hero ── -->
+    <div class="hero">
+      <div class="eyebrow">Phase 1.5 — CI/CD Setup</div>
+      <h1>GitHub Actions — <em>CI &amp; CD</em></h1>
+      <p>Tiga workflow: <strong>CI</strong> (format + clippy + build + test pada setiap PR), <strong>Deploy Dev</strong> (push ke <code>develop</code> → VPS dev otomatis), dan <strong>Deploy Prod</strong> (push ke <code>main</code> → VPS prod otomatis). Tidak ada staging server — dev dan prod di VPS yang sama.</p>
+      <div class="badges">
+        <span class="badge b-g">GitHub Actions</span>
+        <span class="badge b-b">cargo clippy</span>
+        <span class="badge b-y">cargo test</span>
+        <span class="badge b-o">SSH Deploy</span>
+        <span class="badge b-c">Docker Build Cache</span>
+      </div>
+    </div>
+
+    <!-- ── Overview ── -->
+    <section id="overview">
+      <div class="sec-title">
+        <div class="sec-icon ic-g">📋</div>
+        Overview: 3 Workflow
+      </div>
+
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>File</th><th>Trigger</th><th>Jobs</th><th>Tujuan</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><code>.github/workflows/ci.yml</code></td>
+              <td>Push / PR ke <code>develop</code> atau <code>main</code></td>
+              <td>check → test → docker-build-check</td>
+              <td>Gate wajib — kode tidak bisa masuk tanpa lulus CI</td>
+            </tr>
+            <tr>
+              <td><code>.github/workflows/deploy-dev.yml</code></td>
+              <td>Push ke <code>develop</code> atau manual (workflow_dispatch)</td>
+              <td>deploy-dev</td>
+              <td>Deploy otomatis ke <code>/opt/rejki/dev</code> di VPS</td>
+            </tr>
+            <tr>
+              <td><code>.github/workflows/deploy.yml</code></td>
+              <td>Push ke <code>main</code></td>
+              <td>deploy</td>
+              <td>Deploy otomatis ke <code>/opt/rejki/prod</code> di VPS</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout c-info" style="margin-top:1rem;">
+        <div class="callout-icon">ℹ️</div>
+        <div><strong>CI harus lulus sebelum deploy bisa berjalan</strong>
+          <p>Deploy prod hanya trigger saat push ke <code>main</code>. Merge ke <code>main</code> sebaiknya hanya dilakukan via PR yang sudah lulus CI — enforce ini dengan <em>branch protection rule</em> di GitHub (lihat <a href="#branch-strategy" style="color:var(--blue);">Branch Strategy</a>).</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Workflow Files ── -->
+    <section id="workflows">
+      <div class="sec-title">
+        <div class="sec-icon ic-b">📄</div>
+        Workflow Files
+      </div>
+
+      <div class="sub-title">ci.yml — Check + Test</div>
+      <p style="font-size:.86rem;color:var(--muted);margin-bottom:.6rem;">Tiga job yang berjalan berurutan: <code>check</code> → <code>test</code> → <code>docker-build-check</code> (hanya di PR ke main).</p>
+
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Job</th><th>Langkah</th><th>Catatan</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><code>check</code></td>
+              <td><code>cargo fmt --check</code> → <code>cargo clippy -D warnings</code> → <code>cargo build</code></td>
+              <td>Gagal jika ada warning clippy atau kode tidak diformat</td>
+            </tr>
+            <tr>
+              <td><code>test</code></td>
+              <td><code>cargo test --workspace</code></td>
+              <td>Berjalan setelah <code>check</code> lulus. <code>APP_ENV=development</code> di-set agar tidak panic.</td>
+            </tr>
+            <tr>
+              <td><code>docker-build-check</code></td>
+              <td>Build dua Docker image tanpa push</td>
+              <td>Hanya di push/PR ke <code>main</code> — tidak perlu tiap PR ke develop</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout c-warn" style="margin-top:.8rem;">
+        <div class="callout-icon">⚠️</div>
+        <div><strong>Rust build cache — wajib untuk kecepatan</strong>
+          <p><code>Swatinem/rust-cache@v2</code> men-cache direktori <code>~/.cargo</code> dan <code>target/</code> antar run. Tanpa cache, setiap CI run compile ulang semua dependency (~5-10 menit). Dengan cache, hanya recompile yang berubah (~1-2 menit).</p>
+        </div>
+      </div>
+
+      <div class="sub-title">deploy.yml — Production Deploy</div>
+      <div class="cblock">
+        <div class="cblock-header">
+          <span class="cblock-lang">yaml</span>
+          <span class="cblock-file">.github/workflows/deploy.yml (script bagian utama)</span>
+        </div>
+        <pre>script: |
+  set -e                          <span class="cc"># exit jika ada perintah gagal</span>
+
+  cd /opt/rejki/prod
+  git pull origin main            <span class="cc"># ambil commit terbaru</span>
+
+  docker compose -p rejki-prod build rejki-app
+  docker compose -p rejki-prod build bun-notification
+
+  docker compose -p rejki-prod --profile prod up -d
+
+  sleep 10                        <span class="cc"># tunggu service start</span>
+  curl -sf http://localhost/health || exit 1   <span class="cc"># verifikasi</span>
+
+  docker image prune -f           <span class="cc"># bersihkan image lama</span></pre>
+      </div>
+
+      <div class="callout c-ok" style="margin-top:.8rem;">
+        <div class="callout-icon">✅</div>
+        <div><strong>concurrency: cancel-in-progress: false untuk prod</strong>
+          <p>Jika ada dua push ke <code>main</code> hampir bersamaan, deployment kedua menunggu deployment pertama selesai — tidak dibatalkan. Ini mencegah race condition di VPS.</p>
+        </div>
+      </div>
+
+      <div class="sub-title">deploy-dev.yml — Dev Deploy</div>
+      <p style="font-size:.86rem;color:var(--muted);margin:.5rem 0 .6rem;">Sama seperti prod tapi target <code>/opt/rejki/dev</code> dan port 8080. Menggunakan <code>cancel-in-progress: true</code> — jika push cepat berturut-turut, deploy lama dibatalkan dan langsung pakai yang terbaru.</p>
+      <p style="font-size:.86rem;color:var(--muted);">Juga mendukung <code>workflow_dispatch</code> — bisa di-trigger manual dari tab Actions GitHub tanpa harus push.</p>
+    </section>
+
+    <!-- ── GitHub Secrets ── -->
+    <section id="github-secrets">
+      <div class="sec-title">
+        <div class="sec-icon ic-o">🔑</div>
+        GitHub Secrets — Konfigurasi Wajib
+      </div>
+
+      <p style="font-size:.86rem;color:var(--muted);margin-bottom:1rem;">Buka <strong>GitHub repo → Settings → Secrets and variables → Actions → New repository secret</strong>.</p>
+
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Secret Name</th><th>Nilai</th><th>Keterangan</th></tr></thead>
+          <tbody>
+            <tr><td><code>VPS_HOST</code></td><td>IP address VPS</td><td>Contoh: <code>123.456.789.0</code></td></tr>
+            <tr><td><code>VPS_USER</code></td><td>Username SSH</td><td>Contoh: <code>deploy</code> atau <code>ubuntu</code></td></tr>
+            <tr><td><code>VPS_SSH_KEY</code></td><td>Private key SSH (isi penuh)</td><td>Lihat seksi <a href="#ssh-deploy-key" style="color:var(--blue);">SSH Deploy Key</a> di bawah</td></tr>
+            <tr><td><code>VPS_PORT</code></td><td>Port SSH (opsional)</td><td>Default 22. Isi jika port SSH VPS bukan 22.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout c-danger" style="margin-top:1rem;">
+        <div class="callout-icon">🚨</div>
+        <div><strong>Jangan gunakan SSH key yang sama dengan akses personal</strong>
+          <p>Buat SSH key pair khusus untuk GitHub Actions (deploy key). Jika key bocor, revoke hanya key itu — akses personal tidak terdampak.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── GitHub Environments ── -->
+    <section id="github-environments">
+      <div class="sec-title">
+        <div class="sec-icon ic-p">🌍</div>
+        GitHub Environments
+      </div>
+
+      <p style="font-size:.86rem;color:var(--muted);margin-bottom:1rem;">Workflow deploy menggunakan <code>environment: production</code> dan <code>environment: development</code>. Environment di GitHub memberikan proteksi tambahan: required reviewers, wait timer, dan environment-specific secrets.</p>
+
+      <p style="font-size:.86rem;color:var(--muted);margin-bottom:.8rem;">Buka <strong>GitHub repo → Settings → Environments → New environment</strong>:</p>
+
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Environment</th><th>Protection Rules (rekomendasi)</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><code>production</code></td>
+              <td>Required reviewers: 1 (kamu sendiri) — deploy prod butuh approval manual. Deployment branches: <code>main</code> saja.</td>
+            </tr>
+            <tr>
+              <td><code>development</code></td>
+              <td>Tanpa protection — deploy dev bisa langsung otomatis. Deployment branches: <code>develop</code> saja.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout c-info" style="margin-top:.8rem;">
+        <div class="callout-icon">ℹ️</div>
+        <div><strong>Required reviewer untuk production (opsional tapi direkomendasikan)</strong>
+          <p>Dengan required reviewer diaktifkan, workflow deploy prod akan <em>pause</em> dan menunggu approval sebelum SSH ke VPS. Kamu review deployment tersebut lalu klik Approve. Cocok untuk mencegah deploy tidak sengaja.</p>
+        </div>
+      </div>
+
+      <div class="callout c-info" style="margin-top:.8rem;">
+        <div class="callout-icon">🔁</div>
+        <div><strong>Secret &amp; variable seragam untuk dev dan prod</strong>
+          <p>Karena dev dan prod memakai struktur konfigurasi yang sama (lihat <a href="vps-deployment.html">VPS Deployment §10</a>), <strong>kumpulan secret/variable kedua environment juga sama</strong> — yang berbeda hanya <em>nilai</em>-nya:</p>
+          <ul style="margin:.4rem 0 .2rem 1.1rem;line-height:1.6;">
+            <li><code>APP_ENV</code> → <code>development</code> (dev) / <code>production</code> (prod). Ini juga yang menentukan ketersediaan Swagger UI — dev punya, prod tidak.</li>
+            <li>Domain → <strong>subdomain</strong> (mis. <code>dev.rejki.id</code>) untuk dev / <strong>domain utama</strong> (mis. <code>rejki.id</code>) untuk prod.</li>
+            <li><code>CLOUDFLARE_TUNNEL_TOKEN</code> → token tunnel masing-masing (dev opsional bila tidak mengekspos subdomain publik).</li>
+            <li>Kredensial DB → database/port berbeda per environment.</li>
+          </ul>
+          <p style="margin-top:.4rem;">Saat menambahkan variable baru, tambahkan ke <strong>kedua</strong> environment (dengan nilai sesuai) agar paritas konfigurasi terjaga dan tidak ada drift antar environment.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Branch Strategy ── -->
+    <section id="branch-strategy">
+      <div class="sec-title">
+        <div class="sec-icon ic-y">🌿</div>
+        Branch Strategy
+      </div>
+
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Branch</th><th>Tujuan</th><th>Deploy ke</th><th>Proteksi</th></tr></thead>
+          <tbody>
+            <tr><td><code>main</code></td><td>Production-ready code</td><td>VPS prod (<code>/opt/rejki/prod</code>)</td><td>Branch protection: require PR + CI lulus</td></tr>
+            <tr><td><code>develop</code></td><td>Integration branch — semua fitur masuk sini dulu</td><td>VPS dev (<code>/opt/rejki/dev</code>)</td><td>Require CI lulus (opsional)</td></tr>
+            <tr><td><code>feature/xxx</code></td><td>Pengembangan fitur baru</td><td>Tidak deploy</td><td>CI berjalan tapi tidak ada deploy</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sub-title">Setup branch protection di GitHub</div>
+      <p style="font-size:.86rem;color:var(--muted);margin:.5rem 0 .8rem;">Buka <strong>GitHub repo → Settings → Branches → Add branch ruleset</strong>:</p>
+
+      <div class="cblock">
+        <div class="cblock-header">
+          <span class="cblock-lang">text</span>
+          <span class="cblock-file">Branch Protection — main</span>
+        </div>
+        <pre>Branch name pattern: main
+
+✅ Require a pull request before merging
+   ✅ Require approvals: 1
+✅ Require status checks to pass before merging
+   Status checks yang wajib lulus:
+   - Check (fmt + clippy + build)   ← nama job di ci.yml
+   - Test
+✅ Do not allow bypassing the above settings</pre>
+      </div>
+    </section>
+
+    <!-- ── Flow Dev ── -->
+    <section id="flow-dev">
+      <div class="sec-title">
+        <div class="sec-icon ic-c">🔄</div>
+        Flow: Push ke develop
+      </div>
+
+      <div class="flow">
+        <div class="flow-box green">git push feature/xxx</div>
+        <div class="flow-arr">→</div>
+        <div class="flow-box blue">PR ke develop</div>
+        <div class="flow-arr">→</div>
+        <div class="flow-box yellow">CI: fmt + clippy + test</div>
+        <div class="flow-arr">→ lulus →</div>
+        <div class="flow-box green">Merge ke develop</div>
+        <div class="flow-arr">→</div>
+        <div class="flow-box orange">deploy-dev.yml SSH ke VPS dev</div>
+        <div class="flow-arr">→</div>
+        <div class="flow-box green">Dev: http://localhost:8080/health ✓</div>
+      </div>
+
+      <div class="callout c-info" style="margin-top:1rem;">
+        <div class="callout-icon">ℹ️</div>
+        <div><strong>Akses dev setelah deploy</strong>
+          <p>Buat SSH tunnel dari mesin lokal: <code>ssh -L 18080:localhost:8080 deploy@VPS_IP -N</code> lalu buka <code>http://localhost:18080/api/v1/...</code> di Postman/browser.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Flow Prod ── -->
+    <section id="flow-prod">
+      <div class="sec-title">
+        <div class="sec-icon ic-g">🚀</div>
+        Flow: Push ke main (Production Deploy)
+      </div>
+
+      <div class="flow">
+        <div class="flow-box blue">PR: develop → main</div>
+        <div class="flow-arr">→</div>
+        <div class="flow-box yellow">CI: fmt + clippy + test + docker-build-check</div>
+        <div class="flow-arr">→ lulus →</div>
+        <div class="flow-box orange">Review &amp; Approve (jika required reviewer aktif)</div>
+        <div class="flow-arr">→</div>
+        <div class="flow-box green">Merge ke main</div>
+        <div class="flow-arr">→</div>
+        <div class="flow-box orange">deploy.yml SSH ke VPS prod</div>
+        <div class="flow-arr">→</div>
+        <div class="flow-box green">https://api.rejki.id/health ✓</div>
+      </div>
+
+      <div class="sub-title">Apa yang terjadi di VPS saat deploy prod</div>
+      <div class="cblock">
+        <div class="cblock-header">
+          <span class="cblock-lang">bash</span>
+          <span class="cblock-file">SSH script yang dijalankan GitHub Actions</span>
+        </div>
+        <pre>cd /opt/rejki/prod
+
+git pull origin main              <span class="cc"># pull commit terbaru</span>
+
+<span class="cc"># Build image baru — pakai Docker layer cache</span>
+<span class="cc"># Jika hanya source yang berubah (bukan Cargo.toml), build ~2-5 menit</span>
+docker compose -p rejki-prod build rejki-app
+docker compose -p rejki-prod build bun-notification
+
+<span class="cc"># Restart dengan image baru — brief downtime ~5-10 detik</span>
+docker compose -p rejki-prod --profile prod up -d
+
+sleep 10
+curl -sf http://localhost/health  <span class="cc"># gagal = workflow error = notif ke GitHub</span>
+
+docker image prune -f             <span class="cc"># bersihkan image lama, hemat disk</span></pre>
+      </div>
+
+      <div class="callout c-warn" style="margin-top:.8rem;">
+        <div class="callout-icon">⚠️</div>
+        <div><strong>Brief downtime saat deploy</strong>
+          <p>Ada downtime ~5-10 detik saat container lama stop dan container baru start. Untuk production dengan traffic rendah di awal ini bisa diterima. Zero-downtime deployment (rolling update) bisa diimplementasi di Phase 3 jika dibutuhkan.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── SSH Deploy Key ── -->
+    <section id="ssh-deploy-key">
+      <div class="sec-title">
+        <div class="sec-icon ic-o">🗝️</div>
+        Setup SSH Deploy Key
+      </div>
+
+      <p style="font-size:.86rem;color:var(--muted);margin-bottom:1rem;">GitHub Actions butuh SSH key untuk masuk ke VPS. Buat key pair baru khusus untuk CI/CD — jangan reuse key personal.</p>
+
+      <div class="sub-title">1. Generate key pair (di mesin lokal)</div>
+      <div class="cblock">
+        <div class="cblock-header">
+          <span class="cblock-lang">bash</span>
+          <span class="cblock-file">Mesin lokal</span>
+        </div>
+        <pre><span class="cc"># Generate key pair khusus GitHub Actions</span>
+ssh-keygen -t ed25519 -C "github-actions-rejki" -f ~/.ssh/rejki_deploy_key -N ""
+
+<span class="cc"># Dua file dihasilkan:</span>
+<span class="cc"># ~/.ssh/rejki_deploy_key      ← private key (masuk ke GitHub Secrets)</span>
+<span class="cc"># ~/.ssh/rejki_deploy_key.pub  ← public key (masuk ke VPS authorized_keys)</span></pre>
+      </div>
+
+      <div class="sub-title">2. Daftarkan public key ke VPS</div>
+      <div class="cblock">
+        <div class="cblock-header">
+          <span class="cblock-lang">bash</span>
+          <span class="cblock-file">Mesin lokal → VPS</span>
+        </div>
+        <pre><span class="cc"># Copy public key ke VPS</span>
+ssh-copy-id -i ~/.ssh/rejki_deploy_key.pub deploy@YOUR_VPS_IP
+
+<span class="cc"># Atau manual — tambahkan isi .pub ke VPS:</span>
+cat ~/.ssh/rejki_deploy_key.pub
+<span class="cc"># Paste isi di atas ke /home/deploy/.ssh/authorized_keys di VPS</span></pre>
+      </div>
+
+      <div class="sub-title">3. Simpan private key ke GitHub Secrets</div>
+      <div class="cblock">
+        <div class="cblock-header">
+          <span class="cblock-lang">bash</span>
+          <span class="cblock-file">Mesin lokal — tampilkan private key</span>
+        </div>
+        <pre>cat ~/.ssh/rejki_deploy_key</pre>
+      </div>
+      <p style="font-size:.86rem;color:var(--muted);margin:.6rem 0;">Copy seluruh output (termasuk baris <code>-----BEGIN OPENSSH PRIVATE KEY-----</code> dan <code>-----END OPENSSH PRIVATE KEY-----</code>) dan paste sebagai nilai secret <code>VPS_SSH_KEY</code> di GitHub.</p>
+
+      <div class="sub-title">4. Verifikasi koneksi</div>
+      <div class="cblock">
+        <div class="cblock-header">
+          <span class="cblock-lang">bash</span>
+          <span class="cblock-file">Mesin lokal — test koneksi dengan deploy key</span>
+        </div>
+        <pre>ssh -i ~/.ssh/rejki_deploy_key deploy@YOUR_VPS_IP "docker compose --version"
+<span class="cc"># Harus output versi Docker Compose tanpa error</span></pre>
+      </div>
+
+      <div class="callout c-ok" style="margin-top:.8rem;">
+        <div class="callout-icon">✅</div>
+        <div><strong>Setelah verifikasi berhasil</strong>
+          <p>Hapus atau simpan private key di tempat aman — key ini hanya perlu di GitHub Secrets. Tidak perlu di mesin lokal setelah setup selesai.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Checklist ── -->
+    <section id="checklist">
+      <div class="sec-title">
+        <div class="sec-icon ic-g">✅</div>
+        Checklist CI/CD Setup
+      </div>
+
+      <div class="checklist">
+        <div class="chk">
+          <div class="chk-box done"></div>
+          <div class="chk-text done"><code>.github/workflows/ci.yml</code> — check (fmt + clippy + build) → test → docker-build-check</div>
+        </div>
+        <div class="chk">
+          <div class="chk-box done"></div>
+          <div class="chk-text done"><code>.github/workflows/deploy.yml</code> — deploy prod via SSH ke <code>/opt/rejki/prod</code> saat push ke <code>main</code></div>
+        </div>
+        <div class="chk">
+          <div class="chk-box done"></div>
+          <div class="chk-text done"><code>.github/workflows/deploy-dev.yml</code> — deploy dev via SSH ke <code>/opt/rejki/dev</code> saat push ke <code>develop</code></div>
+        </div>
+        <div class="chk">
+          <div class="chk-box"></div>
+          <div class="chk-text">Generate SSH deploy key khusus GitHub Actions (<code>ssh-keygen -t ed25519</code>)</div>
+        </div>
+        <div class="chk">
+          <div class="chk-box"></div>
+          <div class="chk-text">Public key ditambahkan ke <code>/home/deploy/.ssh/authorized_keys</code> di VPS</div>
+        </div>
+        <div class="chk">
+          <div class="chk-box"></div>
+          <div class="chk-text">GitHub Secrets diisi: <code>VPS_HOST</code>, <code>VPS_USER</code>, <code>VPS_SSH_KEY</code></div>
+        </div>
+        <div class="chk">
+          <div class="chk-box"></div>
+          <div class="chk-text">GitHub Environments dibuat: <code>production</code> (dengan required reviewer) dan <code>development</code></div>
+        </div>
+        <div class="chk">
+          <div class="chk-box"></div>
+          <div class="chk-text">Branch protection di <code>main</code>: require PR + status check CI lulus sebelum merge</div>
+        </div>
+        <div class="chk">
+          <div class="chk-box"></div>
+          <div class="chk-text">Test CI: buat PR kecil ke <code>develop</code> → pastikan workflow <code>ci.yml</code> berjalan dan lulus</div>
+        </div>
+        <div class="chk">
+          <div class="chk-box"></div>
+          <div class="chk-text">Test deploy dev: merge PR ke <code>develop</code> → workflow <code>deploy-dev.yml</code> berjalan → VPS dev ter-update</div>
+        </div>
+        <div class="chk">
+          <div class="chk-box"></div>
+          <div class="chk-text">Test deploy prod: merge <code>develop</code> ke <code>main</code> → approve (jika required reviewer aktif) → VPS prod ter-update → <code>https://api.rejki.id/health</code> OK</div>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      <p>rejki-backend · CI/CD Setup · GitHub Actions — ci.yml + deploy.yml + deploy-dev.yml · Phase 1.5</p>
+    </footer>
+  </main>
+</div>
+</body>
+</html>

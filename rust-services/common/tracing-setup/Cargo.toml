@@ -1,0 +1,10 @@
+[package]
+name    = "common-tracing"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tracing            = { workspace = true }
+tracing-subscriber = { workspace = true }
+axum               = { workspace = true }
+uuid               = { workspace = true }
