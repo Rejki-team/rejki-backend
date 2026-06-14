@@ -168,6 +168,7 @@ dependencies = [
  "serde_json",
  "sha2 0.10.9",
  "sqlx",
+ "storage-service-client",
  "thiserror",
  "tokio",
  "tower-http",
@@ -1080,6 +1081,44 @@ name = "core-foundation-sys"
 version = "0.8.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "773648b94d0e5d620f64f280777445740e61fe701025087ec8b57f45c791888b"
+
+[[package]]
+name = "corporate-comms-service"
+version = "0.1.0"
+dependencies = [
+ "ammonia",
+ "anyhow",
+ "async-trait",
+ "auth-service-client",
+ "axum",
+ "chrono",
+ "common-auth-mw",
+ "common-errors",
+ "common-tracing",
+ "corporate-comms-service-client",
+ "dotenvy",
+ "notification-service-client",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "storage-service-client",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "uuid",
+ "validator",
+]
+
+[[package]]
+name = "corporate-comms-service-client"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "serde",
+ "thiserror",
+ "uuid",
+]
 
 [[package]]
 name = "cpufeatures"
@@ -2201,6 +2240,7 @@ version = "0.1.0"
 dependencies = [
  "ammonia",
  "anyhow",
+ "async-trait",
  "auth-service-client",
  "axum",
  "chrono",
@@ -2213,6 +2253,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sqlx",
+ "storage-service-client",
  "thiserror",
  "tokio",
  "tower-http",
@@ -2237,6 +2278,7 @@ version = "0.1.0"
 dependencies = [
  "ammonia",
  "anyhow",
+ "async-trait",
  "auth-service-client",
  "axum",
  "chrono",
@@ -2249,6 +2291,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sqlx",
+ "storage-service-client",
  "thiserror",
  "tokio",
  "tower-http",
@@ -2273,6 +2316,7 @@ version = "0.1.0"
 dependencies = [
  "ammonia",
  "anyhow",
+ "async-trait",
  "auth-service-client",
  "axum",
  "chrono",
@@ -2285,6 +2329,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sqlx",
+ "storage-service-client",
  "thiserror",
  "tokio",
  "tower-http",
@@ -2309,6 +2354,7 @@ version = "0.1.0"
 dependencies = [
  "ammonia",
  "anyhow",
+ "async-trait",
  "auth-service-client",
  "axum",
  "chrono",
@@ -2321,6 +2367,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sqlx",
+ "storage-service-client",
  "thiserror",
  "tokio",
  "tower-http",
@@ -3205,27 +3252,25 @@ name = "rejki-app"
 version = "0.1.0"
 dependencies = [
  "auth-service",
- "auth-service-client",
  "axum",
  "bcrypt",
  "chat-service",
  "common-config",
  "common-errors",
  "common-tracing",
+ "corporate-comms-service",
  "dotenvy",
  "iklan-barang-bekas-service",
  "iklan-pekerja-service",
  "iklan-pekerjaan-service",
  "iklan-pelatihan-service",
  "notification-service",
- "notification-service-client",
  "region-service",
- "region-service-client",
+ "report-service",
  "serde",
  "serde_json",
  "sqlx",
  "storage-service",
- "storage-service-client",
  "tokio",
  "tower",
  "tower-http",
@@ -3233,6 +3278,43 @@ dependencies = [
  "user-service",
  "utoipa",
  "utoipa-swagger-ui",
+ "uuid",
+]
+
+[[package]]
+name = "report-service"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "auth-service-client",
+ "axum",
+ "chrono",
+ "common-auth-mw",
+ "common-errors",
+ "common-tracing",
+ "dotenvy",
+ "notification-service-client",
+ "report-service-client",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "storage-service-client",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "uuid",
+ "validator",
+]
+
+[[package]]
+name = "report-service-client"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "serde",
+ "thiserror",
  "uuid",
 ]
 
@@ -4420,12 +4502,14 @@ dependencies = [
  "async-trait",
  "auth-service-client",
  "axum",
+ "base64",
  "chrono",
  "common-auth-mw",
  "common-crypto",
  "common-errors",
  "common-tracing",
  "dotenvy",
+ "notification-service-client",
  "region-service-client",
  "serde",
  "serde_json",

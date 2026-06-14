@@ -3,7 +3,7 @@ use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use auth_service_client::{AuthClaims, AuthClientError};
+use auth_service_client::{AuthClaims, AuthClientError, Role};
 
 use crate::domain::entity::AccountStatus;
 
@@ -13,6 +13,8 @@ struct JwtClaims {
     sub: String, // user_id sebagai string
     email: String,
     status: String, // status akun (untuk gating cepat)
+    #[serde(default)]
+    role: Option<String>, // peran pengguna (RBAC admin, opsional untuk kompatibilitas token lama)
     iat: i64,
     exp: i64,
 }
@@ -41,18 +43,21 @@ impl JwtService {
         })
     }
 
-    /// Issue access token untuk user (menyertakan status akun untuk gating cepat).
+    /// Issue access token untuk user (menyertakan status akun untuk gating cepat,
+    /// dan role untuk otorisasi RBAC admin).
     pub fn issue_access_token(
         &self,
         user_id: Uuid,
         email: &str,
         status: AccountStatus,
+        role: Role,
     ) -> anyhow::Result<String> {
         let now = Utc::now().timestamp();
         let claims = JwtClaims {
             sub: user_id.to_string(),
             email: email.to_owned(),
             status: status.as_str().to_owned(),
+            role: Some(role.as_str().to_owned()),
             iat: now,
             exp: now + self.access_ttl,
         };
@@ -75,6 +80,7 @@ impl JwtService {
             user_id,
             email: data.claims.email,
             status: data.claims.status.parse().ok(),
+            role: data.claims.role.as_deref().and_then(|r| r.parse().ok()),
         })
     }
 }

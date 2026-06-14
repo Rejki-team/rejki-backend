@@ -1,8 +1,8 @@
 use sqlx::PgPool;
 
-use region_service_client::RegionLevel;
 use crate::domain::entity::RegionEntity;
 use crate::domain::repository::RegionRepository;
+use region_service_client::RegionLevel;
 
 pub struct PgRegionRepository {
     pool: PgPool,
@@ -15,7 +15,12 @@ impl PgRegionRepository {
 }
 
 /// Map row (id, name) + level + optional parent ke RegionEntity.
-fn region_from_row(id: String, name: String, level: RegionLevel, parent_id: Option<&str>) -> RegionEntity {
+fn region_from_row(
+    id: String,
+    name: String,
+    level: RegionLevel,
+    parent_id: Option<&str>,
+) -> RegionEntity {
     RegionEntity {
         id,
         name,
@@ -27,7 +32,7 @@ fn region_from_row(id: String, name: String, level: RegionLevel, parent_id: Opti
 impl RegionRepository for PgRegionRepository {
     async fn list_by_level(
         &self,
-        level:     RegionLevel,
+        level: RegionLevel,
         parent_id: Option<&str>,
     ) -> Result<Vec<RegionEntity>, anyhow::Error> {
         let rows: Vec<RegionEntity> = match level {
@@ -86,25 +91,45 @@ impl RegionRepository for PgRegionRepository {
             .fetch_optional(&self.pool)
             .await?
         {
-            return Ok(Some(region_from_row(r.id, r.name, RegionLevel::Village, None)));
+            return Ok(Some(region_from_row(
+                r.id,
+                r.name,
+                RegionLevel::Village,
+                None,
+            )));
         }
         if let Some(r) = sqlx::query!("SELECT id, name FROM region.district WHERE id = $1", id)
             .fetch_optional(&self.pool)
             .await?
         {
-            return Ok(Some(region_from_row(r.id, r.name, RegionLevel::District, None)));
+            return Ok(Some(region_from_row(
+                r.id,
+                r.name,
+                RegionLevel::District,
+                None,
+            )));
         }
         if let Some(r) = sqlx::query!("SELECT id, name FROM region.regency WHERE id = $1", id)
             .fetch_optional(&self.pool)
             .await?
         {
-            return Ok(Some(region_from_row(r.id, r.name, RegionLevel::Regency, None)));
+            return Ok(Some(region_from_row(
+                r.id,
+                r.name,
+                RegionLevel::Regency,
+                None,
+            )));
         }
         if let Some(r) = sqlx::query!("SELECT id, name FROM region.province WHERE id = $1", id)
             .fetch_optional(&self.pool)
             .await?
         {
-            return Ok(Some(region_from_row(r.id, r.name, RegionLevel::Province, None)));
+            return Ok(Some(region_from_row(
+                r.id,
+                r.name,
+                RegionLevel::Province,
+                None,
+            )));
         }
         Ok(None)
     }
@@ -112,22 +137,23 @@ impl RegionRepository for PgRegionRepository {
     async fn validate_chain(
         &self,
         province_id: &str,
-        regency_id:  &str,
+        regency_id: &str,
         district_id: &str,
-        village_id:  &str,
+        village_id: &str,
     ) -> Result<bool, anyhow::Error> {
-        Ok(
-            sqlx::query_scalar!(
-                "SELECT EXISTS(
+        Ok(sqlx::query_scalar!(
+            "SELECT EXISTS(
                     SELECT 1 FROM region.village v
                     JOIN region.district d ON d.id = v.district_id
                     JOIN region.regency  r ON r.id = d.regency_id
                     WHERE v.id = $1 AND d.id = $2 AND r.id = $3 AND r.province_id = $4
                 ) AS \"exists!\"",
-                village_id, district_id, regency_id, province_id
-            )
-            .fetch_one(&self.pool)
-            .await?
+            village_id,
+            district_id,
+            regency_id,
+            province_id
         )
+        .fetch_one(&self.pool)
+        .await?)
     }
 }

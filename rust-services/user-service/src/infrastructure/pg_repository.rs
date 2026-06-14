@@ -3,7 +3,9 @@ use std::time::Instant;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::domain::entity::{KycSubmission, KycSubmissionStatus, UserProfile};
+use crate::domain::entity::{
+    DocumentAccessAction, KycSubmission, KycSubmissionStatus, UserProfile,
+};
 use crate::domain::repository::UserRepository;
 
 macro_rules! warn_slow {
@@ -41,26 +43,26 @@ impl UserRepository for PgUserRepository {
         .await?;
         warn_slow!(t, "user.find_by_id");
         Ok(row.map(|r| UserProfile {
-            id:              r.id,
-            auth_id:         r.auth_id,
-            username:        r.username,
-            full_name:       r.full_name,
-            avatar:          r.avatar,
-            bio:             r.bio,
-            phone:           r.phone,
-            nik_encrypted:   r.nik_encrypted,
-            nik_last4:       r.nik_last4,
+            id: r.id,
+            auth_id: r.auth_id,
+            username: r.username,
+            full_name: r.full_name,
+            avatar: r.avatar,
+            bio: r.bio,
+            phone: r.phone,
+            nik_encrypted: r.nik_encrypted,
+            nik_last4: r.nik_last4,
             education_level: r.education_level,
-            gender:          r.gender,
-            birth_date:      r.birth_date,
-            address_line:    r.address_line,
-            country_code:    r.country_code,
-            province_id:     r.province_id,
-            regency_id:      r.regency_id,
-            district_id:     r.district_id,
-            village_id:      r.village_id,
-            created_at:      r.created_at,
-            updated_at:      r.updated_at,
+            gender: r.gender,
+            birth_date: r.birth_date,
+            address_line: r.address_line,
+            country_code: r.country_code,
+            province_id: r.province_id,
+            regency_id: r.regency_id,
+            district_id: r.district_id,
+            village_id: r.village_id,
+            created_at: r.created_at,
+            updated_at: r.updated_at,
         }))
     }
 
@@ -78,26 +80,26 @@ impl UserRepository for PgUserRepository {
         .await?;
         warn_slow!(t, "user.find_by_auth_id");
         Ok(row.map(|r| UserProfile {
-            id:              r.id,
-            auth_id:         r.auth_id,
-            username:        r.username,
-            full_name:       r.full_name,
-            avatar:          r.avatar,
-            bio:             r.bio,
-            phone:           r.phone,
-            nik_encrypted:   r.nik_encrypted,
-            nik_last4:       r.nik_last4,
+            id: r.id,
+            auth_id: r.auth_id,
+            username: r.username,
+            full_name: r.full_name,
+            avatar: r.avatar,
+            bio: r.bio,
+            phone: r.phone,
+            nik_encrypted: r.nik_encrypted,
+            nik_last4: r.nik_last4,
             education_level: r.education_level,
-            gender:          r.gender,
-            birth_date:      r.birth_date,
-            address_line:    r.address_line,
-            country_code:    r.country_code,
-            province_id:     r.province_id,
-            regency_id:      r.regency_id,
-            district_id:     r.district_id,
-            village_id:      r.village_id,
-            created_at:      r.created_at,
-            updated_at:      r.updated_at,
+            gender: r.gender,
+            birth_date: r.birth_date,
+            address_line: r.address_line,
+            country_code: r.country_code,
+            province_id: r.province_id,
+            regency_id: r.regency_id,
+            district_id: r.district_id,
+            village_id: r.village_id,
+            created_at: r.created_at,
+            updated_at: r.updated_at,
         }))
     }
 
@@ -116,26 +118,26 @@ impl UserRepository for PgUserRepository {
         .await?;
         warn_slow!(t, "user.create");
         Ok(UserProfile {
-            id:              row.id,
-            auth_id:         row.auth_id,
-            username:        row.username,
-            full_name:       row.full_name,
-            avatar:          row.avatar,
-            bio:             row.bio,
-            phone:           row.phone,
-            nik_encrypted:   row.nik_encrypted,
-            nik_last4:       row.nik_last4,
+            id: row.id,
+            auth_id: row.auth_id,
+            username: row.username,
+            full_name: row.full_name,
+            avatar: row.avatar,
+            bio: row.bio,
+            phone: row.phone,
+            nik_encrypted: row.nik_encrypted,
+            nik_last4: row.nik_last4,
             education_level: row.education_level,
-            gender:          row.gender,
-            birth_date:      row.birth_date,
-            address_line:    row.address_line,
-            country_code:    row.country_code,
-            province_id:     row.province_id,
-            regency_id:      row.regency_id,
-            district_id:     row.district_id,
-            village_id:      row.village_id,
-            created_at:      row.created_at,
-            updated_at:      row.updated_at,
+            gender: row.gender,
+            birth_date: row.birth_date,
+            address_line: row.address_line,
+            country_code: row.country_code,
+            province_id: row.province_id,
+            regency_id: row.regency_id,
+            district_id: row.district_id,
+            village_id: row.village_id,
+            created_at: row.created_at,
+            updated_at: row.updated_at,
         })
     }
 
@@ -166,33 +168,34 @@ impl UserRepository for PgUserRepository {
         .await?;
         warn_slow!(t, "user.update");
         Ok(UserProfile {
-            id:              row.id,
-            auth_id:         row.auth_id,
-            username:        row.username,
-            full_name:       row.full_name,
-            avatar:          row.avatar,
-            bio:             row.bio,
-            phone:           row.phone,
-            nik_encrypted:   row.nik_encrypted,
-            nik_last4:       row.nik_last4,
+            id: row.id,
+            auth_id: row.auth_id,
+            username: row.username,
+            full_name: row.full_name,
+            avatar: row.avatar,
+            bio: row.bio,
+            phone: row.phone,
+            nik_encrypted: row.nik_encrypted,
+            nik_last4: row.nik_last4,
             education_level: row.education_level,
-            gender:          row.gender,
-            birth_date:      row.birth_date,
-            address_line:    row.address_line,
-            country_code:    row.country_code,
-            province_id:     row.province_id,
-            regency_id:      row.regency_id,
-            district_id:     row.district_id,
-            village_id:      row.village_id,
-            created_at:      row.created_at,
-            updated_at:      row.updated_at,
+            gender: row.gender,
+            birth_date: row.birth_date,
+            address_line: row.address_line,
+            country_code: row.country_code,
+            province_id: row.province_id,
+            regency_id: row.regency_id,
+            district_id: row.district_id,
+            village_id: row.village_id,
+            created_at: row.created_at,
+            updated_at: row.updated_at,
         })
     }
 
     async fn update_avatar(&self, id: Uuid, object_key: &str) -> Result<(), anyhow::Error> {
         sqlx::query!(
             "UPDATE user_svc.profiles SET avatar = $2, updated_at = now() WHERE id = $1",
-            id, object_key
+            id,
+            object_key
         )
         .execute(&self.pool)
         .await?;
@@ -230,6 +233,7 @@ impl UserRepository for PgUserRepository {
     // ── KYC submission ─────────────────────────────────────────────────────────
 
     async fn create_submission(&self, profile_id: Uuid) -> Result<KycSubmission, anyhow::Error> {
+        let t = Instant::now();
         let row = sqlx::query!(
             "INSERT INTO user_svc.kyc_submission (id, profile_id, status)
              VALUES (gen_random_uuid(), $1, 'pending')
@@ -238,21 +242,26 @@ impl UserRepository for PgUserRepository {
         )
         .fetch_one(&self.pool)
         .await?;
+        warn_slow!(t, "kyc.create_submission");
         Ok(KycSubmission {
-            id:                row.id,
-            profile_id:        row.profile_id,
-            status:            KycSubmissionStatus::Pending,
-            ktp_object_key:    None,
+            id: row.id,
+            profile_id: row.profile_id,
+            status: KycSubmissionStatus::Pending,
+            ktp_object_key: None,
             selfie_object_key: None,
-            reviewed_by:       None,
-            review_note:       None,
-            reviewed_at:       None,
-            created_at:        row.created_at,
-            updated_at:        row.updated_at,
+            reviewed_by: None,
+            review_note: None,
+            reviewed_at: None,
+            created_at: row.created_at,
+            updated_at: row.updated_at,
         })
     }
 
-    async fn get_latest_submission(&self, profile_id: Uuid) -> Result<Option<KycSubmission>, anyhow::Error> {
+    async fn get_latest_submission(
+        &self,
+        profile_id: Uuid,
+    ) -> Result<Option<KycSubmission>, anyhow::Error> {
+        let t = Instant::now();
         let row = sqlx::query!(
             "SELECT id, profile_id, status, ktp_object_key, selfie_object_key,
                     reviewed_by, review_note, reviewed_at, created_at, updated_at
@@ -263,24 +272,29 @@ impl UserRepository for PgUserRepository {
         )
         .fetch_optional(&self.pool)
         .await?;
+        warn_slow!(t, "kyc.get_latest_submission");
         row.map(|r| {
             Ok(KycSubmission {
-                id:                r.id,
-                profile_id:        r.profile_id,
-                status:            r.status.parse().unwrap_or(KycSubmissionStatus::Pending),
-                ktp_object_key:    r.ktp_object_key,
+                id: r.id,
+                profile_id: r.profile_id,
+                status: r.status.parse().unwrap_or(KycSubmissionStatus::Pending),
+                ktp_object_key: r.ktp_object_key,
                 selfie_object_key: r.selfie_object_key,
-                reviewed_by:       r.reviewed_by,
-                review_note:       r.review_note,
-                reviewed_at:       r.reviewed_at,
-                created_at:        r.created_at,
-                updated_at:        r.updated_at,
+                reviewed_by: r.reviewed_by,
+                review_note: r.review_note,
+                reviewed_at: r.reviewed_at,
+                created_at: r.created_at,
+                updated_at: r.updated_at,
             })
         })
         .transpose()
     }
 
-    async fn get_submission_by_id(&self, submission_id: Uuid) -> Result<Option<KycSubmission>, anyhow::Error> {
+    async fn get_submission_by_id(
+        &self,
+        submission_id: Uuid,
+    ) -> Result<Option<KycSubmission>, anyhow::Error> {
+        let t = Instant::now();
         let row = sqlx::query!(
             "SELECT id, profile_id, status, ktp_object_key, selfie_object_key,
                     reviewed_by, review_note, reviewed_at, created_at, updated_at
@@ -290,18 +304,19 @@ impl UserRepository for PgUserRepository {
         )
         .fetch_optional(&self.pool)
         .await?;
+        warn_slow!(t, "kyc.get_submission_by_id");
         row.map(|r| {
             Ok(KycSubmission {
-                id:                r.id,
-                profile_id:        r.profile_id,
-                status:            r.status.parse().unwrap_or(KycSubmissionStatus::Pending),
-                ktp_object_key:    r.ktp_object_key,
+                id: r.id,
+                profile_id: r.profile_id,
+                status: r.status.parse().unwrap_or(KycSubmissionStatus::Pending),
+                ktp_object_key: r.ktp_object_key,
                 selfie_object_key: r.selfie_object_key,
-                reviewed_by:       r.reviewed_by,
-                review_note:       r.review_note,
-                reviewed_at:       r.reviewed_at,
-                created_at:        r.created_at,
-                updated_at:        r.updated_at,
+                reviewed_by: r.reviewed_by,
+                review_note: r.review_note,
+                reviewed_at: r.reviewed_at,
+                created_at: r.created_at,
+                updated_at: r.updated_at,
             })
         })
         .transpose()
@@ -309,19 +324,89 @@ impl UserRepository for PgUserRepository {
 
     async fn review_submission(
         &self,
-        id:          Uuid,
-        status:      KycSubmissionStatus,
+        id: Uuid,
+        status: KycSubmissionStatus,
         reviewed_by: Uuid,
         review_note: Option<&str>,
     ) -> Result<(), anyhow::Error> {
+        let t = Instant::now();
         sqlx::query!(
             "UPDATE user_svc.kyc_submission
              SET status = $2, reviewed_by = $3, review_note = $4, reviewed_at = now(), updated_at = now()
              WHERE id = $1",
-            id, status.as_str(), reviewed_by, review_note
+            id,
+            status.as_str(),
+            reviewed_by,
+            review_note
         )
         .execute(&self.pool)
         .await?;
+        warn_slow!(t, "kyc.review_submission");
+        Ok(())
+    }
+
+    async fn set_document_key(
+        &self,
+        submission_id: Uuid,
+        kind: &str,
+        object_key: &str,
+    ) -> Result<(), anyhow::Error> {
+        let t = Instant::now();
+        match kind {
+            "ktp" => {
+                sqlx::query(
+                    "UPDATE user_svc.kyc_submission SET ktp_object_key = $2, updated_at = now() WHERE id = $1",
+                )
+                .bind(submission_id)
+                .bind(object_key)
+                .execute(&self.pool)
+                .await?;
+            }
+            "selfie" => {
+                sqlx::query(
+                    "UPDATE user_svc.kyc_submission SET selfie_object_key = $2, updated_at = now() WHERE id = $1",
+                )
+                .bind(submission_id)
+                .bind(object_key)
+                .execute(&self.pool)
+                .await?;
+            }
+            _ => return Err(anyhow::anyhow!("jenis dokumen tidak dikenal: {kind}")),
+        }
+        warn_slow!(t, "kyc.set_document_key");
+        Ok(())
+    }
+
+    async fn clear_document_keys(&self, submission_id: Uuid) -> Result<(), anyhow::Error> {
+        let t = Instant::now();
+        sqlx::query(
+            "UPDATE user_svc.kyc_submission SET ktp_object_key = NULL, selfie_object_key = NULL, updated_at = now() WHERE id = $1",
+        )
+        .bind(submission_id)
+        .execute(&self.pool)
+        .await?;
+        warn_slow!(t, "kyc.clear_document_keys");
+        Ok(())
+    }
+
+    async fn log_document_access(
+        &self,
+        actor_id: Uuid,
+        object_key: &str,
+        action: DocumentAccessAction,
+        request_id: Option<&str>,
+    ) -> Result<(), anyhow::Error> {
+        let t = Instant::now();
+        sqlx::query(
+            "INSERT INTO user_svc.document_access_log (actor_id, object_key, action, request_id) VALUES ($1, $2, $3, $4)",
+        )
+        .bind(actor_id)
+        .bind(object_key)
+        .bind(action.as_str())
+        .bind(request_id)
+        .execute(&self.pool)
+        .await?;
+        warn_slow!(t, "kyc.log_document_access");
         Ok(())
     }
 }

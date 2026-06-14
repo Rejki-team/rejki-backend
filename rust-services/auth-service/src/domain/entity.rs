@@ -3,6 +3,7 @@ use uuid::Uuid;
 
 // AccountStatus dimiliki bersama lintas domain — sumber tunggal di auth-service-client.
 pub use auth_service_client::AccountStatus;
+pub use auth_service_client::Role;
 
 #[derive(Debug, Clone)]
 pub struct AuthUser {
@@ -10,6 +11,7 @@ pub struct AuthUser {
     pub email: String,
     pub password_hash: String,
     pub status: AccountStatus,
+    pub role: Role,
     pub phone: Option<String>, // ciphertext saat dari DB; plaintext setelah didekripsi
     pub tos_accepted_at: Option<DateTime<Utc>>,
     pub tos_version: Option<String>,

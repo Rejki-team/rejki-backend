@@ -39,6 +39,15 @@ impl AuthClient for AuthInProcessClient {
             .ok_or(AuthClientError::NotFound)
     }
 
+    async fn get_account_email(&self, user_id: Uuid) -> Result<String, AuthClientError> {
+        self.repo
+            .find_by_id(user_id)
+            .await
+            .map_err(|_| AuthClientError::Unavailable)?
+            .map(|u| u.email)
+            .ok_or(AuthClientError::NotFound)
+    }
+
     async fn set_account_status(
         &self,
         user_id: Uuid,
@@ -58,6 +67,13 @@ impl AuthClient for AuthInProcessClient {
 
         self.repo
             .set_status(user_id, status)
+            .await
+            .map_err(|_| AuthClientError::Unavailable)
+    }
+
+    async fn list_active_user_ids(&self) -> Result<Vec<Uuid>, AuthClientError> {
+        self.repo
+            .list_active_user_ids()
             .await
             .map_err(|_| AuthClientError::Unavailable)
     }

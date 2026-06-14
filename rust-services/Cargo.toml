@@ -16,6 +16,8 @@ members = [
     "iklan-pekerja-service",
     "iklan-barang-bekas-service",
     "iklan-pelatihan-service",
+    "corporate-comms-service",
+    "report-service",
 
     # ── Client Domains ────────────────────────────────────
     "region-service-client",
@@ -28,6 +30,8 @@ members = [
     "iklan-pekerja-service-client",
     "iklan-barang-bekas-service-client",
     "iklan-pelatihan-service-client",
+    "corporate-comms-service-client",
+    "report-service-client",
 
     # ── Shared Utilities ──────────────────────────────────
     "common/crypto",

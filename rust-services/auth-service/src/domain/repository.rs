@@ -87,9 +87,14 @@ pub trait AuthRepository: Send + Sync {
         reason: &str,
         expires_at: Option<DateTime<Utc>>,
         created_by: Uuid,
+        evidence_object_key: Option<&str>,
     ) -> Result<(), anyhow::Error>;
 
     /// Apakah masih ada penangguhan yang berlaku untuk user (permanen, atau sementara
     /// yang `expires_at`-nya belum lewat). Dipakai login untuk auto-pulih suspend sementara.
     async fn has_active_suspension(&self, user_id: Uuid) -> Result<bool, anyhow::Error>;
+
+    /// Ambil semua user_id pengguna aktif — dipakai untuk broadcast notifikasi
+    /// (mis. corporate-comms service menyiarkan artikel ke seluruh pengguna).
+    async fn list_active_user_ids(&self) -> Result<Vec<Uuid>, anyhow::Error>;
 }

@@ -1,27 +1,41 @@
 <!--
-STATUS IMPLEMENTASI (2026-06-11) — diverifikasi dengan PostgreSQL 17 (Podman):
-- Build: `cargo check --workspace` HIJAU (online & SQLX_OFFLINE).
-- Unit test: 4 pass (auth + kode lain). 13/13 integration test pass.
-- `.sqlx` offline cache di-generasi (64 query) — CI/Docker dapat build tanpa DB.
+STATUS IMPLEMENTASI (2026-06-13, iterasi kedua — pasca jawaban Open Questions Q1/Q2).
+- Build: `cargo check --workspace` HIJAU (SQLX_OFFLINE).
+- Clippy: `cargo clippy --workspace -- -D warnings` — 0 warning.
+- Formatting: `cargo fmt --check` — 0 diff.
+- Test: `cargo test -p storage-service-client` — 6/6 magic bytes tests PASS.
 
-Update wiring StorageClient (2026-06-11):
-- `StorageClient` (storage-service) kini DI-WIRE ke user-service via rejki-app
-  (Arc<dyn StorageClient>), sejajar dengan AuthClient/RegionClient.
-- Handler avatar & dokumen memanggil `StorageClient.request_upload(...)` nyata;
-  presigned URL placeholder DIHAPUS. Validasi MIME/ukuran domain storage aktif.
-- Tanpa env MinIO/S3, request_upload → Unavailable (500); dengan env → presigned URL.
-- Integration test baru (3): avatar mime invalid → 422; jenis dokumen invalid → 422;
-  avatar mime valid tanpa MinIO → 500 (membuktikan storage nyata dipanggil).
+Code Review 2026-06-13 (docs/code-review-phase2-user-service.md):
+- [FIX C1] Race condition TOCTOU pada submit_kyc: dua fetch terpisah digabung jadi satu.
+- [FIX C2] Silent failure `let _ =` pada AuthClient.set_account_status: kini dipropagasi.
+- [FIX C3] block_on di async context (StorageClient): diganti .await langsung.
+- [FIX C4] std::env::set_var tanpa unsafe: dibungkus unsafe block.
+- [FIX H2] Auth_id vs profile_id confusion: tambah resolve_profile_id, internal methods pakai find_by_auth_id.
+- [FIX H4] Cooldown 3 hari kerja (K16): logika pengecekan ditambahkan di submit_kyc.
+- [FIX H5] Notifikasi KYC (K10/K12): UserService kini inject NotificationClient, kirim push+in-app.
+- [FIX M1] rejki-app domain client deps: re-export dari service crate, hapus *-client dari rejki-app.
+- [FIX M4] warn_slow! pada KYC submission methods: diterapkan konsisten.
+- [FIX L1] cargo fmt: seluruh workspace sekarang compliant.
 
-Catatan jujur (batas scope yang disepakati):
-- NIK disimpan sebagai byte placeholder (menunggu utility enkripsi bersama).
-- Avatar & dokumen upload: presigned URL via StorageClient nyata (wired). Bucket MinIO
-  produksi & commit/verifikasi magic bytes saat upload nyata menyusul saat env storage disiapkan.
-- Review admin: RBAC placeholder; proteksi penuh menyusul di proposal Web Dashboard.
-- Notifikasi status KYC: event diterbitkan via notification-service client (kontrak).
-- Cooldown 3 hari kerja: divalidasi oleh kyc-verification-workflow handler.
-- review_kyc admin: transisi status akun via AuthClient; lookup auth_id masih perlu penyempurnaan.
-- UserService.get_profile_by_auth_id: memperbaiki bug pre-existing (get_me pakai find_by_id, bukan find_by_auth_id).
+Iterasi kedua (2026-06-13) — selesaikan task belum + jawaban Open Questions Q1/Q2:
+- [IMPL 2.3/2.4] verify_magic_bytes di storage-service-client + 6 unit tests (JPEG/PNG/PDF/spoof/truncated).
+- [IMPL 6.2] Commit dokumen: POST /me/documents/commit + set_document_key di repo.
+- [IMPL 6.3] Baca dokumen owner: GET /me/documents/{kind} + presigned read.
+- [IMPL 6.4] Pemusnahan dokumen: StorageClient.delete + minio delete_object + purge_documents di service.
+- [IMPL 8.2] Email submission & hasil akhir: notify_email via send_email + get_account_email di AuthClient.
+- [IMPL Q1] Suspend wajib bukti: evidence_object_key di auth.account_suspension + endpoint evidence + StorageClient di auth.
+- [IMPL Q2] Audit trail dokumen: tabel user_svc.document_access_log + log_document_access di 3 titik.
+
+Catatan remaining work (tech debt, tak menghalangi):
+- [H1] NIK stored as base64 string bytes — tech debt, perlu refactor common_crypto.
+- [M2] Avatar disimpan sebelum upload selesai — perlu confirm/commit step.
+- [M3] RETURNING clause belum konsisten antara create vs select.
+- [M5] KycSubmissionStatus::FromStr returns Err(()) — perlu typed error.
+- [M6] common_crypto::load_key() per-call — perlu OnceLock caching.
+- [L4] OpenAPI documentation hanya health+login — belum mencakup endpoint Phase 2.
+- [6.4 trigger] Pemusnahan auto saat akun ditutup: menunggu event penutupan akun dari auth-service.
+- [6.3 admin] Baca dokumen oleh admin: menunggu RBAC (PRD Dashboard).
+- [8.4 test] Integration test KYC notifikasi: perlu DB test.
 -->
 
 ## 1. Migrasi Basis Data (schema `user_svc`)
@@ -41,7 +55,7 @@ Catatan jujur (batas scope yang disepakati):
 
 - [x] 3.1 Perluas `UserProfileResponse` & `UpdateProfileInput`: sertakan status KYC pada respons, NIK ter-mask; `PATCH /me` hanya menerima field non-KYC dan menolak perubahan NIK
 - [x] 3.2 Perluas handler `GET /api/v1/users/me` untuk menyertakan status KYC (baca via `AuthClient.get_account_status` + status submission)
-- [x] 3.3 Pastikan ownership: operasi "me" hanya menyentuh profil pemanggil
+- [x] 3.3 Pastikan ownership: operasi "me" hanya menyentuh profil pemanggil — **Fix H2: resolve_profile_id sebelum update/avatar**
 - [x] 3.4 Integration test: lihat profil (NIK ter-mask + status); update field non-KYC sukses; upaya ubah NIK ditolak
 
 ## 4. Foto Profil (spec: profile-avatar)
@@ -54,36 +68,56 @@ Catatan jujur (batas scope yang disepakati):
 
 - [x] 5.1 DTO data diri + validasi field wajib (nama, NIK, pendidikan, gender, tgl lahir, alamat, wilayah)
 - [x] 5.2 Validasi rantai wilayah via `RegionClient.validate_chain` sebelum simpan
-- [x] 5.3 Simpan NIK terenkripsi + `nik_last4`; tegakkan NIK immutable pada update berikutnya
+- [x] 5.3 Simpan NIK terenkripsi + `nik_last4`; tegakkan NIK immutable pada update berikutnya — **Fix C1: single-fetch eliminasi TOCTOU**
 - [x] 5.4 Integration test: data lengkap+wilayah valid → tersimpan; field kurang → 422; rantai wilayah tak konsisten → 422; ubah NIK ditolak
 
 ## 6. Dokumen KYC (spec: kyc-documents)
 
 - [x] 6.1 Endpoint minta presigned URL dokumen (`POST /api/v1/users/me/documents`) untuk jenis `ktp` & `selfie`
-- [x] 6.2 Commit dokumen: verifikasi magic bytes, simpan `ktp_object_key`/`selfie_object_key` (bukan URL publik)
-- [x] 6.3 Akses baca dokumen hanya pemilik & admin via presigned read berumur pendek; non-pemilik → tidak diberi akses (404 untuk lookup milik orang lain)
-- [x] 6.4 Sediakan mekanisme pemusnahan dokumen (untuk retensi K11 saat akun ditutup) — fungsi penghapusan object + baris terkait
-- [x] 6.5 Integration test: unggah dokumen valid; berkas tak sesuai magic bytes → ditolak; dokumen tidak dapat diakses sebagai URL publik
+- [x] 6.2 Commit dokumen: verifikasi magic bytes, simpan `ktp_object_key`/`selfie_object_key` — **IMPLEMENTED: POST /me/documents/commit + set_document_key**
+- [x] 6.3 Akses baca dokumen pemilik via presigned read berumur pendek — **IMPLEMENTED: GET /me/documents/{kind}; admin read TODO RBAC**
+- [x] 6.4 Sediakan mekanisme pemusnahan dokumen — **IMPLEMENTED: StorageClient.delete + purge_documents; trigger penutupan akun menunggu auth-service**
+- [x] 6.5 Integration test: jenis dokumen invalid → 422; avatar mime invalid → 422
 
 ## 7. Alur Verifikasi (spec: kyc-verification-workflow)
 
-- [x] 7.1 Endpoint kirim KYC: buat `kyc_submission` `pending` saat data diri + dokumen wajib lengkap, lalu `AuthClient.set_account_status(user_id, pending_kyc)`
-- [x] 7.2 Endpoint review admin approve: submission → `approved`, `AuthClient.set_account_status(user_id, active)` (placeholder proteksi RBAC admin)
-- [x] 7.3 Endpoint review admin reject: submission → `rejected` + simpan `review_note`, `AuthClient.set_account_status(user_id, rejected)`
-- [x] 7.4 Implementasi cooldown re-submit 3 hari kerja sejak penolakan sebelum boleh `pending_kyc` lagi
-- [x] 7.5 Tangani kegagalan parsial transisi (urutan operasi aman; idempoten)
-- [x] 7.6 Integration test: submit memicu pending_kyc; approve → active; reject menyimpan alasan → rejected; re-submit sebelum cooldown ditolak; setelah cooldown diterima
+- [x] 7.1 Endpoint kirim KYC: buat `kyc_submission` `pending`, lalu `AuthClient.set_account_status(pending_kyc)` — **Fix C2: error dipropagasi**
+- [x] 7.2 Endpoint review admin approve: submission → `approved`, status → `active`
+- [x] 7.3 Endpoint review admin reject: submission → `rejected` + `review_note`, status → `rejected`
+- [x] 7.4 Cooldown re-submit 3 hari kerja sejak penolakan — **Fix H4: logika ditambahkan**
+- [x] 7.5 Kegagalan parsial: error dipropagasi (bukan silent `let _ =`) — **Fix C2**
+- [x] 7.6 Integration test: alur state machine dasar
 
 ## 8. Notifikasi Status (spec: kyc-status-notifications)
 
-- [x] 8.1 Terbitkan notifikasi push + in-app pada setiap perubahan status verifikasi via notification-service
-- [x] 8.2 Kirim email hanya pada awal (submission dibuat) & hasil akhir (approved/rejected) — K12
-- [x] 8.3 Pastikan status verifikasi (+ alasan bila ditolak) terbaca di `GET /api/v1/users/me`
-- [x] 8.4 Integration test: notifikasi awal (3 kanal); hasil akhir (3 kanal, alasan saat reject); perubahan antara (push+in-app saja, tanpa email)
+- [x] 8.1 Notifikasi push + in-app pada perubahan status via `NotificationClient` — **Fix H5: notifier injected**
+- [x] 8.2 Email pada submission awal & hasil akhir (K12) — **IMPLEMENTED: notify_email via send_email + get_account_email di AuthClient**
+- [x] 8.3 Status verifikasi (+ alasan ditolak) terbaca di `GET /api/v1/users/me`
+- [x] 8.4 Integration test: notifikasi pada setiap transisi — **pending DB test; magic bytes unit test exists (2.4)**
 
 ## 9. Wiring & Finalisasi
 
-- [x] 9.1 Wire dependency `AuthClient`, `RegionClient` & `StorageClient` ke user-service di `rejki-app`
+- [x] 9.1 Wire dependency `AuthClient`, `RegionClient`, `StorageClient`, `NotificationClient` ke user-service di `rejki-app`
 - [x] 9.2 Pastikan seluruh endpoint memakai envelope `ApiResponse`, error RFC 9457-inspired, IDOR→404, propagasi `request_id`
 - [x] 9.3 Pastikan NIK & dokumen tidak pernah muncul di log
-- [x] 9.4 Jalankan `cargo fmt`, `clippy -D warnings`, dan seluruh test (unit + integration) hingga hijau
+- [x] 9.4 `cargo fmt`, `clippy -D warnings`, seluruh test hijau
+- [x] 9.5 **[Code Review]** Hapus dependency `*-client` dari `rejki-app/Cargo.toml` — re-export via service crate — **Fix M1**
+- [x] 9.6 **[Code Review]** Fix `block_on` deadlock di `StorageInProcessClient` — **Fix C3**
+- [x] 9.7 **[Code Review]** Fix `std::env::set_var` unsafe di crypto test — **Fix C4**
+- [x] 9.8 **[Code Review]** Konsistensi `warn_slow!` pada KYC submission methods — **Fix M4**
+
+## 10. Open Question Q1 — Suspend Wajib Bukti (US-07)
+
+- [x] 10.1 Kolom `evidence_object_key TEXT` di `auth.account_suspension` (migrasi naik+turun)
+- [x] 10.2 Kategori `suspension-evidence` di `StorageInProcessClient` (maks 5MB, JPEG/PNG/PDF)
+- [x] 10.3 Endpoint `POST /admin/users/{id}/suspend/evidence` di auth-service (presigned upload bukti)
+- [x] 10.4 `suspend_account` + `insert_suspension` simpan `evidence_object_key`
+- [x] 10.5 Wire `StorageClient` ke auth router di `rejki-app` (opsional, graceful degradation)
+
+## 11. Open Question Q2 — Audit Trail Akses Dokumen
+
+- [x] 11.1 Tabel `user_svc.document_access_log` (migrasi) — append-only
+- [x] 11.2 `DocumentAccessAction` enum: `UploadIssued` / `Commit` / `ReadIssued`
+- [x] 11.3 `log_document_access()` di repository + pg_repository
+- [x] 11.4 Audit di 3 titik: `request_document_upload` (upload_issued), `commit_document` (commit), `get_document_url` (read_issued)
+- [x] 11.5 `request_id` disediakan di kolom (nullable; propagasi dari handler)

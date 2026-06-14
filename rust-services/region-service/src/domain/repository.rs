@@ -6,7 +6,7 @@ use super::entity::RegionEntity;
 pub trait RegionRepository: Send + Sync {
     async fn list_by_level(
         &self,
-        level:     region_service_client::RegionLevel,
+        level: region_service_client::RegionLevel,
         parent_id: Option<&str>,
     ) -> Result<Vec<RegionEntity>, anyhow::Error>;
 
@@ -16,8 +16,8 @@ pub trait RegionRepository: Send + Sync {
     async fn validate_chain(
         &self,
         province_id: &str,
-        regency_id:  &str,
+        regency_id: &str,
         district_id: &str,
-        village_id:  &str,
+        village_id: &str,
     ) -> Result<bool, anyhow::Error>;
 }

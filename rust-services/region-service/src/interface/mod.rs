@@ -20,12 +20,12 @@ pub struct AppState {
 #[derive(Deserialize)]
 pub struct ParentQuery {
     pub province_id: Option<String>,
-    pub regency_id:  Option<String>,
+    pub regency_id: Option<String>,
     pub district_id: Option<String>,
 }
 
 pub fn router(pool: PgPool) -> Router {
-    let repo  = Arc::new(PgRegionRepository::new(pool));
+    let repo = Arc::new(PgRegionRepository::new(pool));
     let state = AppState {
         region_svc: Arc::new(RegionService::new(repo)),
     };
@@ -34,6 +34,6 @@ pub fn router(pool: PgPool) -> Router {
         .route("/provinces", get(handlers::provinces))
         .route("/regencies", get(handlers::regencies))
         .route("/districts", get(handlers::districts))
-        .route("/villages",  get(handlers::villages))
+        .route("/villages", get(handlers::villages))
         .with_state(state)
 }

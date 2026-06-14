@@ -1,5 +1,43 @@
 use uuid::Uuid;
 
+/// Peran pengguna (RBAC). Dirancang extensible — penambahan varian baru (mis.
+/// super_admin, moderator, support) bersifat aditif dan tidak breaking di konsumen.
+/// Ref: openspec/changes/add-admin-rbac, D1.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+#[non_exhaustive]
+pub enum Role {
+    #[default]
+    User,
+    Admin,
+}
+
+impl Role {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Role::User => "user",
+            Role::Admin => "admin",
+        }
+    }
+
+    /// Apakah role ini memiliki akses admin.
+    pub fn is_admin(&self) -> bool {
+        matches!(self, Role::Admin)
+    }
+}
+
+impl std::str::FromStr for Role {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "user" => Ok(Role::User),
+            "admin" => Ok(Role::Admin),
+            _ => Err(()),
+        }
+    }
+}
+
 /// Status akun (state machine onboarding). Tipe publik agar dipakai lintas domain
 /// (auth-service sebagai pemilik, user-service/admin sebagai pemanggil via AuthClient).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -75,6 +113,10 @@ pub struct AuthClaims {
     /// kompatibilitas dengan token lama yang belum memuat status.
     #[serde(default)]
     pub status: Option<AccountStatus>,
+    /// Peran pengguna saat token diterbitkan. Opsional demi kompatibilitas dengan
+    /// token lama yang belum memuat role — default menjadi `user` (default-deny admin).
+    #[serde(default)]
+    pub role: Option<Role>,
 }
 
 #[async_trait::async_trait]
@@ -84,6 +126,11 @@ pub trait AuthClient: Send + Sync {
     /// Ambil status akun terkini (sumber kebenaran, bukan dari klaim token).
     async fn get_account_status(&self, user_id: Uuid) -> Result<AccountStatus, AuthClientError>;
 
+    /// Ambil alamat email akun. Dipakai user-service untuk mengirim email hasil KYC
+    /// (K12) ketika pemanggil adalah admin (claims berisi email admin, bukan user).
+    /// Arah: user/admin -> auth (auth pemilik data akun, D2).
+    async fn get_account_email(&self, user_id: Uuid) -> Result<String, AuthClientError>;
+
     /// Ubah status akun (transisi divalidasi oleh auth-service). Dipanggil oleh
     /// user-service/admin saat KYC approve/reject & suspend. Arah: user/admin -> auth.
     async fn set_account_status(
@@ -91,6 +138,11 @@ pub trait AuthClient: Send + Sync {
         user_id: Uuid,
         status: AccountStatus,
     ) -> Result<(), AuthClientError>;
+
+    /// Ambil semua user_id pengguna aktif — dipakai untuk broadcast notifikasi
+    /// (mis. corporate-comms service menyiarkan artikel ke seluruh pengguna).
+    /// Arah: corporate-comms -> auth.
+    async fn list_active_user_ids(&self) -> Result<Vec<Uuid>, AuthClientError>;
 }
 
 #[derive(Debug, thiserror::Error)]

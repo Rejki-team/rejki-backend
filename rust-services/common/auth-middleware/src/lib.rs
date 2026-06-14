@@ -85,6 +85,22 @@ fn extract_bearer(headers: &axum::http::HeaderMap) -> Option<&str> {
         .and_then(|v| v.strip_prefix("Bearer "))
 }
 
+/// Middleware otorisasi peran admin — default-deny.
+/// Harus dipasang SETELAH `require_auth` (yang sudah meng-inject `AuthClaims`).
+/// Menolak `403 ACCOUNT_NOT_ADMIN` bila `role ≠ admin`.
+/// Ref: openspec/changes/add-admin-rbac D4.
+pub async fn require_admin(req: Request, next: Next) -> Result<Response, AppError> {
+    let claims = req
+        .extensions()
+        .get::<AuthClaims>()
+        .ok_or(AppError::Unauthorized)?;
+
+    match claims.role {
+        Some(ref role) if role.is_admin() => Ok(next.run(req).await),
+        _ => Err(AppError::AccountNotAdmin),
+    }
+}
+
 /// Helper untuk extract `AuthClaims` dari Extension dalam handler.
 /// Re-export supaya service tidak perlu import auth-service-client langsung.
 pub use auth_service_client::AuthClaims;

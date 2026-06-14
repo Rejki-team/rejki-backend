@@ -69,7 +69,7 @@ pub async fn seed_user(pool: &PgPool, suffix: &str) -> TestUser {
         .expect("JwtService init failed");
 
     let access_token = jwt
-        .issue_access_token(id, &email, auth_service_client::AccountStatus::Active)
+        .issue_access_token(id, &email, auth_service::AccountStatus::Active)
         .expect("issue_access_token failed");
 
     TestUser {

@@ -26,8 +26,9 @@ pub async fn build_test_app(pool: PgPool) -> Router {
     );
 
     let auth_repo = Arc::new(auth_service::PgAuthRepository::new(pool.clone()));
-    let auth_client: Arc<dyn auth_service_client::AuthClient> =
-        Arc::new(auth_service::AuthInProcessClient::new(jwt.clone(), auth_repo.clone()));
+    let auth_client: Arc<dyn auth_service::AuthClient> = Arc::new(
+        auth_service::AuthInProcessClient::new(jwt.clone(), auth_repo.clone()),
+    );
 
     use axum::response::Json;
     use axum::routing::get;
@@ -36,25 +37,52 @@ pub async fn build_test_app(pool: PgPool) -> Router {
     let api_v1 = Router::new()
         .nest(
             "/auth",
-            auth_service::router_with_deps(jwt.clone(), auth_repo.clone(), auth_client.clone(), None),
+            auth_service::router_with_deps(
+                jwt.clone(),
+                auth_repo.clone(),
+                auth_client.clone(),
+                None,
+                None,
+            ),
         )
-        .nest("/users", user_service::router(
-            pool.clone(),
-            auth_client.clone(),
-            Arc::new(region_service::RegionInProcessClient::new(
-                Arc::new(region_service::RegionService::new(Arc::new(region_service::PgRegionRepository::new(pool.clone())))),
-            )),
-            Arc::new(storage_service::StorageInProcessClient::new().await),
-        ))
+        .nest(
+            "/users",
+            user_service::router(
+                pool.clone(),
+                auth_client.clone(),
+                Arc::new(region_service::RegionInProcessClient::new(Arc::new(
+                    region_service::RegionService::new(Arc::new(
+                        region_service::PgRegionRepository::new(pool.clone()),
+                    )),
+                ))),
+                Arc::new(storage_service::StorageInProcessClient::new().await),
+                None,
+            ),
+        )
         .nest(
             "/chat",
             chat_service::router(pool.clone(), auth_client.clone()),
         )
-        .nest("/notif", notification_service::router(pool.clone(), auth_client.clone()))
-        .nest("/pekerjaan", iklan_pekerjaan_service::router(pool.clone(), auth_client.clone()))
-        .nest("/pekerja", iklan_pekerja_service::router(pool.clone(), auth_client.clone()))
-        .nest("/barang", iklan_barang_bekas_service::router(pool.clone(), auth_client.clone()))
-        .nest("/pelatihan", iklan_pelatihan_service::router(pool.clone(), auth_client.clone()));
+        .nest(
+            "/notif",
+            notification_service::router(pool.clone(), auth_client.clone()),
+        )
+        .nest(
+            "/pekerjaan",
+            iklan_pekerjaan_service::router(pool.clone(), auth_client.clone()),
+        )
+        .nest(
+            "/pekerja",
+            iklan_pekerja_service::router(pool.clone(), auth_client.clone()),
+        )
+        .nest(
+            "/barang",
+            iklan_barang_bekas_service::router(pool.clone(), auth_client.clone()),
+        )
+        .nest(
+            "/pelatihan",
+            iklan_pelatihan_service::router(pool.clone(), auth_client.clone()),
+        );
 
     Router::new()
         .route("/health", get(|| async { Json(json!({"status": "ok"})) }))

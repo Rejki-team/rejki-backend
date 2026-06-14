@@ -1,7 +1,10 @@
 use axum::{extract::State, http::StatusCode, response::Response, Json};
 use serde::Deserialize;
 
-use crate::application::dto::{LoginInput, RegisterInput, ResendOtpInput, VerifyOtpInput};
+use crate::application::dto::{
+    AdminLoginInput, LoginInput, RegisterInput, ResendOtpInput, VerifyOtpInput,
+};
+use crate::application::service::storage_category;
 use common_errors::{created_response, ApiResponse, AppError, ValidatedJson};
 
 use super::AppState;
@@ -39,6 +42,29 @@ pub async fn login(
         .login(body)
         .await
         .map_err(|e| AppError::Validation(e.to_string()))?;
+
+    Ok((
+        StatusCode::OK,
+        Json(ApiResponse::ok(serde_json::json!({
+            "access_token":  tokens.access_token,
+            "refresh_token": tokens.refresh_token,
+            "token_type":    tokens.token_type,
+            "expires_in":    tokens.expires_in,
+        }))),
+    ))
+}
+
+/// POST /api/v1/auth/admin/login — login admin email+password tanpa OTP.
+/// Anti-enumeration: semua kegagalan dibalut AppError::Unauthorized (seragam).
+pub async fn admin_login(
+    State(s): State<AppState>,
+    ValidatedJson(body): ValidatedJson<AdminLoginInput>,
+) -> Result<(StatusCode, Json<ApiResponse<serde_json::Value>>), AppError> {
+    let tokens = s
+        .auth_svc
+        .admin_login(body)
+        .await
+        .map_err(|_| AppError::Unauthorized)?;
 
     Ok((
         StatusCode::OK,
@@ -192,12 +218,48 @@ pub async fn change_password(
 
 // ── Suspend akun (US-07, admin) ───────────────────────────────────────────────
 
-use crate::application::dto::SuspendInput;
+use crate::application::dto::{SuspendEvidenceRequest, SuspendInput};
 use uuid::Uuid;
+
+/// US-07 / Q1: minta presigned URL untuk mengunggah bukti penangguhan.
+/// Bukti (gambar/PDF) wajib disertakan saat suspend, maks 5MB per dokumen.
+pub async fn request_suspend_evidence(
+    State(s): State<AppState>,
+    claims: axum::Extension<AuthClaims>,
+    ValidatedJson(body): ValidatedJson<SuspendEvidenceRequest>,
+) -> Result<Json<ApiResponse<storage_service_client::UploadPermission>>, AppError> {
+    let storage = s
+        .storage_client
+        .as_ref()
+        .ok_or_else(|| AppError::Internal(anyhow::anyhow!("storage tidak tersedia")))?;
+    let perm = storage
+        .request_upload(
+            storage_category::SUSPENSION_EVIDENCE,
+            claims.user_id,
+            storage_service_client::FileInfo {
+                mime: body.mime,
+                size_bytes: body.size_bytes,
+            },
+        )
+        .await
+        .map_err(|e| match e {
+            storage_service_client::StorageClientError::FileTooLarge => {
+                AppError::Validation("ukuran berkas melebihi batas (maks 5MB)".into())
+            }
+            storage_service_client::StorageClientError::InvalidMime => {
+                AppError::Validation("tipe berkas tidak didukung (JPEG/PNG/PDF)".into())
+            }
+            storage_service_client::StorageClientError::Unavailable => {
+                AppError::Internal(anyhow::anyhow!("storage tidak tersedia"))
+            }
+        })?;
+    Ok(Json(ApiResponse::ok(perm)))
+}
 
 /// US-07: tangguhkan akun. Endpoint internal — saat ini hanya require_auth;
 /// proteksi RBAC admin penuh menyusul di proposal Web Dashboard.
 /// `admin_id` diambil dari identitas pemanggil (placeholder hingga RBAC tersedia).
+/// evidence_object_key wajib diisi (Q1: bukti penangguhan demi audit & sengketa).
 pub async fn suspend_account(
     State(s): State<AppState>,
     claims: axum::Extension<AuthClaims>,
@@ -216,6 +278,7 @@ pub async fn suspend_account(
             &body.reason,
             body.expires_at,
             claims.user_id,
+            body.evidence_object_key.as_deref(),
         )
         .await
         .map_err(AppError::Internal)?;

@@ -33,7 +33,10 @@ pub fn router(pool: PgPool, auth_client: Arc<dyn AuthClient>) -> Router {
         .route("/conversations/{id}/messages", get(handlers::list_messages))
         .route("/conversations/{id}/messages", post(handlers::send_message))
         .with_state(state.clone())
-        .layer(axum::middleware::from_fn_with_state(auth_client, require_auth));
+        .layer(axum::middleware::from_fn_with_state(
+            auth_client,
+            require_auth,
+        ));
 
     let public = Router::new()
         .route("/ws", get(ws_handler::ws_handler))

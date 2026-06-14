@@ -28,10 +28,7 @@ pub async fn send(
     State(s): State<AppState>,
     ValidatedJson(body): ValidatedJson<SendNotificationInput>,
 ) -> Result<StatusCode, AppError> {
-    s.notif_svc
-        .send(body)
-        .await
-        .map_err(AppError::Internal)?;
+    s.notif_svc.send(body).await.map_err(AppError::Internal)?;
 
     Ok(StatusCode::ACCEPTED)
 }

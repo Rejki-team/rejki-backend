@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS report.report;
+DROP SCHEMA IF EXISTS report;

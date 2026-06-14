@@ -6,7 +6,7 @@ use chrono::Utc;
 use uuid::Uuid;
 
 use super::dto::{
-    ChangePasswordInput, LoginInput, RefreshInput, RegisterInput, ResendOtpInput,
+    AdminLoginInput, ChangePasswordInput, LoginInput, RefreshInput, RegisterInput, ResendOtpInput,
     ResetPasswordInput, TokenPair, VerifyOtpInput,
 };
 use crate::domain::entity::{AccountStatus, OtpPurpose};
@@ -20,6 +20,18 @@ use notification_service_client::{EmailMessage, NotificationClient};
 const OTP_TTL_MINUTES: i64 = 5;
 /// Maks percobaan verifikasi OTP sebelum OTP dibatalkan (RQ2).
 const MAX_OTP_ATTEMPTS: i32 = 5;
+/// Durasi access token (detik) — digunakan sebagai `expires_in` pada `TokenPair`.
+const ACCESS_TOKEN_EXPIRY_SECS: u64 = 900;
+/// Versi T&C default bila user tidak menyertakan.
+const DEFAULT_TOS_VERSION: &str = "v1";
+/// TTL refresh token default (30 hari) — dipakai sebagai fallback di router.
+pub const DEFAULT_REFRESH_TTL_SECS: i64 = 2_592_000;
+/// TTL access token default (15 menit) — dipakai sebagai fallback di router.
+pub const DEFAULT_ACCESS_TTL_SECS: i64 = 900;
+/// Kategori storage untuk bukti penangguhan.
+pub mod storage_category {
+    pub const SUSPENSION_EVIDENCE: &str = "suspension-evidence";
+}
 
 pub struct AuthService<R: AuthRepository> {
     repo: Arc<R>,
@@ -105,7 +117,7 @@ impl<R: AuthRepository> AuthService<R> {
             Some(p) => Some(crate::application::crypto::encrypt(p)?),
             None => None,
         };
-        let tos_version = input.tos_version.as_deref().unwrap_or("v1");
+        let tos_version = input.tos_version.as_deref().unwrap_or(DEFAULT_TOS_VERSION);
 
         let user = self
             .repo
@@ -235,22 +247,68 @@ impl<R: AuthRepository> AuthService<R> {
             return Err(anyhow!("email atau password salah"));
         }
 
-        let access_token = self
-            .jwt
-            .issue_access_token(user.id, &user.email, effective_status)?;
+        self.issue_tokens(&user, effective_status).await
+    }
+
+    /// Admin login: verifikasi email+password, cek `role=admin` + `status=active`.
+    /// Anti-enumeration: pesan galat seragam untuk kredensial salah, non-admin,
+    /// akun tidak ditemukan — tidak membocorkan keberadaan akun.
+    /// Ref: openspec/changes/add-admin-rbac D3.
+    pub async fn admin_login(&self, input: AdminLoginInput) -> Result<TokenPair, anyhow::Error> {
+        let user = match self.repo.find_by_email(&input.email).await? {
+            Some(u) => u,
+            None => return Err(anyhow!("email atau password salah")),
+        };
+
+        // Verifikasi role: hanya admin yang boleh masuk.
+        if !user.role.is_admin() {
+            return Err(anyhow!("email atau password salah"));
+        }
+
+        // Cek status: hanya active yang boleh masuk.
+        match user.status {
+            AccountStatus::Active => {}
+            AccountStatus::SuspendedPermanent | AccountStatus::SuspendedTemp => {
+                return Err(anyhow!("email atau password salah"));
+            }
+            _ => return Err(anyhow!("email atau password salah")),
+        }
+
+        if !verify(&input.password, &user.password_hash).context("gagal verifikasi password")? {
+            return Err(anyhow!("email atau password salah"));
+        }
+
+        // Audit: login admin tercatat.
+        tracing::info!(
+            user_id = %user.id,
+            email = %user.email,
+            "admin login berhasil"
+        );
+
+        self.issue_tokens(&user, user.status).await
+    }
+
+    /// Shared helper: issue JWT + refresh token + save ke DB.
+    /// Dipakai oleh `login`, `admin_login`, dan `refresh`.
+    async fn issue_tokens(
+        &self,
+        user: &crate::domain::entity::AuthUser,
+        effective_status: crate::domain::entity::AccountStatus,
+    ) -> Result<TokenPair, anyhow::Error> {
+        let access_token =
+            self.jwt
+                .issue_access_token(user.id, &user.email, effective_status, user.role)?;
         let refresh_token = generate_refresh_token();
         let refresh_hash = hash_token(&refresh_token);
         let expires_at = Utc::now() + chrono::Duration::seconds(self.refresh_ttl);
-
         self.repo
             .save_refresh_token(user.id, &refresh_hash, expires_at)
             .await?;
-
         Ok(TokenPair {
             access_token,
             refresh_token,
             token_type: "Bearer".into(),
-            expires_in: 900,
+            expires_in: ACCESS_TOKEN_EXPIRY_SECS,
         })
     }
 
@@ -272,23 +330,7 @@ impl<R: AuthRepository> AuthService<R> {
             .await?
             .ok_or_else(|| anyhow!("user tidak ditemukan"))?;
 
-        let access_token = self
-            .jwt
-            .issue_access_token(user.id, &user.email, user.status)?;
-        let new_refresh_token = generate_refresh_token();
-        let new_refresh_hash = hash_token(&new_refresh_token);
-        let expires_at = Utc::now() + chrono::Duration::seconds(self.refresh_ttl);
-
-        self.repo
-            .save_refresh_token(user.id, &new_refresh_hash, expires_at)
-            .await?;
-
-        Ok(TokenPair {
-            access_token,
-            refresh_token: new_refresh_token,
-            token_type: "Bearer".into(),
-            expires_in: 900,
-        })
+        self.issue_tokens(&user, user.status).await
     }
 
     pub async fn logout(&self, refresh_token: &str) -> Result<(), anyhow::Error> {
@@ -447,6 +489,7 @@ impl<R: AuthRepository> AuthService<R> {
         reason: &str,
         expires_at: Option<chrono::DateTime<Utc>>,
         admin_id: Uuid,
+        evidence_object_key: Option<&str>,
     ) -> Result<(), anyhow::Error> {
         let target = if permanent {
             AccountStatus::SuspendedPermanent
@@ -457,13 +500,20 @@ impl<R: AuthRepository> AuthService<R> {
         // Set status langsung (transisi suspend valid dari status apa pun yang aktif).
         self.repo.set_status(user_id, target).await?;
         self.repo
-            .insert_suspension(user_id, permanent, reason, expires_at, admin_id)
+            .insert_suspension(
+                user_id,
+                permanent,
+                reason,
+                expires_at,
+                admin_id,
+                evidence_object_key,
+            )
             .await?;
         // Cabut sesi agar token lama tidak bisa refresh.
         self.repo.revoke_all_refresh_tokens(user_id).await?;
 
         tracing::info!(
-            user_id = %user_id, admin_id = %admin_id, permanent, reason,
+            user_id = %user_id, admin_id = %admin_id, permanent, reason, evidence_object_key,
             "account suspended"
         );
         Ok(())

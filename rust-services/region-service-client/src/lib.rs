@@ -12,9 +12,9 @@ impl RegionLevel {
     pub fn as_str(&self) -> &'static str {
         match self {
             RegionLevel::Province => "province",
-            RegionLevel::Regency  => "regency",
+            RegionLevel::Regency => "regency",
             RegionLevel::District => "district",
-            RegionLevel::Village  => "village",
+            RegionLevel::Village => "village",
         }
     }
 }
@@ -22,9 +22,9 @@ impl RegionLevel {
 /// Satu entri wilayah. `id` = kode wilayah resmi; `name` = nama; `parent_id` = induk (None untuk provinsi).
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Region {
-    pub id:        String,
-    pub name:      String,
-    pub level:     RegionLevel,
+    pub id: String,
+    pub name: String,
+    pub level: RegionLevel,
     pub parent_id: Option<String>,
 }
 
@@ -59,8 +59,8 @@ pub trait RegionClient: Send + Sync {
     async fn validate_chain(
         &self,
         province_id: &str,
-        regency_id:  &str,
+        regency_id: &str,
         district_id: &str,
-        village_id:  &str,
+        village_id: &str,
     ) -> Result<bool, RegionClientError>;
 }

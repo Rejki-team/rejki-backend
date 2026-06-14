@@ -18,7 +18,9 @@ common-auth-mw = { workspace = true }
 iklan-pekerja-service-client = { path = "../iklan-pekerja-service-client" }
 user-service-client          = { path = "../user-service-client" }
 notification-service-client  = { path = "../notification-service-client" }
+storage-service-client       = { path = "../storage-service-client" }
 auth-service-client          = { path = "../auth-service-client" }
+async-trait                  = "0.1"
 
 axum        = { workspace = true }
 tokio       = { workspace = true }

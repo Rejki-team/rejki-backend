@@ -197,7 +197,9 @@ async fn test_avatar_given_invalid_mime_when_request_upload_then_422() {
         .uri("/api/v1/users/me/avatar")
         .header("authorization", format!("Bearer {}", user.access_token))
         .header("content-type", "application/json")
-        .body(Body::from(json!({ "mime": "application/pdf", "size_bytes": 1024 }).to_string()))
+        .body(Body::from(
+            json!({ "mime": "application/pdf", "size_bytes": 1024 }).to_string(),
+        ))
         .unwrap();
 
     let resp = app.oneshot(req).await.unwrap();
@@ -218,7 +220,9 @@ async fn test_avatar_given_valid_mime_when_storage_unset_then_500() {
         .uri("/api/v1/users/me/avatar")
         .header("authorization", format!("Bearer {}", user.access_token))
         .header("content-type", "application/json")
-        .body(Body::from(json!({ "mime": "image/jpeg", "size_bytes": 1024 }).to_string()))
+        .body(Body::from(
+            json!({ "mime": "image/jpeg", "size_bytes": 1024 }).to_string(),
+        ))
         .unwrap();
 
     let resp = app.oneshot(req).await.unwrap();

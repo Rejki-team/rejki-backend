@@ -34,6 +34,16 @@ pub struct LoginInput {
     pub password: String,
 }
 
+// ── Admin Login ───────────────────────────────────────────────────────────────
+
+#[derive(Debug, Deserialize, Validate)]
+pub struct AdminLoginInput {
+    #[validate(email(message = "email tidak valid"))]
+    pub email: String,
+    #[validate(length(min = 1, message = "password wajib diisi"))]
+    pub password: String,
+}
+
 #[derive(Debug, Serialize)]
 pub struct TokenPair {
     pub access_token: String,
@@ -106,4 +116,17 @@ pub struct SuspendInput {
     pub reason: String,
     /// Wajib bila `permanent = false`. Diabaikan bila permanen.
     pub expires_at: Option<chrono::DateTime<chrono::Utc>>,
+    /// Object key bukti penangguhan (gambar/dokumen, maks 5MB, US-07/Q1).
+    /// Admin wajib mengunggah bukti via endpoint evidence terlebih dahulu.
+    pub evidence_object_key: Option<String>,
+}
+
+// ── Bukti penangguhan (US-07 / Q1) ──────────────────────────────────────────────
+
+/// Permintaan presigned URL untuk mengunggah bukti penangguhan (gambar/PDF, maks 5MB).
+#[derive(Debug, Deserialize, Validate)]
+pub struct SuspendEvidenceRequest {
+    #[validate(length(min = 1))]
+    pub mime: String,
+    pub size_bytes: u64,
 }
