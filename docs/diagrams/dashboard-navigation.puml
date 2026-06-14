@@ -1,0 +1,43 @@
+@startuml dashboard-navigation
+title Peta Navigasi Sidebar Dashboard (User Story)
+' Sumber: prd-dashboard.md §5.0 (FR-ADM-NAV-*). Struktur menu & sub-menu persis User Story.
+
+skinparam rectangle {
+  BackgroundColor #F8FAFC
+  BorderColor #334155
+}
+
+rectangle "Header: Foto Profil + Nama + Role\n(klik → menu Logout)" as header
+rectangle "Sidebar (toggle hamburger)" as sidebar
+
+rectangle "Iklan Pekerja\n› Daftar Iklan Pekerja" as m1
+rectangle "Iklan Pekerjaan\n› Daftar Iklan Pekerjaan" as m2
+rectangle "Iklan Pelatihan" as m3
+rectangle "Iklan Barang Bekas Gratis\n› Daftar Iklan Barang Bekas Gratis" as m4
+rectangle "Pengelolaan Pengguna\n› Daftar Pengguna" as m5
+rectangle "Pengelolaan Dukungan\n› Daftar Bantuan" as m6
+rectangle "Corporate Communication\n› List Corporate Communication" as m7
+
+rectangle "Sub: Daftar Pelatihan" as s1
+rectangle "Sub: Konfirmasi Pelatihan" as s2
+rectangle "Sub: Badge Pelatihan" as s3
+
+header -[hidden]-> sidebar
+sidebar --> m1
+sidebar --> m2
+sidebar --> m3
+sidebar --> m4
+sidebar --> m5
+sidebar --> m6
+sidebar --> m7
+
+m3 --> s1
+m3 --> s2
+m3 --> s3
+
+note bottom of sidebar
+  Semua halaman: tabel responsif & dinamis per-halaman,
+  loading progress, pop-up status hasil (berhasil/gagal),
+  search + sort (dropdown status) + Export CSV.
+end note
+@enduml

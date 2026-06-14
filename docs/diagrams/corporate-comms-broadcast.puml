@@ -1,0 +1,35 @@
+@startuml corporate-comms-broadcast
+title Corporate Communication — Buat/Edit Artikel → Broadcast Notifikasi
+' Sumber: prd-dashboard.md §5.9 (FR-ADM-COM-*). add-corporate-comms (reuse send_bulk).
+
+actor Admin
+participant "rejki-web\n(Corporate Communication)" as web
+participant "require_admin" as rbac
+participant "corporate-comms service" as svc
+participant "StorageClient" as stor
+database "schema comms\n(corporate_article)" as db
+participant "NotificationClient" as notif
+actor "Seluruh Pengguna\n(in-app)" as users
+
+alt Buat Artikel baru
+  Admin -> web : klik "Buat Artikel" (Judul, Isi, Kategori=informasi, Foto)
+  web -> rbac : POST /admin/articles (Bearer admin)
+  rbac -> svc : role=admin OK
+  svc -> stor : presigned upload foto → object_key
+  svc -> db : insert corporate_article (author=sesi admin, read-only)
+  svc -> notif : send_bulk(all_users, "Artikel baru terbit")
+else Sunting Artikel
+  Admin -> web : klik ikon Pena → edit → Simpan
+  web -> svc : PUT /admin/articles/{id}
+  svc -> db : update (+ updated_at)
+  svc -> notif : send_bulk(all_users, "Artikel diperbarui")
+end
+
+notif -> users : notifikasi in-app
+
+note over svc
+  Pembuat artikel read-only (otomatis dari sesi).
+  Kategori dropdown: saat ini hanya `informasi`.
+  Hapus via ikon Tong Sampah. Search by judul, sort by kategori.
+end note
+@enduml

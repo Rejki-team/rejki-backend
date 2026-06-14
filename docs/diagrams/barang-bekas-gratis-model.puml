@@ -1,0 +1,50 @@
+@startuml barang-bekas-gratis-model
+title Model Iklan Barang Bekas Gratis (Change C: extend-barang-bekas-gratis-model)
+' Sumber: dashboard-gap-analysis.md §2.4 + prd-dashboard.md §5.6 (FR-ADM-GDS-01/02).
+' Mengubah model jual-beli (harga/kondisi/is_sold) → model gratis/donasi.
+
+' ── Perbandingan entity ──────────────────────────────────────────────
+class "IklanBarangBekas (LAMA — jual-beli)" as Old {
+  - harga : i64        <<DIHAPUS>>
+  - kondisi : String   <<DIHAPUS>>
+  - is_sold : bool     <<DIGANTI>>
+  --
+  foto_urls : Vec<String>
+  moderation_status
+  lokasi : Option<String>
+}
+
+class "IklanBarangBekas (BARU — gratis/donasi)" as New {
+  + jenis_barang : enum {bekas, baru}   <<BARU>>
+  + jumlah : i32 (>= 1)                 <<BARU>>
+  + lokasi_pengambilan : String         <<BARU>>
+  + availability_status : enum          <<BARU>>
+  --
+  foto_urls : Vec<String>
+  moderation_status   ' tetap (terpisah dari availability)
+  lokasi : Option<String>  ' dipertahankan (opsional)
+}
+
+Old ..> New : migrasi (drop harga/kondisi; is_sold→availability_status)
+
+' ── State availability (terpisah dari moderasi) ──────────────────────
+state "Status Ketersediaan" as Avail {
+  [*] --> Tersedia
+  Tersedia --> SudahDiambil : mark_taken (PATCH /barang/{id}/taken)
+  SudahDiambil --> [*]
+}
+
+note bottom of Avail
+  Status moderasi (Tersedia/Suspended dari extend-iklan-moderation)
+  TERPISAH dari availability_status (Tersedia/Sudah Diambil).
+  Dashboard menampilkan gabungan: Tersedia / Sudah Diambil / Suspended.
+end note
+
+note right of New
+  Surface kolom baru di:
+  - response publik & admin
+  - listing admin (extend-iklan-moderation)
+  - Export CSV
+  Prasyarat lintas-app: form create Rejki Mobile disesuaikan.
+end note
+@enduml

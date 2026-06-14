@@ -1,0 +1,71 @@
+@startuml dashboard-container
+title Rejki Web Dashboard — C4 Container (SPA ↔ Backend)
+' Sumber: docs/prd/prd-dashboard.md §4-§5. Pemetaan rejki-web ↔ endpoint admin backend.
+
+skinparam rectangle {
+  BackgroundColor #F8FAFC
+  BorderColor #334155
+}
+skinparam componentStyle rectangle
+
+actor Admin as admin
+
+rectangle "rejki-web (SPA Vue 3 + TS + Tailwind)" {
+  component "Auth Store + Route Guard\n(role=admin)" as guard
+  component "Layout: Sidebar + Header Profil" as layout
+  component "Halaman Moderasi Iklan (4)" as pIklan
+  component "Halaman Pelatihan (3 sub)" as pTrain
+  component "Halaman Pengelolaan Pengguna (KYC)" as pUser
+  component "Halaman Pengelolaan Dukungan" as pSupport
+  component "Halaman Corporate Communication" as pComms
+  component "Komponen Global:\nTabel server-side, Modal, Toast,\nLoading, Masking+ClickToView, CSV" as ui
+}
+
+rectangle "rejki-backend  /api/v1" {
+  component "auth-service\n/auth/admin/login, /admin/users/*/suspend*" as auth
+  component "require_admin middleware\n(default-deny)" as mw
+  component "user-service\n/admin/kyc/*, /me/documents/*" as usvc
+  component "iklan-services (4)\n/admin listing, /admin suspend, /export.csv" as iklan
+  component "pelatihan + enrollment + badge\n/admin/*" as pel
+  component "report-service /admin/reports/*" as rep
+  component "corporate-comms /admin/articles/*" as com
+  component "NotificationClient\n(send / send_bulk / send_email)" as notif
+  component "StorageClient (MinIO presigned)" as stor
+}
+
+admin --> guard
+guard --> layout
+layout --> pIklan
+layout --> pTrain
+layout --> pUser
+layout --> pSupport
+layout --> pComms
+pIklan ..> ui
+pTrain ..> ui
+pUser ..> ui
+
+pUser --> auth : login admin
+pIklan --> mw
+pTrain --> mw
+pUser --> mw
+pSupport --> mw
+pComms --> mw
+mw --> usvc
+mw --> iklan
+mw --> pel
+mw --> rep
+mw --> com
+usvc --> notif
+iklan --> notif
+pel --> notif
+rep --> notif
+com --> notif
+usvc --> stor
+iklan --> stor
+pel --> stor
+
+note bottom of mw
+  add-admin-rbac: semua /admin/** ditolak
+  kecuali token role=admin (OWASP default-deny).
+end note
+@enduml

@@ -1,0 +1,35 @@
+@startuml iklan-moderation-sequence
+title Suspend per-Iklan (4 vertikal) — extend-iklan-moderation
+' Sumber: prd-dashboard.md §5.1/5.2/5.6 (FR-ADM-*-06). Pola identik utk pekerja/pekerjaan/barang.
+
+actor Admin
+participant "rejki-web\n(Daftar Iklan)" as web
+participant "require_admin" as rbac
+participant "iklan-service\n(pekerjaan|pekerja|barang)" as iklan
+participant "StorageClient\n(kategori iklan-suspension-evidence ≤5MB)" as stor
+database "schema iklan\n(status, iklan_suspension)" as db
+participant "NotificationClient" as notif
+
+Admin -> web : ceklis 1..N iklan → klik "Suspend"
+web -> web : popup pilih (sementara | permanen) + alasan + unggah bukti
+
+Admin -> web : unggah bukti (gambar/PDF)
+web -> rbac : POST /admin/{vertikal}/suspend/evidence
+rbac -> iklan : role=admin OK
+iklan -> stor : presigned upload → object_key
+stor --> web : presigned_url + object_key
+web -> stor : PUT file langsung
+web -> iklan : POST /admin/{vertikal}/suspend\n{ids[], is_permanent, reason, evidence_object_key}
+iklan -> stor : verify magic bytes (commit)
+loop tiap iklan terpilih
+  iklan -> db : status → suspended_temp|suspended_permanent\n+ insert iklan_suspension(reason, evidence, created_by)
+end
+iklan -> notif : send_bulk (in-app) + send_email ke pemilik iklan terdampak
+iklan --> web : ApiResponse OK
+web -> Admin : pop-up status "berhasil"
+
+note over iklan
+  Admin READ-ONLY atas data iklan (tak boleh edit),
+  hanya aksi suspend. IDOR→404, envelope ApiResponse.
+end note
+@enduml
