@@ -59,13 +59,11 @@ async fn main() {
     // Repo auth dibuat sekali & di-share ke router auth dan AuthInProcessClient,
     // agar status akun punya satu sumber kebenaran (lihat K2 / spec account-status-lifecycle).
     let auth_repo = Arc::new(auth_service::PgAuthRepository::new(pool.clone()));
-    let auth_client: Arc<dyn auth_service_client::AuthClient> = Arc::new(
+    let auth_client: Arc<dyn auth_service::AuthClient> = Arc::new(
         auth_service::AuthInProcessClient::new(jwt.clone(), auth_repo.clone()),
     );
 
-    // NotificationClient — implementasi in-process (publisher Redis Stream) milik domain
-    // notification. Di-inject ke auth untuk email OTP. None bila REDIS_URL tidak diset.
-    let notifier: Option<Arc<dyn notification_service_client::NotificationClient>> =
+    let notifier: Option<Arc<dyn notification_service::NotificationClient>> =
         match std::env::var("REDIS_URL")
             .ok()
             .and_then(|u| notification_service::NotificationPublisher::new(&u).ok())
@@ -78,15 +76,15 @@ async fn main() {
         };
 
     // RegionClient — implementasi in-process untuk user-service (validasi wilayah KYC).
-    let region_client: Arc<dyn region_service_client::RegionClient> = {
+    let region_client: Arc<dyn region_service::RegionClient> = {
         let repo = Arc::new(region_service::PgRegionRepository::new(pool.clone()));
-        let svc  = Arc::new(region_service::RegionService::new(repo));
+        let svc = Arc::new(region_service::RegionService::new(repo));
         Arc::new(region_service::RegionInProcessClient::new(svc))
     };
 
     // StorageClient — in-process (MinIO/S3 via presigned URL). MinioStorage di-init
     // dari env; bila env tidak diset, request_upload mengembalikan Unavailable.
-    let storage_client: Arc<dyn storage_service_client::StorageClient> =
+    let storage_client: Arc<dyn storage_service::StorageClient> =
         Arc::new(storage_service::StorageInProcessClient::new().await);
 
     // ── 7. Build router ───────────────────────────────────────────────────────
@@ -98,30 +96,81 @@ async fn main() {
                 auth_repo.clone(),
                 auth_client.clone(),
                 notifier.clone(),
+                Some(storage_client.clone()),
             ),
         )
         .nest("/regions", region_service::router(pool.clone()))
-        .nest("/users", user_service::router(pool.clone(), auth_client.clone(), region_client.clone(), storage_client.clone()))
+        .nest(
+            "/users",
+            user_service::router(
+                pool.clone(),
+                auth_client.clone(),
+                region_client.clone(),
+                storage_client.clone(),
+                notifier.clone(),
+            ),
+        )
         .nest(
             "/chat",
             chat_service::router(pool.clone(), auth_client.clone()),
         )
-        .nest("/notif", notification_service::router(pool.clone(), auth_client.clone()))
+        .nest(
+            "/notif",
+            notification_service::router(pool.clone(), auth_client.clone()),
+        )
         .nest(
             "/pekerjaan",
-            iklan_pekerjaan_service::router(pool.clone(), auth_client.clone()),
+            iklan_pekerjaan_service::router(
+                pool.clone(),
+                auth_client.clone(),
+                Some(storage_client.clone()),
+                notifier.clone(),
+            ),
         )
         .nest(
             "/pekerja",
-            iklan_pekerja_service::router(pool.clone(), auth_client.clone()),
+            iklan_pekerja_service::router(
+                pool.clone(),
+                auth_client.clone(),
+                Some(storage_client.clone()),
+                notifier.clone(),
+            ),
         )
         .nest(
             "/barang",
-            iklan_barang_bekas_service::router(pool.clone(), auth_client.clone()),
+            iklan_barang_bekas_service::router(
+                pool.clone(),
+                auth_client.clone(),
+                Some(storage_client.clone()),
+                notifier.clone(),
+            ),
         )
         .nest(
             "/pelatihan",
-            iklan_pelatihan_service::router(pool.clone(), auth_client.clone()),
+            iklan_pelatihan_service::router(
+                pool.clone(),
+                auth_client.clone(),
+                Some(storage_client.clone()),
+                notifier.clone(),
+            ),
+        )
+        .nest(
+            "/admin/articles",
+            corporate_comms_service::router(
+                pool.clone(),
+                auth_client.clone(),
+                Some(storage_client.clone()),
+                notifier.clone(),
+            ),
+        )
+        .nest(
+            "/reports",
+            report_service::router(
+                pool.clone(),
+                auth_client.clone(),
+                Some(storage_client.clone()),
+                notifier.clone(),
+            ),
         );
 
     let mut app = Router::new()
@@ -135,8 +184,7 @@ async fn main() {
         use utoipa::OpenApi;
         use utoipa_swagger_ui::SwaggerUi;
         app = app.merge(
-            SwaggerUi::new("/swagger-ui")
-                .url("/api-docs/openapi.json", openapi::ApiDoc::openapi()),
+            SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", openapi::ApiDoc::openapi()),
         );
         tracing::info!("Swagger UI aktif (development) — /swagger-ui");
     }

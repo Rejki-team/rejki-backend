@@ -15,10 +15,8 @@ common-errors  = { workspace = true }
 common-tracing = { workspace = true }
 
 # Import SERVICE (implementasi), bukan client (trait/kontrak).
-# Client hanya dipakai oleh service yang mengkonsumsi service lain.
-# Pengecualian: *-client dipakai untuk type annotation Arc<dyn ...Client>.
-auth-service-client         = { path = "../auth-service-client" }
-notification-service-client = { path = "../notification-service-client" }
+# Tipe trait (AuthClient, RegionClient, dll.) di-re-export dari service crate,
+# sehingga composition root TIDAK perlu depend pada *-client crate.
 auth-service                = { path = "../auth-service" }
 user-service                = { path = "../user-service" }
 chat-service                = { path = "../chat-service" }
@@ -27,10 +25,10 @@ iklan-pekerjaan-service     = { path = "../iklan-pekerjaan-service" }
 iklan-pekerja-service       = { path = "../iklan-pekerja-service" }
 iklan-barang-bekas-service  = { path = "../iklan-barang-bekas-service" }
 iklan-pelatihan-service     = { path = "../iklan-pelatihan-service" }
+corporate-comms-service     = { path = "../corporate-comms-service" }
+report-service              = { path = "../report-service" }
 region-service              = { path = "../region-service" }
-region-service-client       = { path = "../region-service-client" }
 storage-service             = { path = "../storage-service" }
-storage-service-client      = { path = "../storage-service-client" }
 
 axum        = { workspace = true }
 tokio       = { workspace = true }
@@ -39,6 +37,7 @@ tracing     = { workspace = true }
 sqlx        = { workspace = true }
 serde       = { workspace = true }
 serde_json  = { workspace = true }
+uuid        = { workspace = true }
 
 # OpenAPI / Swagger UI — hanya di-mount saat APP_ENV=development.
 utoipa             = { workspace = true }
@@ -48,4 +47,3 @@ utoipa-swagger-ui  = { workspace = true }
 tower       = { version = "0.5", features = ["util"] }
 dotenvy     = { workspace = true }
 bcrypt      = { workspace = true }
-uuid        = { workspace = true }

@@ -20,6 +20,7 @@ common-auth-mw = { workspace = true }
 common-crypto  = { workspace = true }
 auth-service-client = { path = "../auth-service-client" }
 notification-service-client = { path = "../notification-service-client" }
+storage-service-client = { path = "../storage-service-client" }
 
 axum        = { workspace = true }
 tokio       = { workspace = true }

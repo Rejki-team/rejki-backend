@@ -1,0 +1,50 @@
+@startuml ecosystem-context
+title Rejki — C4 Context (Ekosistem)
+' Sumber: docs/prd/rejki-prd.md §4. Notasi C4 disederhanakan (rectangle) agar render offline.
+
+skinparam rectangle {
+  BackgroundColor #F8FAFC
+  BorderColor #334155
+}
+skinparam actorStyle awesome
+
+actor "Pengguna Umum" as user
+actor "Admin" as admin
+actor "Eksekutif / CEO" as ceo
+
+rectangle "Rejki Mobile\n(Flutter)" as mobile
+rectangle "Rejki Web Dashboard\n(Vue + TS + Tailwind)\n[repo: rejki-web]" as dash
+rectangle "Rejki CEO Mobile\n(Flutter)" as ceomob
+
+rectangle "rejki-backend\n(Modular Monolith Rust / Axum)\n/api/v1/*  +  WebSocket" as backend
+
+database "PostgreSQL 17\n(schema terisolasi per domain)" as pg
+queue "Redis Streams" as redis
+rectangle "bun-notification-service\n→ FCM" as bun
+cloud "SMTP (email/OTP)" as smtp
+cloud "FCM (push)" as fcm
+cloud "MinIO / S3\n(dokumen non-publik)" as minio
+
+user --> mobile
+admin --> dash
+ceo --> ceomob
+
+mobile --> backend : REST/JSON + WS
+dash --> backend : REST/JSON\n(/auth/admin/login, /admin/**)
+ceomob --> backend : REST/JSON (read-only)
+
+backend --> pg
+backend --> redis : publish event notifikasi
+redis --> bun
+bun --> smtp : email
+bun --> fcm : push
+backend --> minio : presigned upload/read
+
+note bottom of dash
+  Status v0.2: spesifikasi tersedia (User Story otoritatif).
+  Backend admin per change OpenSpec:
+  add-admin-rbac, extend-iklan-moderation,
+  add-pelatihan-enrollment-badge, add-content-reports,
+  add-corporate-comms.
+end note
+@enduml

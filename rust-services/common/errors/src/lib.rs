@@ -32,6 +32,10 @@ pub enum AppError {
     #[error("account not active")]
     AccountNotActive,
 
+    /// Bukan admin — akses admin ditolak. Kode mesin spesifik: ACCOUNT_NOT_ADMIN.
+    #[error("account not admin")]
+    AccountNotAdmin,
+
     #[error("internal server error")]
     Internal(#[from] anyhow::Error),
 }
@@ -59,6 +63,11 @@ impl IntoResponse for AppError {
                 StatusCode::FORBIDDEN,
                 "ACCOUNT_NOT_ACTIVE",
                 "akun belum aktif — lengkapi verifikasi untuk mengakses fitur".into(),
+            ),
+            AppError::AccountNotAdmin => (
+                StatusCode::FORBIDDEN,
+                "ACCOUNT_NOT_ADMIN",
+                "akses admin diperlukan — akun tidak memiliki peran admin".into(),
             ),
             AppError::Internal(e) => {
                 tracing::error!(error = ?e, "internal server error");

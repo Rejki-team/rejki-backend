@@ -6,16 +6,18 @@ use validator::Validate;
 
 #[derive(Debug, Serialize)]
 pub struct UserProfileResponse {
-    pub id:          Uuid,
-    pub username:    String,
-    pub full_name:   Option<String>,
-    pub avatar:      Option<String>,
-    pub bio:         Option<String>,
-    pub phone:       Option<String>,
+    pub id: Uuid,
+    pub username: String,
+    pub full_name: Option<String>,
+    pub avatar: Option<String>,
+    pub bio: Option<String>,
+    pub phone: Option<String>,
+    /// Peran pengguna (RBAC). Dipakai dashboard untuk header role.
+    pub role: Option<String>,
     /// NIK ditampilkan ter-mask (hanya 4 digit terakhir)
-    pub nik_masked:  Option<String>,
+    pub nik_masked: Option<String>,
     /// Status KYC terkini (pending / approved / rejected / null bila belum kirim)
-    pub kyc_status:  Option<String>,
+    pub kyc_status: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Validate)]
@@ -33,27 +35,27 @@ pub struct UpdateProfileInput {
 #[derive(Debug, Deserialize, Validate)]
 pub struct KycPersonalDataInput {
     #[validate(length(min = 1, max = 200))]
-    pub full_name:    String,
+    pub full_name: String,
     /// NIK 16 digit — divalidasi panjangnya; disimpan terenkripsi at-rest
     #[validate(length(min = 16, max = 16, message = "NIK harus 16 digit"))]
-    pub nik:          String,
+    pub nik: String,
     #[validate(length(min = 1))]
     pub education_level: String,
     #[validate(length(min = 1))]
-    pub gender:       String,
-    pub birth_date:   chrono::NaiveDate,
+    pub gender: String,
+    pub birth_date: chrono::NaiveDate,
     #[validate(length(min = 1))]
     pub address_line: String,
     #[serde(default = "default_country")]
     pub country_code: String,
     #[validate(length(min = 1))]
-    pub province_id:  String,
+    pub province_id: String,
     #[validate(length(min = 1))]
-    pub regency_id:   String,
+    pub regency_id: String,
     #[validate(length(min = 1))]
-    pub district_id:  String,
+    pub district_id: String,
     #[validate(length(min = 1))]
-    pub village_id:   String,
+    pub village_id: String,
 }
 
 fn default_country() -> String {
@@ -87,11 +89,28 @@ pub struct DocumentRequest {
     pub size_bytes: u64,
 }
 
+/// Commit dokumen: klien mengirim ulang header yang sudah diverifikasi magic bytes-nya.
+#[derive(Debug, Deserialize, Validate)]
+pub struct CommitDocumentInput {
+    /// "ktp" | "selfie"
+    #[validate(length(min = 1))]
+    pub kind: String,
+    /// Object key yang diterima saat permintaan upload (presigned).
+    #[validate(length(min = 1))]
+    pub object_key: String,
+    /// MIME yang diklaim (harus cocok dengan magic_bytes).
+    #[validate(length(min = 1))]
+    pub mime: String,
+    /// Header berkas (N byte pertama) dalam base64 — diverifikasi magic bytes.
+    #[validate(length(min = 1))]
+    pub magic_head_b64: String,
+}
+
 // ── KYC submission ─────────────────────────────────────────────────────────
 
 #[derive(Debug, Serialize)]
 pub struct KycSubmissionResponse {
-    pub id:     Uuid,
+    pub id: Uuid,
     pub status: String,
     pub review_note: Option<String>,
     pub reviewed_at: Option<String>,

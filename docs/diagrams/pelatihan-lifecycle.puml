@@ -1,0 +1,30 @@
+@startuml pelatihan-lifecycle
+title Siklus Status Pelatihan (7 status) — add-pelatihan-enrollment-badge
+' Sumber: prd-dashboard.md §5.3 (FR-ADM-TRN-02). Cabang berdasarkan pembuat (created_by_role).
+
+[*] --> verifikasi_tertunda : dibuat oleh USER (pengajuan)
+[*] --> verifikasi_diterima : dibuat oleh ADMIN (auto-approve)
+
+verifikasi_tertunda --> verifikasi_dalam_proses : admin mulai tinjau
+verifikasi_dalam_proses --> verifikasi_ditolak : admin Tolak (+ alasan)
+verifikasi_dalam_proses --> verifikasi_diterima : admin Terima
+verifikasi_tertunda --> verifikasi_ditolak : admin Tolak (+ alasan)
+verifikasi_tertunda --> verifikasi_diterima : admin Terima
+
+verifikasi_ditolak --> [*] : terminal (notifikasi user)
+
+verifikasi_diterima --> pelatihan_belum_dimulai : sebelum tanggal mulai
+pelatihan_belum_dimulai --> pelatihan_berjalan : tanggal mulai tercapai
+pelatihan_berjalan --> pelatihan_selesai : tanggal selesai tercapai
+pelatihan_selesai --> [*]
+
+note right of verifikasi_diterima
+  Pelatihan milik ADMIN: editable (Batalkan/Edit/Simpan).
+  Pelatihan milik USER: admin hanya Tolak/Terima,
+  TIDAK boleh edit. Tombol terkunci setelah verifikasi.
+end note
+
+note bottom
+  Setiap transisi verifikasi memicu notifikasi otomatis (email + in-app) ke pengaju.
+end note
+@enduml

@@ -1,0 +1,40 @@
+@startuml training-enrollment-badge
+title Konfirmasi Pelatihan (Bukti Transfer) → Badge / Sertifikat
+' Sumber: prd-dashboard.md §5.4-§5.5 + prd-mobile.md §5.1 (FR-MOB-TRN-07/08). add-pelatihan-enrollment-badge.
+
+actor "Pengguna\n(Rejki Mobile)" as user
+actor "Admin\n(Dashboard)" as admin
+participant "mobile/web" as app
+participant "pelatihan + enrollment\n+ badge service" as svc
+participant "StorageClient" as stor
+database "schema pelatihan\n(enrollment, badge)" as db
+participant "NotificationClient" as notif
+
+== Konfirmasi Pelatihan (enrollment + bukti transfer) ==
+user -> app : daftar pelatihan + unggah bukti transfer
+app -> svc : POST /pelatihan/{id}/enroll
+svc -> stor : presigned upload bukti → object_key
+app -> stor : PUT bukti
+svc -> db : enrollment(status=pending, bukti_transfer_object_key)
+
+admin -> svc : GET /admin/enrollments (ikon Mata → popup)
+admin -> svc : POST /admin/enrollments/{id}/review {approved}
+alt Terima
+  svc -> db : status → approved
+else Tolak (wajib alasan)
+  svc -> db : status → rejected (+ alasan)
+end
+svc -> notif : send + send_email (hasil) ke user
+note over svc : Tombol Tolak/Terima terkunci setelah verifikasi.
+
+== Badge / Sertifikat ==
+user -> app : ajukan badge (unggah sertifikat)
+app -> svc : POST /pelatihan/{id}/badge
+svc -> stor : presigned upload sertifikat → object_key
+svc -> db : badge(status=pending, sertifikat_object_key)
+
+admin -> svc : GET /admin/badges (ikon Mata → popup)
+admin -> svc : POST /admin/badges/{id}/review {approved}
+svc -> db : status → approved (approved_at) | rejected (+ alasan)
+svc -> notif : send + send_email (hasil) ke user
+@enduml

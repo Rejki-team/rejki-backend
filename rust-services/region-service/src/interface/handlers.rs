@@ -18,7 +18,9 @@ pub async fn provinces(
         .map_err(common_errors::AppError::Internal)?;
     Ok((
         StatusCode::OK,
-        Json(ApiResponse::ok(serde_json::to_value(list).unwrap_or_default())),
+        Json(ApiResponse::ok(
+            serde_json::to_value(list).unwrap_or_default(),
+        )),
     ))
 }
 
@@ -34,7 +36,9 @@ pub async fn regencies(
         .map_err(common_errors::AppError::Internal)?;
     Ok((
         StatusCode::OK,
-        Json(ApiResponse::ok(serde_json::to_value(list).unwrap_or_default())),
+        Json(ApiResponse::ok(
+            serde_json::to_value(list).unwrap_or_default(),
+        )),
     ))
 }
 
@@ -50,7 +54,9 @@ pub async fn districts(
         .map_err(common_errors::AppError::Internal)?;
     Ok((
         StatusCode::OK,
-        Json(ApiResponse::ok(serde_json::to_value(list).unwrap_or_default())),
+        Json(ApiResponse::ok(
+            serde_json::to_value(list).unwrap_or_default(),
+        )),
     ))
 }
 
@@ -66,6 +72,8 @@ pub async fn villages(
         .map_err(common_errors::AppError::Internal)?;
     Ok((
         StatusCode::OK,
-        Json(ApiResponse::ok(serde_json::to_value(list).unwrap_or_default())),
+        Json(ApiResponse::ok(
+            serde_json::to_value(list).unwrap_or_default(),
+        )),
     ))
 }

@@ -1,8 +1,8 @@
 use chrono::{DateTime, Utc};
-use sqlx::PgPool;
+use sqlx::{PgPool, Row};
 use uuid::Uuid;
 
-use crate::domain::entity::{AccountStatus, AuthUser};
+use crate::domain::entity::{AccountStatus, AuthUser, Role};
 use crate::domain::repository::AuthRepository;
 
 pub struct PgAuthRepository {
@@ -21,52 +21,66 @@ fn parse_status(s: &str) -> Result<AccountStatus, anyhow::Error> {
         .map_err(|_| anyhow::anyhow!("status akun tidak dikenal: {s}"))
 }
 
+/// Map string role dari DB ke enum domain; log peringatan pada nilai tidak dikenal,
+/// default ke `User` sebagai safe fallback (failsafe default-deny untuk admin).
+fn parse_role(s: &str) -> Role {
+    match s.parse() {
+        Ok(role) => role,
+        Err(_) => {
+            tracing::warn!(role = %s, "role tidak dikenal di DB, fallback ke User");
+            Role::User
+        }
+    }
+}
+
 impl AuthRepository for PgAuthRepository {
     async fn find_by_email(&self, email: &str) -> Result<Option<AuthUser>, anyhow::Error> {
-        let row = sqlx::query!(
-            "SELECT id, email, password_hash, status, phone, tos_accepted_at, tos_version, created_at, updated_at
+        let row = sqlx::query(
+            "SELECT id, email, password_hash, status, role, phone, tos_accepted_at, tos_version, created_at, updated_at
              FROM auth.users WHERE email = $1",
-            email
         )
+        .bind(email)
         .fetch_optional(&self.pool)
         .await?;
 
         row.map(|r| -> Result<AuthUser, anyhow::Error> {
             Ok(AuthUser {
-                id: r.id,
-                email: r.email,
-                password_hash: r.password_hash,
-                status: parse_status(&r.status)?,
-                phone: r.phone,
-                tos_accepted_at: r.tos_accepted_at,
-                tos_version: r.tos_version,
-                created_at: r.created_at,
-                updated_at: r.updated_at,
+                id: r.try_get("id")?,
+                email: r.try_get("email")?,
+                password_hash: r.try_get("password_hash")?,
+                status: parse_status(r.try_get::<&str, _>("status")?)?,
+                role: parse_role(r.try_get::<&str, _>("role")?),
+                phone: r.try_get("phone")?,
+                tos_accepted_at: r.try_get("tos_accepted_at")?,
+                tos_version: r.try_get("tos_version")?,
+                created_at: r.try_get("created_at")?,
+                updated_at: r.try_get("updated_at")?,
             })
         })
         .transpose()
     }
 
     async fn find_by_id(&self, id: Uuid) -> Result<Option<AuthUser>, anyhow::Error> {
-        let row = sqlx::query!(
-            "SELECT id, email, password_hash, status, phone, tos_accepted_at, tos_version, created_at, updated_at
+        let row = sqlx::query(
+            "SELECT id, email, password_hash, status, role, phone, tos_accepted_at, tos_version, created_at, updated_at
              FROM auth.users WHERE id = $1",
-            id
         )
+        .bind(id)
         .fetch_optional(&self.pool)
         .await?;
 
         row.map(|r| -> Result<AuthUser, anyhow::Error> {
             Ok(AuthUser {
-                id: r.id,
-                email: r.email,
-                password_hash: r.password_hash,
-                status: parse_status(&r.status)?,
-                phone: r.phone,
-                tos_accepted_at: r.tos_accepted_at,
-                tos_version: r.tos_version,
-                created_at: r.created_at,
-                updated_at: r.updated_at,
+                id: r.try_get("id")?,
+                email: r.try_get("email")?,
+                password_hash: r.try_get("password_hash")?,
+                status: parse_status(r.try_get::<&str, _>("status")?)?,
+                role: parse_role(r.try_get::<&str, _>("role")?),
+                phone: r.try_get("phone")?,
+                tos_accepted_at: r.try_get("tos_accepted_at")?,
+                tos_version: r.try_get("tos_version")?,
+                created_at: r.try_get("created_at")?,
+                updated_at: r.try_get("updated_at")?,
             })
         })
         .transpose()
@@ -79,28 +93,29 @@ impl AuthRepository for PgAuthRepository {
         phone_encrypted: Option<&str>,
         tos_version: &str,
     ) -> Result<AuthUser, anyhow::Error> {
-        let row = sqlx::query!(
+        let row = sqlx::query(
             "INSERT INTO auth.users (id, email, password_hash, phone, tos_accepted_at, tos_version)
              VALUES (gen_random_uuid(), $1, $2, $3, now(), $4)
-             RETURNING id, email, password_hash, status, phone, tos_accepted_at, tos_version, created_at, updated_at",
-            email,
-            password_hash,
-            phone_encrypted,
-            tos_version
+             RETURNING id, email, password_hash, status, role, phone, tos_accepted_at, tos_version, created_at, updated_at",
         )
+        .bind(email)
+        .bind(password_hash)
+        .bind(phone_encrypted)
+        .bind(tos_version)
         .fetch_one(&self.pool)
         .await?;
 
         Ok(AuthUser {
-            id: row.id,
-            email: row.email,
-            password_hash: row.password_hash,
-            status: parse_status(&row.status)?,
-            phone: row.phone,
-            tos_accepted_at: row.tos_accepted_at,
-            tos_version: row.tos_version,
-            created_at: row.created_at,
-            updated_at: row.updated_at,
+            id: row.try_get("id")?,
+            email: row.try_get("email")?,
+            password_hash: row.try_get("password_hash")?,
+            status: parse_status(row.try_get::<&str, _>("status")?)?,
+            role: parse_role(row.try_get::<&str, _>("role")?),
+            phone: row.try_get("phone")?,
+            tos_accepted_at: row.try_get("tos_accepted_at")?,
+            tos_version: row.try_get("tos_version")?,
+            created_at: row.try_get("created_at")?,
+            updated_at: row.try_get("updated_at")?,
         })
     }
 
@@ -278,12 +293,18 @@ impl AuthRepository for PgAuthRepository {
         reason: &str,
         expires_at: Option<DateTime<Utc>>,
         created_by: Uuid,
+        evidence_object_key: Option<&str>,
     ) -> Result<(), anyhow::Error> {
-        sqlx::query!(
-            "INSERT INTO auth.account_suspension (id, user_id, is_permanent, reason, expires_at, created_by)
-             VALUES (gen_random_uuid(), $1, $2, $3, $4, $5)",
-            user_id, is_permanent, reason, expires_at, created_by
+        sqlx::query(
+            "INSERT INTO auth.account_suspension (id, user_id, is_permanent, reason, expires_at, created_by, evidence_object_key)
+             VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6)",
         )
+        .bind(user_id)
+        .bind(is_permanent)
+        .bind(reason)
+        .bind(expires_at)
+        .bind(created_by)
+        .bind(evidence_object_key)
         .execute(&self.pool)
         .await?;
         Ok(())
@@ -301,5 +322,12 @@ impl AuthRepository for PgAuthRepository {
         .fetch_one(&self.pool)
         .await?
         .unwrap_or(false))
+    }
+
+    async fn list_active_user_ids(&self) -> Result<Vec<Uuid>, anyhow::Error> {
+        let ids = sqlx::query_scalar("SELECT id FROM auth.users WHERE status = 'active'")
+            .fetch_all(&self.pool)
+            .await?;
+        Ok(ids)
     }
 }

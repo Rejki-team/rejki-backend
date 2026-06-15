@@ -1,0 +1,46 @@
+@startuml kyc-verification-sequence
+title Verifikasi KYC oleh Admin (Pengelolaan Pengguna)
+' Sumber: prd-dashboard.md §5.7 (FR-ADM-USR-*) + add-user-service-kyc + add-admin-rbac.
+
+actor Admin
+participant "rejki-web\n(Pengelolaan Pengguna)" as web
+participant "user-service\n/admin/kyc/*" as usvc
+participant "require_admin\n(add-admin-rbac)" as rbac
+participant "StorageClient\n(MinIO presigned)" as stor
+database "user_svc\n(profiles, kyc_submission,\ndocument_access_log)" as db
+participant "AuthClient" as auth
+participant "NotificationClient" as notif
+
+Admin -> web : buka antrian verifikasi
+web -> rbac : GET /admin/kyc?status=pending (Bearer admin)
+rbac -> usvc : role=admin OK
+usvc -> db : list submission pending
+db --> web : tabel (NIK ter-mask: xxx...1234)
+
+Admin -> web : klik ikon Mata → popup detail
+note over web : NIK & dokumen tampil TER-MASK (default)
+
+Admin -> web : klik "view" Foto KTP / Selfie (click-to-view)
+web -> rbac : GET /admin/kyc/{id}/documents/{kind}
+rbac -> usvc : role=admin OK
+usvc -> stor : presigned read (TTL pendek)
+usvc -> db : log_document_access(actor=admin, action=read_issued, request_id)
+stor --> Admin : URL dokumen (sementara)
+
+alt Setujui
+  Admin -> web : klik Terima
+  web -> usvc : POST /admin/kyc/{id}/review {approved:true}
+  usvc -> db : submission → approved
+  usvc -> auth : set_account_status(active)
+  usvc -> notif : send (in-app) + send_email (hasil akhir)
+else Tolak (wajib alasan)
+  Admin -> web : klik Tolak + alasan
+  web -> usvc : POST /admin/kyc/{id}/review {approved:false, review_note}
+  usvc -> db : submission → rejected (+ alasan)
+  usvc -> auth : set_account_status(rejected)
+  usvc -> stor : delete(ktp_object_key, selfie_object_key)  // hapus dok saat ditolak
+  usvc -> notif : send (in-app) + send_email (hasil akhir)
+end
+
+note over web : Setelah verifikasi, tombol Tolak/Terima TERKUNCI (FR-ADM-USR-03/06).
+@enduml

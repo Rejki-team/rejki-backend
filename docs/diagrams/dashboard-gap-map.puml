@@ -1,0 +1,64 @@
+@startuml dashboard-gap-map
+title Peta Gap Dashboard — User Story → Status Backend (2026-06-15)
+' Sumber: dashboard-gap-analysis.md (penelusuran kode aktual rust-services/).
+' Hijau = backend ADA & terverifikasi. Merah = GAP (ditutup Change A/B/C). Biru = pekerjaan rejki-web (UI).
+
+skinparam rectangle {
+  BackgroundColor<<ok>> #D5F5E3
+  BackgroundColor<<gap>> #FADBD8
+  BackgroundColor<<web>> #D6EAF8
+  BorderColor #34495E
+}
+
+actor "Admin" as admin
+
+package "rejki-web (greenfield, UI)" <<web>> {
+  rectangle "SPA Vue 3 + TS + Tailwind\n(scaffold, auth store, guard,\nsidebar, 8 komponen, 10 halaman)" <<web>> as web
+}
+
+package "Backend ADA & terverifikasi" {
+  rectangle "Login admin + RBAC\n(add-admin-rbac)" <<ok>> as r_auth
+  rectangle "Profil /users/me (role)" <<ok>> as r_me
+  rectangle "Moderasi+suspend+CSV\nPekerja/Pekerjaan/Barang\n(extend-iklan-moderation)" <<ok>> as r_iklan
+  rectangle "Pelatihan penuh\n(daftar/konfirmasi/badge)" <<ok>> as r_train
+  rectangle "Report/Aduan\n(add-content-reports)" <<ok>> as r_report
+  rectangle "Corporate Comms\n(add-corporate-comms)" <<ok>> as r_comms
+  rectangle "KYC review + notif\n(add-user-service-kyc)" <<ok>> as r_kyc
+  rectangle "Suspend pengguna SINGLE\n+ bukti (extend-auth)" <<ok>> as r_susp1
+}
+
+package "GAP backend (ditutup Change A/B/C)" {
+  rectangle "GAP#1 Listing KYC admin\n→ Change A" <<gap>> as g1
+  rectangle "GAP#2 Admin baca dokumen\nKTP/Selfie teraudit → Change A" <<gap>> as g2
+  rectangle "GAP#3 Auto-purge saat\nKYC ditolak → Change A" <<gap>> as g3
+  rectangle "GAP#4 Bulk suspend\npengguna → Change B" <<gap>> as g4
+  rectangle "GAP#5 Auto-purge saat\nsuspend permanen → Change B" <<gap>> as g5
+  rectangle "GAP#6 Model Barang Bekas\nGratis → Change C" <<gap>> as g6
+}
+
+admin --> web
+
+web --> r_auth
+web --> r_me
+web --> r_iklan
+web --> r_train
+web --> r_report
+web --> r_comms
+
+' Halaman Pengelolaan Pengguna bergantung pada gap + bagian existing
+web --> g1
+web --> g2
+web --> g3
+web --> g4
+web --> g5
+g1 ..> r_kyc : melengkapi
+g4 ..> r_susp1 : memperluas (single→bulk)
+web --> g6
+g6 ..> r_iklan : menyelaraskan field
+
+note bottom
+  Halaman "Pengelolaan Pengguna" TERBLOKIR sampai Change A + B selesai.
+  9 halaman lain backend-ready (tinggal UI rejki-web).
+  Field iklan Pekerja/Pekerjaan (Pengalaman/Jam Kerja/Cara Hubungi) = open question.
+end note
+@enduml

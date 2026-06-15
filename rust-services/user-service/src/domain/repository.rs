@@ -1,6 +1,6 @@
 use uuid::Uuid;
 
-use super::entity::{KycSubmission, KycSubmissionStatus, UserProfile};
+use super::entity::{DocumentAccessAction, KycSubmission, KycSubmissionStatus, UserProfile};
 
 #[async_trait::async_trait]
 pub trait UserRepository: Send + Sync {
@@ -22,13 +22,39 @@ pub trait UserRepository: Send + Sync {
 
     // KYC submission
     async fn create_submission(&self, profile_id: Uuid) -> Result<KycSubmission, anyhow::Error>;
-    async fn get_submission_by_id(&self, submission_id: Uuid) -> Result<Option<KycSubmission>, anyhow::Error>;
-    async fn get_latest_submission(&self, profile_id: Uuid) -> Result<Option<KycSubmission>, anyhow::Error>;
+    async fn get_submission_by_id(
+        &self,
+        submission_id: Uuid,
+    ) -> Result<Option<KycSubmission>, anyhow::Error>;
+    async fn get_latest_submission(
+        &self,
+        profile_id: Uuid,
+    ) -> Result<Option<KycSubmission>, anyhow::Error>;
     async fn review_submission(
         &self,
-        id:          Uuid,
-        status:      KycSubmissionStatus,
+        id: Uuid,
+        status: KycSubmissionStatus,
         reviewed_by: Uuid,
         review_note: Option<&str>,
+    ) -> Result<(), anyhow::Error>;
+
+    /// Set object key dokumen (`kind` = "ktp" | "selfie") pada submission (commit).
+    async fn set_document_key(
+        &self,
+        submission_id: Uuid,
+        kind: &str,
+        object_key: &str,
+    ) -> Result<(), anyhow::Error>;
+
+    /// Kosongkan object key dokumen pada submission (pemusnahan, retensi K11).
+    async fn clear_document_keys(&self, submission_id: Uuid) -> Result<(), anyhow::Error>;
+
+    // Audit trail dokumen (Q2) — append-only.
+    async fn log_document_access(
+        &self,
+        actor_id: Uuid,
+        object_key: &str,
+        action: DocumentAccessAction,
+        request_id: Option<&str>,
     ) -> Result<(), anyhow::Error>;
 }

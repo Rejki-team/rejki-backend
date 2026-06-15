@@ -8,10 +8,10 @@ use axum::{
 };
 use sqlx::PgPool;
 
-use auth_service_client::AuthClient;
-use common_auth_mw::require_auth;
 use crate::application::service::NotificationService;
 use crate::infrastructure::{PgNotificationRepository, RedisPublisher};
+use auth_service_client::AuthClient;
+use common_auth_mw::require_auth;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -47,5 +47,8 @@ pub fn router(pool: PgPool, auth_client: Arc<dyn AuthClient>) -> Router {
         .route("/send", post(handlers::send))
         .route("/{id}/read", patch(handlers::mark_read))
         .with_state(state)
-        .layer(axum::middleware::from_fn_with_state(auth_client, require_auth))
+        .layer(axum::middleware::from_fn_with_state(
+            auth_client,
+            require_auth,
+        ))
 }

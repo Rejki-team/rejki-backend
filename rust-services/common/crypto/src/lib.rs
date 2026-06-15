@@ -19,8 +19,7 @@ const KEY_ENV: &str = "DATA_ENCRYPTION_KEY";
 
 /// Ambil kunci 32-byte dari env (base64). Fail-fast bila tidak valid (Config Standard).
 fn load_key() -> anyhow::Result<[u8; 32]> {
-    let raw = std::env::var(KEY_ENV)
-        .map_err(|_| anyhow::anyhow!("{KEY_ENV} tidak di-set"))?;
+    let raw = std::env::var(KEY_ENV).map_err(|_| anyhow::anyhow!("{KEY_ENV} tidak di-set"))?;
     let bytes = B64
         .decode(raw.trim())
         .map_err(|e| anyhow::anyhow!("{KEY_ENV} bukan base64 valid: {e}"))?;
@@ -78,9 +77,10 @@ mod tests {
     use super::*;
 
     fn set_test_key() {
-        // 32 byte nol di-base64 — hanya untuk test round-trip.
         let key = B64.encode([7u8; 32]);
-        std::env::set_var(KEY_ENV, key);
+        // SAFETY: tes ini dijalankan secara serial (cargo test -- --test-threads=1
+        // atau memang satu-satunya pengguna env var ini di test suite).
+        unsafe { std::env::set_var(KEY_ENV, key) };
     }
 
     #[test]

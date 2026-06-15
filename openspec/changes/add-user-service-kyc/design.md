@@ -60,7 +60,11 @@ Envelope `ApiResponse`, error RFC 9457-inspired, prefix `/api/v1/`, IDOR→404 &
 Diputuskan oleh pemilik produk pada sesi brainstorming (K-series):
 - **NIK immutable** (K5), **enkripsi via envelope encryption KEK di env** (K14), **storage MinIO presigned** (K7), **retensi selama akun aktif lalu dimusnahkan setelah penutupan + dispute** (K11), **email hanya awal & hasil akhir** (K12), **cooldown re-submit 3 hari kerja** (K16), **wilayah 4 tingkat + default negara ID** (K13).
 
+Diputuskan 2026-06-13 (jawaban Open Questions pasca-code review):
+- **Q1 — Suspend wajib bukti**: Admin yang men-suspend akun (sementara/permanen) WAJIB menyertakan alasan + bukti (gambar/dokumen, maks 5MB per dokumen) demi keamanan audit & sengketa. Kolom `evidence_object_key` ditambah di `auth.account_suspension`; endpoint evidence presigned URL ditambah di auth-service via `StorageClient` kategori `suspension-evidence`. Selaras US-07, PRD Dashboard FR-ADM-USR-03 & Audit Log.
+- **Q2 — Audit trail akses dokumen**: Setiap akses dokumen KYC wajib terlacak: kapan diupload (presigned upload diterbitkan), kapan dibuka/dilihat (presigned read diterbitkan), dan kapan di-commit. Dicatat di tabel append-only `user_svc.document_access_log` (actor_id, object_key, action, request_id, occurred_at). Action: `upload_issued`, `commit`, `read_issued`. Pemenuhan audit & sengketa sesuai UU PDP.
+
 ## Open Questions
 
-- **Pemicu penutupan akun untuk retensi (K11)**: mekanisme & kepemilikan "akun ditutup" (kemungkinan lintas auth-service) belum didefinisikan; periode dispute pasti (mis. 30 hari) perlu ditetapkan kebijakan.
-- **Aturan akses baca dokumen oleh admin**: bentuk presigned read & masa berlaku untuk peninjau (detail implementasi, mengikuti pola storage).
+- **Pemicu penutupan akun untuk retensi (K11)**: mekanisme & kepemilikan "akun ditutup" (kemungkinan lintas auth-service) belum didefinisikan; periode dispute pasti (mis. 30 hari) perlu ditetapkan kebijakan. Method `purge_documents(profile_id)` sudah tersedia di user-service; pemanggilnya menunggu event penutupan akun dari auth-service.
+- **Aturan akses baca dokumen oleh admin**: endpoint `GET /me/documents/{kind}` saat ini owner-only; admin read ditunda hingga RBAC tersedia (PRD Dashboard).

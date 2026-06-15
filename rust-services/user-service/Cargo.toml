@@ -16,10 +16,11 @@ common-errors  = { workspace = true }
 common-tracing = { workspace = true }
 common-auth-mw = { workspace = true }
 common-crypto  = { workspace = true }
-user-service-client  = { path = "../user-service-client" }
-auth-service-client  = { path = "../auth-service-client" }
-region-service-client = { path = "../region-service-client" }
-storage-service-client = { path = "../storage-service-client" }
+user-service-client         = { path = "../user-service-client" }
+auth-service-client         = { path = "../auth-service-client" }
+region-service-client       = { path = "../region-service-client" }
+storage-service-client      = { path = "../storage-service-client" }
+notification-service-client = { path = "../notification-service-client" }
 
 axum        = { workspace = true }
 tokio       = { workspace = true }
@@ -35,3 +36,4 @@ validator   = { workspace = true }
 dotenvy     = { workspace = true }
 anyhow      = { workspace = true }
 async-trait = "0.1"
+base64      = { workspace = true }
