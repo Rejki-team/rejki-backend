@@ -22,3 +22,23 @@ pub struct SendNotificationInput {
     pub body: String,
     pub data: Option<serde_json::Value>,
 }
+
+// ── Device token ──────────────────────────────────────────────────────────
+
+#[derive(Debug, Serialize)]
+pub struct DeviceTokenResponse {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub token: String,
+    pub platform: String,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Deserialize, Validate)]
+pub struct RegisterDeviceTokenInput {
+    #[validate(length(min = 1, max = 1024, message = "token FCM harus 1-1024 karakter"))]
+    pub token: String,
+    #[validate(length(min = 1, max = 20))]
+    pub platform: String, // android | ios | web — validated at service layer
+}

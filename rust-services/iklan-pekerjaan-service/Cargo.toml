@@ -15,6 +15,7 @@ path = "src/main.rs"
 common-errors  = { workspace = true }
 common-tracing = { workspace = true }
 common-auth-mw = { workspace = true }
+common-rate-limit = { workspace = true }
 iklan-pekerjaan-service-client = { path = "../iklan-pekerjaan-service-client" }
 user-service-client            = { path = "../user-service-client" }
 notification-service-client    = { path = "../notification-service-client" }

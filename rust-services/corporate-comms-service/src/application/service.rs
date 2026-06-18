@@ -10,6 +10,7 @@ use crate::domain::repository::{
     ArticleListParams, CorporateArticleRepository, CreateArticleParams, UpdateArticleParams,
     DEFAULT_LIMIT,
 };
+use common_rate_limit::RateLimiter;
 use corporate_comms_service_client::ArticleCategory;
 use storage_service_client::StorageClient;
 
@@ -20,11 +21,19 @@ pub mod storage_category {
 
 pub struct CorporateCommsService<R: CorporateArticleRepository> {
     repo: Arc<R>,
+    rate_limiter: Option<Arc<dyn RateLimiter>>,
 }
 
 impl<R: CorporateArticleRepository> CorporateCommsService<R> {
     pub fn new(repo: Arc<R>) -> Self {
-        Self { repo }
+        Self {
+            repo,
+            rate_limiter: None,
+        }
+    }
+    pub fn with_rate_limiter(mut self, rl: Arc<dyn RateLimiter>) -> Self {
+        self.rate_limiter = Some(rl);
+        self
     }
 
     // ── Admin: list articles ─────────────────────────────────────────────
@@ -67,6 +76,17 @@ impl<R: CorporateArticleRepository> CorporateCommsService<R> {
         author_id: Uuid,
         input: CreateArticleInput,
     ) -> Result<CorporateArticle, anyhow::Error> {
+        // Rate limit: 10 req/15 menit per admin
+        if let Some(rl) = &self.rate_limiter {
+            if !rl
+                .allow("comms:create_article", &author_id.to_string())
+                .await
+            {
+                return Err(anyhow::anyhow!(
+                    "terlalu banyak permintaan, coba lagi nanti"
+                ));
+            }
+        }
         self.repo
             .create(CreateArticleParams {
                 author_id,

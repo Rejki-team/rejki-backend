@@ -100,6 +100,7 @@ impl ChatRepository for PgChatRepository {
         conversation_id: Uuid,
         limit: i64,
         before_id: Option<Uuid>,
+        after_id: Option<Uuid>,
     ) -> Result<Vec<Message>, anyhow::Error> {
         let t = Instant::now();
         let rows = if let Some(bid) = before_id {
@@ -111,6 +112,28 @@ impl ChatRepository for PgChatRepository {
                    ORDER BY created_at DESC LIMIT $3"#,
                 conversation_id,
                 bid,
+                limit
+            )
+            .fetch_all(&self.pool)
+            .await?
+            .into_iter()
+            .map(|r| Message {
+                id: r.id,
+                conversation_id: r.conversation_id,
+                sender_id: r.sender_id,
+                content: r.content,
+                created_at: r.created_at,
+            })
+            .collect()
+        } else if let Some(aid) = after_id {
+            sqlx::query!(
+                r#"SELECT id, conversation_id, sender_id, content, created_at
+                   FROM chat.messages
+                   WHERE conversation_id = $1
+                     AND created_at > (SELECT created_at FROM chat.messages WHERE id = $2)
+                   ORDER BY created_at ASC LIMIT $3"#,
+                conversation_id,
+                aid,
                 limit
             )
             .fetch_all(&self.pool)

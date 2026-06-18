@@ -36,14 +36,19 @@ pub async fn list_messages(
     State(s): State<AppState>,
     Path(conv_id): Path<Uuid>,
     Query(query): Query<ListMessagesQuery>,
-) -> Result<Json<ApiResponse<Vec<MessageResponse>>>, AppError> {
-    let msgs = s
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let (msgs, cursor) = s
         .chat_svc
         .list_messages(conv_id, query)
         .await
         .map_err(|e| AppError::NotFound(e.to_string()))?;
 
-    Ok(Json(ApiResponse::ok(msgs)))
+    let data = serde_json::json!({ "messages": msgs });
+    Ok(if let Some(meta) = cursor {
+        Json(ApiResponse::with_meta(data, meta))
+    } else {
+        Json(ApiResponse::ok(data))
+    })
 }
 
 pub async fn send_message(
@@ -56,7 +61,14 @@ pub async fn send_message(
         .chat_svc
         .send_message(conv_id, claims.user_id, body)
         .await
-        .map_err(|e| AppError::Validation(e.to_string()))?;
+        .map_err(|e| {
+            let msg = e.to_string();
+            if msg.contains("terlalu banyak permintaan") {
+                AppError::RateLimited(msg)
+            } else {
+                AppError::Validation(msg)
+            }
+        })?;
 
     Ok((StatusCode::CREATED, Json(ApiResponse::ok(msg))))
 }

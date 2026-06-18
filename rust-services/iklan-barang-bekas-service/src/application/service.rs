@@ -6,25 +6,37 @@ use super::dto::{
     IklanBarangBekasResponse, ListQuery, SuspendEvidenceInput, SuspendInput, SuspendResponse,
     SuspendResultItem,
 };
+use crate::domain::entity::IklanBarangBekas;
 use crate::domain::repository::{
     AdminListParams, CreateBarangBekasParams, IklanBarangBekasRepository,
 };
+use common_rate_limit::RateLimiter;
 use notification_service_client::NotificationClient;
 use storage_service_client::StorageClient;
 
 const DEFAULT_LIMIT: i64 = 20;
 const CSV_MAX: i64 = 10_000;
+/// Jenis barang yang sah — digunakan validasi service-side (defense-in-depth).
+const VALID_JENIS_BARANG: [&str; 2] = ["bekas", "baru"];
 pub mod storage_category {
     pub const SUSPENSION_EVIDENCE: &str = "iklan-suspension-evidence";
 }
 
 pub struct IklanBarangBekasService<R: IklanBarangBekasRepository> {
     repo: Arc<R>,
+    rate_limiter: Option<Arc<dyn RateLimiter>>,
 }
 
 impl<R: IklanBarangBekasRepository> IklanBarangBekasService<R> {
     pub fn new(repo: Arc<R>) -> Self {
-        Self { repo }
+        Self {
+            repo,
+            rate_limiter: None,
+        }
+    }
+    pub fn with_rate_limiter(mut self, rl: Arc<dyn RateLimiter>) -> Self {
+        self.rate_limiter = Some(rl);
+        self
     }
 
     pub async fn list(&self, q: ListQuery) -> Result<Vec<IklanBarangBekasResponse>, anyhow::Error> {
@@ -50,13 +62,35 @@ impl<R: IklanBarangBekasRepository> IklanBarangBekasService<R> {
         seller_id: Uuid,
         input: CreateIklanBarangBekasInput,
     ) -> Result<IklanBarangBekasResponse, anyhow::Error> {
+        // Rate limit: 30 req/15 menit per seller
+        if let Some(rl) = &self.rate_limiter {
+            if !rl
+                .allow("iklan_barang_bekas:create", &seller_id.to_string())
+                .await
+            {
+                return Err(anyhow::anyhow!(
+                    "terlalu banyak permintaan, coba lagi nanti"
+                ));
+            }
+        }
         if self.repo.is_poster_in_cooldown(seller_id).await? {
             return Err(anyhow::anyhow!(
                 "Anda tidak dapat membuat iklan baru selama 3 hari setelah iklan ditangguhkan secara permanen"
             ));
         }
+
+        // Validasi jenis_barang — defense-in-depth (DB CHECK + service).
+        if !VALID_JENIS_BARANG.contains(&input.jenis_barang.as_str()) {
+            return Err(anyhow::anyhow!(
+                "jenis_barang harus 'bekas' atau 'baru', bukan: {}",
+                input.jenis_barang
+            ));
+        }
+
         let judul = ammonia::clean_text(&input.judul);
         let deskripsi = ammonia::clean_text(&input.deskripsi);
+        let lokasi_pengambilan = ammonia::clean_text(&input.lokasi_pengambilan);
+        let lokasi = input.lokasi.as_deref().map(ammonia::clean_text);
         let foto_urls = input.foto_urls.unwrap_or_default();
         Ok(to_resp(
             self.repo
@@ -64,17 +98,20 @@ impl<R: IklanBarangBekasRepository> IklanBarangBekasService<R> {
                     seller_id,
                     judul: &judul,
                     deskripsi: &deskripsi,
-                    harga: input.harga,
-                    kondisi: &input.kondisi,
-                    lokasi: input.lokasi.as_deref(),
+                    jenis_barang: &input.jenis_barang,
+                    jumlah: input.jumlah,
+                    lokasi_pengambilan: &lokasi_pengambilan,
+                    lokasi: lokasi.as_deref(),
                     foto_urls: &foto_urls,
                 })
                 .await?,
         ))
     }
 
-    pub async fn mark_sold(&self, id: Uuid, seller_id: Uuid) -> Result<bool, anyhow::Error> {
-        self.repo.mark_sold(id, seller_id).await
+    /// Tandai barang sebagai "sudah diambil". Hanya pemilik (seller_id).
+    /// Idempoten: bila sudah "sudah_diambil", UPDATE tidak berpengaruh → false.
+    pub async fn mark_taken(&self, id: Uuid, seller_id: Uuid) -> Result<bool, anyhow::Error> {
+        self.repo.mark_taken(id, seller_id).await
     }
 
     pub async fn delete(&self, id: Uuid, seller_id: Uuid) -> Result<bool, anyhow::Error> {
@@ -222,33 +259,37 @@ impl<R: IklanBarangBekasRepository> IklanBarangBekasService<R> {
     }
 }
 
-fn to_resp(e: crate::domain::entity::IklanBarangBekas) -> IklanBarangBekasResponse {
+// ── Mapping helpers — entity → DTO (tanpa hardcode field) ────────────────────
+
+fn to_resp(e: IklanBarangBekas) -> IklanBarangBekasResponse {
     IklanBarangBekasResponse {
         id: e.id,
         seller_id: e.seller_id,
         judul: e.judul,
         deskripsi: e.deskripsi,
-        harga: e.harga,
-        kondisi: e.kondisi,
+        jenis_barang: e.jenis_barang,
+        jumlah: e.jumlah,
+        lokasi_pengambilan: e.lokasi_pengambilan,
         lokasi: e.lokasi,
         foto_urls: e.foto_urls,
-        is_sold: e.is_sold,
+        availability_status: e.availability_status,
         moderation_status: e.moderation_status,
         created_at: e.created_at,
     }
 }
 
-fn to_admin_resp(e: crate::domain::entity::IklanBarangBekas) -> AdminIklanBarangBekasResponse {
+fn to_admin_resp(e: IklanBarangBekas) -> AdminIklanBarangBekasResponse {
     AdminIklanBarangBekasResponse {
         id: e.id,
         seller_id: e.seller_id,
         judul: e.judul,
         deskripsi: e.deskripsi,
-        harga: e.harga,
-        kondisi: e.kondisi,
+        jenis_barang: e.jenis_barang,
+        jumlah: e.jumlah,
+        lokasi_pengambilan: e.lokasi_pengambilan,
         lokasi: e.lokasi,
         foto_urls: e.foto_urls,
-        is_sold: e.is_sold,
+        availability_status: e.availability_status,
         moderation_status: e.moderation_status,
         deleted_at: e.deleted_at,
         created_at: e.created_at,

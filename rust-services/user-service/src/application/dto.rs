@@ -36,7 +36,7 @@ pub struct UpdateProfileInput {
 pub struct KycPersonalDataInput {
     #[validate(length(min = 1, max = 200))]
     pub full_name: String,
-    /// NIK 16 digit — divalidasi panjangnya; disimpan terenkripsi at-rest
+    /// NIK 16 digit — divalidasi panjang via derive, digit-only dicek manual di service (H1).
     #[validate(length(min = 16, max = 16, message = "NIK harus 16 digit"))]
     pub nik: String,
     #[validate(length(min = 1))]
@@ -125,4 +125,68 @@ pub struct ReviewInput {
     pub approved: bool,
     /// Wajib bila menolak
     pub review_note: Option<String>,
+}
+
+// ── Admin: listing & detail pengajuan KYC (add-user-admin-management) ────────
+
+/// Query string listing admin KYC. Mengikuti pola `{ q, status, sort_by, sort_dir,
+/// limit, offset }` yang dipakai service lain agar konsisten di seluruh dashboard.
+#[derive(Debug, Default, Deserialize)]
+pub struct AdminKycListQuery {
+    /// Kata kunci pencarian (Nama / ID submission / ID profil).
+    pub q: Option<String>,
+    /// Filter status verifikasi (pending / approved / rejected). Default: pending.
+    pub status: Option<String>,
+    /// Kolom urut (saat ini hanya `created_at`; disediakan untuk kompatibilitas UI).
+    pub sort_by: Option<String>,
+    /// Arah urut: `asc` | `desc` (default desc).
+    pub sort_dir: Option<String>,
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
+}
+
+/// Satu baris daftar pengajuan KYC untuk admin.
+/// NIK TIDAK pernah disertakan penuh — hanya `nik_masked` (xxx...1234).
+#[derive(Debug, Serialize)]
+pub struct AdminKycListItem {
+    /// ID pengajuan (submission), dipakai untuk membuka detail & dokumen.
+    pub id: Uuid,
+    pub full_name: Option<String>,
+    pub education_level: Option<String>,
+    pub gender: Option<String>,
+    pub birth_date: Option<chrono::NaiveDate>,
+    pub address_line: Option<String>,
+    pub country_code: String,
+    pub province_id: Option<String>,
+    pub regency_id: Option<String>,
+    pub district_id: Option<String>,
+    pub village_id: Option<String>,
+    pub nik_masked: Option<String>,
+    pub status: String,
+    pub created_at: String,
+}
+
+/// Detail satu pengajuan KYC untuk pop-up admin. NIK tetap ter-mask.
+/// Menambah penanda ketersediaan dokumen agar UI dapat menampilkan click-to-view.
+#[derive(Debug, Serialize)]
+pub struct AdminKycDetail {
+    pub id: Uuid,
+    pub profile_id: Uuid,
+    pub full_name: Option<String>,
+    pub education_level: Option<String>,
+    pub gender: Option<String>,
+    pub birth_date: Option<chrono::NaiveDate>,
+    pub address_line: Option<String>,
+    pub country_code: String,
+    pub province_id: Option<String>,
+    pub regency_id: Option<String>,
+    pub district_id: Option<String>,
+    pub village_id: Option<String>,
+    pub nik_masked: Option<String>,
+    pub status: String,
+    /// Apakah dokumen KTP tersedia (belum dimusnahkan) — untuk click-to-view.
+    pub has_ktp: bool,
+    /// Apakah dokumen Selfie tersedia.
+    pub has_selfie: bool,
+    pub created_at: String,
 }

@@ -61,6 +61,7 @@ pub struct LoginDocResponse {
 }
 
 /// Payload verifikasi OTP (`POST /api/v1/auth/verify-otp`).
+/// purpose divalidasi: "register" | "reset_password" | "change_password".
 #[allow(dead_code)]
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct VerifyOtpDocRequest {
@@ -68,15 +69,18 @@ pub struct VerifyOtpDocRequest {
     pub email: String,
     #[schema(example = "123456")]
     pub otp: String,
+    #[schema(example = "register")]
     pub purpose: String,
 }
 
 /// Payload OTP ulang (`POST /api/v1/auth/resend-otp`).
+/// purpose divalidasi: "register" | "reset_password" | "change_password".
 #[allow(dead_code)]
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct ResendOtpDocRequest {
     #[schema(example = "user@rejki.id")]
     pub email: String,
+    #[schema(example = "register")]
     pub purpose: String,
 }
 
@@ -118,6 +122,7 @@ pub struct ChangePasswordDocRequest {
 }
 
 /// Payload suspend akun (`POST /api/v1/auth/admin/users/{id}/suspend`).
+/// evidence_object_key WAJIB diisi — unggah bukti via endpoint evidence terlebih dahulu.
 #[allow(dead_code)]
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct SuspendDocRequest {
@@ -126,7 +131,42 @@ pub struct SuspendDocRequest {
     #[schema(example = "Melanggar Pedoman Komunitas Pasal 3")]
     pub reason: String,
     pub expires_at: Option<String>,
-    pub evidence_object_key: Option<String>,
+    /// WAJIB — object key dari endpoint evidence presigned upload.
+    #[schema(example = "suspension-evidence/2026/06/abc123.jpg")]
+    pub evidence_object_key: String,
+}
+
+/// Payload bulk suspend pengguna (`POST /api/v1/auth/admin/users/suspend`).
+/// evidence_object_key WAJIB diisi.
+#[allow(dead_code)]
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct BulkSuspendDocRequest {
+    pub user_ids: Vec<String>,
+    #[schema(example = false)]
+    pub permanent: bool,
+    #[schema(example = "Melanggar Pedoman Komunitas Pasal 3")]
+    pub reason: String,
+    pub expires_at: Option<String>,
+    /// WAJIB — object key dari endpoint evidence presigned upload.
+    #[schema(example = "suspension-evidence/2026/06/abc123.jpg")]
+    pub evidence_object_key: String,
+}
+
+/// Hasil suspend per-pengguna (partial-success).
+#[allow(dead_code)]
+#[derive(Debug, Serialize, ToSchema)]
+pub struct BulkSuspendItemDocResponse {
+    pub user_id: String,
+    #[schema(example = true)]
+    pub success: bool,
+    pub error: Option<String>,
+}
+
+/// Respons bulk suspend — array hasil per-pengguna.
+#[allow(dead_code)]
+#[derive(Debug, Serialize, ToSchema)]
+pub struct BulkSuspendDocResponse {
+    pub results: Vec<BulkSuspendItemDocResponse>,
 }
 
 /// Payload bukti suspend — minta presigned URL (`POST /.../suspend/evidence`).
@@ -194,6 +234,53 @@ pub struct KycSubmissionDocResponse {
     pub status: String,
     pub review_note: Option<String>,
     pub reviewed_at: Option<String>,
+    pub created_at: String,
+}
+
+/// Item daftar pengajuan KYC untuk admin (`GET /api/v1/users/admin/kyc`).
+/// NIK hanya ter-mask; id wilayah disertakan agar UI resolve nama via region-service.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct AdminKycListItemDocResponse {
+    /// ID pengajuan (submission).
+    pub id: uuid::Uuid,
+    pub full_name: Option<String>,
+    pub education_level: Option<String>,
+    pub gender: Option<String>,
+    pub birth_date: Option<String>,
+    pub address_line: Option<String>,
+    pub country_code: String,
+    pub province_id: Option<String>,
+    pub regency_id: Option<String>,
+    pub district_id: Option<String>,
+    pub village_id: Option<String>,
+    #[schema(example = "xxx...8901")]
+    pub nik_masked: Option<String>,
+    pub status: String,
+    pub created_at: String,
+}
+
+/// Detail pengajuan KYC untuk pop-up admin (`GET /api/v1/users/admin/kyc/{id}`).
+#[derive(Debug, Serialize, ToSchema)]
+pub struct AdminKycDetailDocResponse {
+    pub id: uuid::Uuid,
+    pub profile_id: uuid::Uuid,
+    pub full_name: Option<String>,
+    pub education_level: Option<String>,
+    pub gender: Option<String>,
+    pub birth_date: Option<String>,
+    pub address_line: Option<String>,
+    pub country_code: String,
+    pub province_id: Option<String>,
+    pub regency_id: Option<String>,
+    pub district_id: Option<String>,
+    pub village_id: Option<String>,
+    #[schema(example = "xxx...8901")]
+    pub nik_masked: Option<String>,
+    pub status: String,
+    /// Apakah dokumen KTP tersedia (untuk click-to-view).
+    pub has_ktp: bool,
+    /// Apakah dokumen Selfie tersedia.
+    pub has_selfie: bool,
     pub created_at: String,
 }
 
@@ -275,22 +362,27 @@ fn health_doc() {}
 fn register_doc() {}
 
 /// POST /api/v1/auth/login — login email+password.
+/// Rate-limited (5 percobaan/15 menit per email). Anti-enumeration: semua kegagalan → 401.
 #[utoipa::path(post, path = "/api/v1/auth/login", tag = "auth",
     request_body = LoginDocRequest,
     responses(
         (status = 200, description = "Login berhasil", body = LoginDocResponse),
-        (status = 422, description = "Kredensial tidak valid")
+        (status = 401, description = "Kredensial tidak valid / akun belum aktif / akun ditangguhkan (anti-enumeration)"),
+        (status = 429, description = "Terlalu banyak percobaan — coba lagi nanti")
     )
 )]
 #[allow(dead_code)]
 fn login_doc() {}
 
 /// POST /api/v1/auth/admin/login — login admin email+password (tanpa OTP).
+/// Rate-limited (5 percobaan/15 menit per email). Anti-enumeration + constant-time (timing-safe).
+/// SuspendedTemp admin auto-recovery jika masa suspensi expired.
 #[utoipa::path(post, path = "/api/v1/auth/admin/login", tag = "admin",
     request_body = AdminLoginDocRequest,
     responses(
         (status = 200, description = "Login admin berhasil; token memuat klaim role=admin", body = LoginDocResponse),
-        (status = 401, description = "Kredensial salah / bukan admin (anti-enumeration)")
+        (status = 401, description = "Kredensial salah / bukan admin / tidak aktif (anti-enumeration, timing-safe)"),
+        (status = 429, description = "Terlalu banyak percobaan — coba lagi nanti")
     )
 )]
 #[allow(dead_code)]
@@ -307,10 +399,13 @@ fn admin_login_doc() {}
 #[allow(dead_code)]
 fn verify_otp_doc() {}
 
-/// POST /api/v1/auth/resend-otp — kirim ulang OTP.
+/// POST /api/v1/auth/resend-otp — kirim ulang OTP. Rate-limited (3/15 menit per email).
 #[utoipa::path(post, path = "/api/v1/auth/resend-otp", tag = "auth",
     request_body = ResendOtpDocRequest,
-    responses((status = 200, description = "OTP dikirim ulang (mengikuti rate limit)"))
+    responses(
+        (status = 200, description = "OTP dikirim ulang (mengikuti rate limit)"),
+        (status = 429, description = "Terlalu banyak permintaan OTP — coba lagi nanti")
+    )
 )]
 #[allow(dead_code)]
 fn resend_otp_doc() {}
@@ -357,13 +452,31 @@ fn reset_password_doc() {}
 #[allow(dead_code)]
 fn change_password_doc() {}
 
-/// POST /api/v1/auth/admin/users/{id}/suspend — suspend akun (admin).
+/// POST /api/v1/auth/admin/users/{id}/suspend — suspend satu akun (admin).
+/// evidence_object_key WAJIB. Hanya admin Active yang bisa mengakses.
 #[utoipa::path(post, path = "/api/v1/auth/admin/users/{id}/suspend", tag = "admin",
     request_body = SuspendDocRequest,
-    responses((status = 200, description = "Akun di-suspend; token dicabut"))
+    responses(
+        (status = 200, description = "Akun di-suspend; token dicabut + notifikasi email/in-app"),
+        (status = 403, description = "Bukan admin / akun admin tidak aktif (ACCOUNT_NOT_ADMIN / ACCOUNT_NOT_ACTIVE)"),
+        (status = 422, description = "Validasi gagal (reason kosong / expires_at kosong saat sementara / evidence_object_key wajib)")
+    )
 )]
 #[allow(dead_code)]
 fn suspend_doc() {}
+
+/// POST /api/v1/auth/admin/users/suspend — suspend massal pengguna (admin, partial-success).
+/// evidence_object_key WAJIB. Partial-success: hasil per-item di response.
+#[utoipa::path(post, path = "/api/v1/auth/admin/users/suspend", tag = "admin",
+    request_body = BulkSuspendDocRequest,
+    responses(
+        (status = 200, description = "Hasil per-pengguna (partial-success)", body = BulkSuspendDocResponse),
+        (status = 403, description = "Bukan admin / akun admin tidak aktif"),
+        (status = 422, description = "Validasi gagal (reason kosong / expires_at kosong saat sementara / evidence_object_key wajib / >100 user)")
+    )
+)]
+#[allow(dead_code)]
+fn suspend_bulk_doc() {}
 
 /// POST /api/v1/auth/admin/users/{id}/suspend/evidence — bukti suspend (Q1).
 #[utoipa::path(post, path = "/api/v1/auth/admin/users/{id}/suspend/evidence", tag = "admin",
@@ -458,21 +571,77 @@ fn commit_document_doc() {}
 fn doc_read_doc() {}
 
 /// POST /api/v1/users/admin/kyc/{id}/review — admin review KYC (approve/reject).
+/// Idempoten: pengajuan terminal (approved/rejected) mengembalikan 409.
 #[utoipa::path(post, path = "/api/v1/users/admin/kyc/{id}/review", tag = "admin",
     request_body = ReviewKycDocRequest,
     responses(
         (status = 200, description = "KYC direview; notifikasi dikirim ke user"),
-        (status = 404, description = "Submission tidak ditemukan")
+        (status = 404, description = "Submission tidak ditemukan"),
+        (status = 409, description = "Pengajuan sudah ditinjau (terminal) — tidak dapat ditinjau ulang")
     )
 )]
 #[allow(dead_code)]
 fn review_kyc_doc() {}
 
-/// GET /api/v1/users/{id} — lihat profil pengguna lain.
+/// GET /api/v1/users/admin/kyc — daftar pengajuan KYC (admin; search/filter/sort/paginate).
+#[utoipa::path(get, path = "/api/v1/users/admin/kyc", tag = "admin",
+    params(
+        ("q" = Option<String>, Query, description = "Pencarian: Nama / ID submission / ID profil"),
+        ("status" = Option<String>, Query, description = "Filter status: pending|approved|rejected (default pending)"),
+        ("sort_dir" = Option<String>, Query, description = "Arah urut created_at: asc|desc (default desc)"),
+        ("limit" = Option<i64>, Query, description = "Batas baris (default 20)"),
+        ("offset" = Option<i64>, Query, description = "Offset paginasi (default 0)")
+    ),
+    responses(
+        (status = 200, description = "Daftar pengajuan KYC (NIK ter-mask) + meta paginasi", body = Vec<AdminKycListItemDocResponse>),
+        (status = 403, description = "Bukan admin")
+    )
+)]
+#[allow(dead_code)]
+fn admin_list_kyc_doc() {}
+
+/// GET /api/v1/users/admin/kyc/export.csv — ekspor daftar pengajuan KYC sesuai filter aktif.
+#[utoipa::path(get, path = "/api/v1/users/admin/kyc/export.csv", tag = "admin",
+    responses(
+        (status = 200, description = "Berkas CSV daftar pengajuan KYC", content_type = "text/csv"),
+        (status = 403, description = "Bukan admin")
+    )
+)]
+#[allow(dead_code)]
+fn admin_export_kyc_doc() {}
+
+/// GET /api/v1/users/admin/kyc/{id} — detail satu pengajuan KYC (pop-up; NIK ter-mask).
+#[utoipa::path(get, path = "/api/v1/users/admin/kyc/{id}", tag = "admin",
+    responses(
+        (status = 200, description = "Detail pengajuan KYC", body = AdminKycDetailDocResponse),
+        (status = 403, description = "Bukan admin"),
+        (status = 404, description = "Pengajuan tidak ditemukan")
+    )
+)]
+#[allow(dead_code)]
+fn admin_get_kyc_doc() {}
+
+/// GET /api/v1/users/admin/kyc/{id}/documents/{kind} — presigned read URL dokumen (teraudit).
+#[utoipa::path(get, path = "/api/v1/users/admin/kyc/{id}/documents/{kind}", tag = "admin",
+    params(
+        ("kind" = String, Path, description = "Jenis dokumen: ktp | selfie")
+    ),
+    responses(
+        (status = 200, description = "URL akses sementara dokumen; akses dicatat audit (aktor admin)"),
+        (status = 403, description = "Bukan admin"),
+        (status = 404, description = "Dokumen tidak tersedia / sudah dimusnahkan"),
+        (status = 422, description = "Jenis dokumen tidak dikenal")
+    )
+)]
+#[allow(dead_code)]
+fn admin_get_document_doc() {}
+
+/// GET /api/v1/users/{id} — lihat profil pengguna sendiri (C3: protected, ownership check).
 #[utoipa::path(get, path = "/api/v1/users/{id}", tag = "users",
     responses(
-        (status = 200, description = "Profil publik pengguna", body = UserProfileDocResponse),
-        (status = 404, description = "Profil tidak ditemukan")
+        (status = 200, description = "Profil pengguna (pemilik)", body = UserProfileDocResponse),
+        (status = 401, description = "Token tidak ada atau tidak valid"),
+        (status = 404, description = "Profil tidak ditemukan (bukan pemilik)")
     )
 )]
 #[allow(dead_code)]
@@ -1213,11 +1382,12 @@ fn admin_export_reports_doc() {}
         // Auth
         register_doc, login_doc, admin_login_doc, verify_otp_doc, resend_otp_doc,
         refresh_doc, logout_doc, forgot_password_doc, reset_password_doc,
-        change_password_doc, suspend_doc, suspend_evidence_doc,
+        change_password_doc, suspend_doc, suspend_bulk_doc, suspend_evidence_doc,
         // Users / KYC
         get_me_doc, update_me_doc, submit_kyc_doc, kyc_status_doc,
         avatar_doc, request_doc_upload_doc, commit_document_doc, doc_read_doc,
         review_kyc_doc, get_by_id_doc,
+        admin_list_kyc_doc, admin_export_kyc_doc, admin_get_kyc_doc, admin_get_document_doc,
         // Regions
         provinces_doc, regencies_doc, districts_doc, villages_doc,
         // Notifications
@@ -1253,11 +1423,13 @@ fn admin_export_reports_doc() {}
         RegisterDocRequest, LoginDocRequest, AdminLoginDocRequest, LoginDocResponse,
         VerifyOtpDocRequest, ResendOtpDocRequest, RefreshDocRequest,
         ForgotPasswordDocRequest, ResetPasswordDocRequest, ChangePasswordDocRequest,
-        SuspendDocRequest, SuspendEvidenceDocRequest,
+        SuspendDocRequest, BulkSuspendDocRequest,
+        BulkSuspendItemDocResponse, BulkSuspendDocResponse, SuspendEvidenceDocRequest,
         // Users / KYC
         UserProfileDocResponse, UpdateProfileDocRequest, KycSubmitDocRequest,
         KycSubmissionDocResponse, UploadRequestDocRequest, CommitDocumentDocRequest,
         UploadPermissionDocResponse, ReviewKycDocRequest,
+        AdminKycListItemDocResponse, AdminKycDetailDocResponse,
         // Regions
         RegionDocItem,
         // Notifications

@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO auth.otp_verifications (id, user_id, otp_hash, purpose, expires_at, attempts)\n             VALUES (gen_random_uuid(), $1, $2, $3, $4, 0)\n             ON CONFLICT (user_id, purpose)\n             DO UPDATE SET otp_hash = $2, expires_at = $4",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "57326d512f066afd6777454ac1fd69969e54e66d5349e2bd360e7229b770fa13"
+}

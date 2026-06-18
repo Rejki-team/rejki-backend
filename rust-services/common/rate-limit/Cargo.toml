@@ -1,0 +1,12 @@
+[package]
+name = "common-rate-limit"
+version = "0.1.0"
+edition = "2021"
+description = "Shared Redis-based rate limiter (Lua script atomik) — cross-cutting concern"
+
+[dependencies]
+redis   = { workspace = true }
+tokio   = { workspace = true, features = ["rt"] }
+async-trait = { workspace = true }
+tracing = { workspace = true }
+anyhow  = { workspace = true }

@@ -1,13 +1,17 @@
 use std::sync::Arc;
 use uuid::Uuid;
 
-use super::dto::{NotificationResponse, SendNotificationInput};
+use super::dto::{
+    DeviceTokenResponse, NotificationResponse, RegisterDeviceTokenInput, SendNotificationInput,
+};
 use crate::domain::repository::NotificationRepository;
 use crate::infrastructure::{NotificationEvent, RedisPublisher};
+use common_rate_limit::RateLimiter;
 
 pub struct NotificationService<R: NotificationRepository> {
     repo: Arc<R>,
     publisher: Option<Arc<RedisPublisher>>,
+    rate_limiter: Option<Arc<dyn RateLimiter>>,
 }
 
 impl<R: NotificationRepository> NotificationService<R> {
@@ -15,6 +19,7 @@ impl<R: NotificationRepository> NotificationService<R> {
         Self {
             repo,
             publisher: None,
+            rate_limiter: None,
         }
     }
 
@@ -22,10 +27,27 @@ impl<R: NotificationRepository> NotificationService<R> {
         Self {
             repo,
             publisher: Some(publisher),
+            rate_limiter: None,
         }
     }
 
+    pub fn with_rate_limiter(mut self, rl: Arc<dyn RateLimiter>) -> Self {
+        self.rate_limiter = Some(rl);
+        self
+    }
+
     pub async fn send(&self, input: SendNotificationInput) -> Result<(), anyhow::Error> {
+        // Rate limit: 20 req/menit per recipient
+        if let Some(rl) = &self.rate_limiter {
+            if !rl
+                .allow("notif:send", &input.recipient_id.to_string())
+                .await
+            {
+                return Err(anyhow::anyhow!(
+                    "terlalu banyak permintaan, coba lagi nanti"
+                ));
+            }
+        }
         let notif = self
             .repo
             .save(
@@ -89,5 +111,59 @@ impl<R: NotificationRepository> NotificationService<R> {
 
     pub async fn mark_read(&self, id: Uuid, user_id: Uuid) -> Result<(), anyhow::Error> {
         self.repo.mark_read(id, user_id).await
+    }
+
+    // ── Device token ──────────────────────────────────────────────────────
+
+    pub async fn register_device_token(
+        &self,
+        input: RegisterDeviceTokenInput,
+        user_id: Uuid,
+    ) -> Result<DeviceTokenResponse, anyhow::Error> {
+        // Validate platform
+        let platform = match input.platform.as_str() {
+            "android" | "ios" | "web" => input.platform.as_str(),
+            other => {
+                anyhow::bail!("platform tidak dikenal: {other} (gunakan android, ios, atau web)")
+            }
+        };
+        let token = self
+            .repo
+            .register_device_token(user_id, &input.token, platform)
+            .await?;
+        Ok(DeviceTokenResponse {
+            id: token.id,
+            user_id: token.user_id,
+            token: token.token,
+            platform: token.platform,
+            created_at: token.created_at,
+            updated_at: token.updated_at,
+        })
+    }
+
+    pub async fn delete_device_token(
+        &self,
+        token_str: &str,
+        user_id: Uuid,
+    ) -> Result<(), anyhow::Error> {
+        self.repo.delete_device_token(token_str, user_id).await
+    }
+
+    pub async fn list_device_tokens(
+        &self,
+        user_id: Uuid,
+    ) -> Result<Vec<DeviceTokenResponse>, anyhow::Error> {
+        let tokens = self.repo.list_device_tokens_for_user(user_id).await?;
+        Ok(tokens
+            .into_iter()
+            .map(|t| DeviceTokenResponse {
+                id: t.id,
+                user_id: t.user_id,
+                token: t.token,
+                platform: t.platform,
+                created_at: t.created_at,
+                updated_at: t.updated_at,
+            })
+            .collect())
     }
 }

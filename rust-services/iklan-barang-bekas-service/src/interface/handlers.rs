@@ -39,11 +39,14 @@ pub async fn create(
     Extension(claims): Extension<AuthClaims>,
     ValidatedJson(body): ValidatedJson<CreateIklanBarangBekasInput>,
 ) -> Result<Response, AppError> {
-    let item = s
-        .svc
-        .create(claims.user_id, body)
-        .await
-        .map_err(AppError::Internal)?;
+    let item = s.svc.create(claims.user_id, body).await.map_err(|e| {
+        let msg = e.to_string();
+        if msg.contains("terlalu banyak permintaan") {
+            AppError::RateLimited(msg)
+        } else {
+            AppError::Internal(e)
+        }
+    })?;
     let id = item.id;
     Ok(created_response(
         ApiResponse::ok(item),
@@ -51,13 +54,14 @@ pub async fn create(
     ))
 }
 
-pub async fn mark_sold(
+/// Tandai barang sebagai "sudah diambil" — menggantikan mark_sold (model gratis).
+pub async fn mark_taken(
     State(s): State<AppState>,
     Extension(claims): Extension<AuthClaims>,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, AppError> {
     if s.svc
-        .mark_sold(id, claims.user_id)
+        .mark_taken(id, claims.user_id)
         .await
         .map_err(AppError::Internal)?
     {
@@ -106,18 +110,22 @@ pub async fn admin_export_csv(
         .admin_export_csv(q)
         .await
         .map_err(AppError::Internal)?;
-    let mut csv = String::from("ID,Judul,Deskripsi,Harga,Kondisi,Lokasi,Status_Barang,Status_Moderasi,Penjual,Created_At\n");
+
+    // CSV header — kolom gratis (jenis_barang, jumlah, lokasi_pengambilan,
+    // availability_status) menggantikan harga, kondisi, is_sold.
+    let mut csv = String::from("ID,Judul,Deskripsi,Jenis_Barang,Jumlah,Lokasi_Pengambilan,Lokasi,Status_Ketersediaan,Status_Moderasi,Penjual,Created_At\n");
     for item in &items {
-        let status_barang = if item.is_sold { "Sold" } else { "Available" };
+        let ketersediaan = item.availability_status.as_str();
         csv.push_str(&format!(
-            "{},{},{},{},{},{},{},{},{},{}\n",
+            "{},{},{},{},{},{},{},{},{},{},{}\n",
             item.id,
             escape_csv(&item.judul),
             escape_csv(&item.deskripsi),
-            item.harga,
-            item.kondisi,
+            escape_csv(&item.jenis_barang),
+            item.jumlah,
+            escape_csv(&item.lokasi_pengambilan),
             item.lokasi.as_deref().unwrap_or(""),
-            status_barang,
+            ketersediaan,
             item.moderation_status,
             item.seller_id,
             item.created_at

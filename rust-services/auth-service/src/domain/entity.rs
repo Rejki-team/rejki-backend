@@ -1,6 +1,9 @@
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
+// OtpPurpose tidak memerlukan struct OtpVerification karena semua data OTP
+// dikelola via raw SQL di PgAuthRepository (save_otp / consume_otp / bump_otp_attempts).
+
 // AccountStatus dimiliki bersama lintas domain — sumber tunggal di auth-service-client.
 pub use auth_service_client::AccountStatus;
 pub use auth_service_client::Role;
@@ -19,14 +22,6 @@ pub struct AuthUser {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone)]
-pub struct OtpVerification {
-    pub id: Uuid,
-    pub user_id: Uuid,
-    pub purpose: OtpPurpose,
-    pub expires_at: DateTime<Utc>,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OtpPurpose {
     Register,
@@ -40,6 +35,18 @@ impl OtpPurpose {
             OtpPurpose::Register => "register",
             OtpPurpose::ResetPassword => "reset_password",
             OtpPurpose::ChangePassword => "change_password",
+        }
+    }
+
+    /// Validasi string dari DTO — menerima "register", "reset_password", "change_password".
+    pub fn validate_purpose(value: &str) -> Result<(), validator::ValidationError> {
+        if matches!(value, "register" | "reset_password" | "change_password") {
+            Ok(())
+        } else {
+            let mut err = validator::ValidationError::new("invalid_purpose");
+            err.message =
+                Some("purpose harus salah satu: register, reset_password, change_password".into());
+            Err(err)
         }
     }
 }

@@ -4,22 +4,28 @@ use std::env;
 use std::sync::Arc;
 
 use axum::{
+    extract::DefaultBodyLimit,
     routing::{get, post},
     Router,
 };
 use sqlx::PgPool;
 
 use crate::application::service::{self, AuthService};
-use crate::infrastructure::{AuthInProcessClient, JwtService, PgAuthRepository};
+use crate::domain::rate_limit::RateLimiter;
+use crate::domain::token::TokenIssuer;
+use crate::infrastructure::{AuthInProcessClient, JwtService, OtpRateLimiter, PgAuthRepository};
 use auth_service_client::AuthClient;
-use common_auth_mw::{require_admin, require_auth};
+use common_auth_mw::{require_active_account, require_admin, require_auth};
 use notification_service_client::NotificationClient;
 use storage_service_client::StorageClient;
+use user_service_client::UserClient;
 
 #[derive(Clone)]
 pub struct AppState {
     pub auth_svc: Arc<AuthService<PgAuthRepository>>,
     pub storage_client: Option<Arc<dyn StorageClient>>,
+    pub user_client: Option<Arc<dyn UserClient>>,
+    pub notifier: Option<Arc<dyn NotificationClient>>,
 }
 
 /// Entry point yang dipanggil oleh rejki-app (Composition Root) dan main.rs standalone.
@@ -35,6 +41,7 @@ pub fn router_with_jwt(pool: PgPool, jwt: Arc<JwtService>) -> Router {
 /// di Composition Root agar status akun konsisten satu sumber). `auth_client` dipakai untuk
 /// melindungi endpoint change-password (require_auth). `notifier` (opsional) untuk email OTP.
 /// `storage_client` (opsional) untuk bukti penangguhan (Q1/suspend-evidence).
+/// `user_client` (opsional) untuk pemusnahan dokumen KYC saat suspend permanen (D4).
 pub fn router_with_deps(
     jwt: Arc<JwtService>,
     repo: Arc<PgAuthRepository>,
@@ -42,12 +49,28 @@ pub fn router_with_deps(
     notifier: Option<Arc<dyn NotificationClient>>,
     storage_client: Option<Arc<dyn StorageClient>>,
 ) -> Router {
+    router_with_deps_ex(jwt, repo, auth_client, notifier, storage_client, None)
+}
+
+/// Versi extended — menerima `user_client` untuk pemusnahan dokumen KYC (D4).
+pub fn router_with_deps_ex(
+    jwt: Arc<JwtService>,
+    repo: Arc<PgAuthRepository>,
+    auth_client: Arc<dyn AuthClient>,
+    notifier: Option<Arc<dyn NotificationClient>>,
+    storage_client: Option<Arc<dyn StorageClient>>,
+    user_client: Option<Arc<dyn UserClient>>,
+) -> Router {
     let refresh_ttl = env::var("JWT_REFRESH_TTL_SECS")
         .ok()
         .and_then(|v| v.parse().ok())
         .unwrap_or(crate::application::service::DEFAULT_REFRESH_TTL_SECS);
 
-    let mut svc = AuthService::new(repo, jwt, refresh_ttl);
+    let token_issuer: Arc<dyn TokenIssuer> = jwt.clone();
+    let rate_limiter: Arc<dyn RateLimiter> = Arc::new(OtpRateLimiter::from_env());
+
+    let mut svc = AuthService::new(repo, token_issuer, refresh_ttl, rate_limiter);
+    let notifier_for_state = notifier.clone();
     if let Some(n) = notifier {
         svc = svc.with_notifier(n);
     }
@@ -55,6 +78,8 @@ pub fn router_with_deps(
     let state = AppState {
         auth_svc: Arc::new(svc),
         storage_client,
+        user_client,
+        notifier: notifier_for_state,
     };
 
     build_router(state, auth_client)
@@ -85,15 +110,32 @@ pub fn router(pool: PgPool) -> Router {
     router_with_jwt(pool, jwt)
 }
 
+/// Maksimum ukuran request body untuk endpoint auth: 16 KB.
+/// Cukup untuk seluruh DTO (LoginInput, RegisterInput, BulkSuspendInput, dsb).
+const MAX_BODY_SIZE: usize = 16 * 1024; // 16 KB
+
 fn build_router(state: AppState, auth_client: Arc<dyn AuthClient>) -> Router {
-    // Admin router: require_auth + require_admin (default-deny).
+    // Admin router: require_auth + require_admin + require_active_account (default-deny).
+    // require_active_account memastikan hanya admin dengan status Active yang bisa
+    // mengakses endpoint admin — suspended admin ditolak dengan 403 ACCOUNT_NOT_ACTIVE.
+    // Prefix `/admin` agar konsisten dengan konvensi admin codebase
+    // (mis. /auth/admin/login, /users/admin/kyc, /admin/pekerjaan/suspend)
+    // dan selaras proposal extend-user-suspension-bulk-purge.
     let admin = Router::new()
-        .route("/users/{id}/suspend", post(handlers::suspend_account))
         .route(
-            "/users/{id}/suspend/evidence",
+            "/admin/users/suspend",
+            post(handlers::suspend_accounts_bulk),
+        )
+        .route("/admin/users/{id}/suspend", post(handlers::suspend_account))
+        .route(
+            "/admin/users/{id}/suspend/evidence",
             post(handlers::request_suspend_evidence),
         )
         .with_state(state.clone())
+        .layer(axum::middleware::from_fn_with_state(
+            auth_client.clone(),
+            require_active_account,
+        ))
         .layer(axum::middleware::from_fn(require_admin))
         .layer(axum::middleware::from_fn_with_state(
             auth_client.clone(),
@@ -126,5 +168,8 @@ fn build_router(state: AppState, auth_client: Arc<dyn AuthClient>) -> Router {
         .route("/reset-password", post(handlers::reset_password))
         .with_state(state);
 
-    public.merge(protected).merge(admin)
+    public
+        .merge(protected)
+        .merge(admin)
+        .layer(DefaultBodyLimit::max(MAX_BODY_SIZE))
 }

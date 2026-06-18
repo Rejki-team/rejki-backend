@@ -5,6 +5,7 @@ use crate::domain::entity::Report;
 use crate::domain::repository::{
     CreateReportParams, ReportListParams, ReportRepository, DEFAULT_LIMIT,
 };
+use common_rate_limit::RateLimiter;
 use report_service_client::ReportStatus;
 
 use super::dto::{ReportDetailResponse, ReportListQuery, ReportResponse};
@@ -16,11 +17,19 @@ pub mod storage_category {
 
 pub struct ReportService<R: ReportRepository> {
     repo: Arc<R>,
+    rate_limiter: Option<Arc<dyn RateLimiter>>,
 }
 
 impl<R: ReportRepository> ReportService<R> {
     pub fn new(repo: Arc<R>) -> Self {
-        Self { repo }
+        Self {
+            repo,
+            rate_limiter: None,
+        }
+    }
+    pub fn with_rate_limiter(mut self, rl: Arc<dyn RateLimiter>) -> Self {
+        self.rate_limiter = Some(rl);
+        self
     }
 
     // ── User: create report ────────────────────────────────────────────────
@@ -33,6 +42,14 @@ impl<R: ReportRepository> ReportService<R> {
         keterangan: String,
         evidence_object_key: Option<String>,
     ) -> Result<Report, anyhow::Error> {
+        // Rate limit: 10 req/15 menit per user
+        if let Some(rl) = &self.rate_limiter {
+            if !rl.allow("report:create", &reporter_id.to_string()).await {
+                return Err(anyhow::anyhow!(
+                    "terlalu banyak permintaan, coba lagi nanti"
+                ));
+            }
+        }
         self.repo
             .create(CreateReportParams {
                 reporter_id,

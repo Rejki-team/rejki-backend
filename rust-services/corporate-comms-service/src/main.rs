@@ -61,7 +61,7 @@ async fn main() {
     tracing::info!("corporate-comms-service (standalone) listening on :{port}");
     axum::serve(
         listener,
-        corporate_comms_service::router(pool, auth_client, None, None),
+        corporate_comms_service::router(pool, auth_client, None, None, None),
     )
     .await
     .unwrap();

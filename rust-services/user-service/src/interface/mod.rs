@@ -1,4 +1,7 @@
 pub mod handlers;
+pub mod user_client;
+
+pub use user_client::UserInProcessClient;
 
 use std::sync::Arc;
 
@@ -64,6 +67,7 @@ pub fn router(
             "/me/documents/{kind}",
             axum::routing::get(handlers::get_document_url),
         )
+        .route("/{id}", axum::routing::get(handlers::get_by_id)) // C3: ownership-protected
         .with_state(state.clone())
         .layer(axum::middleware::from_fn_with_state(
             auth_client.clone(),
@@ -71,11 +75,20 @@ pub fn router(
         ));
 
     // Admin router: require_auth + require_admin (default-deny).
+    // Catatan urutan: `export.csv` & `{id}/review` didaftarkan sebelum `{id}` agar
+    // tidak ter-shadow oleh path param `{id}`.
     let admin = Router::new()
+        .route("/admin/kyc", get(handlers::admin_list_kyc))
+        .route("/admin/kyc/export.csv", get(handlers::admin_export_kyc_csv))
         .route(
             "/admin/kyc/{id}/review",
             axum::routing::post(handlers::review_kyc),
         )
+        .route(
+            "/admin/kyc/{id}/documents/{kind}",
+            get(handlers::admin_get_document),
+        )
+        .route("/admin/kyc/{id}", get(handlers::admin_get_kyc))
         .with_state(state.clone())
         .layer(axum::middleware::from_fn(require_admin))
         .layer(axum::middleware::from_fn_with_state(
@@ -83,9 +96,9 @@ pub fn router(
             require_auth,
         ));
 
+    // Health check tetap publik (tanpa auth).
     let public = Router::new()
         .route("/health", get(handlers::health))
-        .route("/{id}", get(handlers::get_by_id))
         .with_state(state);
 
     public.merge(protected).merge(admin)

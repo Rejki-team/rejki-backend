@@ -8,15 +8,30 @@ use region_service_client::RegionClient;
 use storage_service_client::StorageClient;
 
 use super::dto::{
-    CommitDocumentInput, KycPersonalDataInput, KycSubmissionResponse, UpdateProfileInput,
-    UserProfileResponse,
+    AdminKycDetail, AdminKycListItem, AdminKycListQuery, CommitDocumentInput, KycPersonalDataInput,
+    KycSubmissionResponse, UpdateProfileInput, UserProfileResponse,
 };
 use crate::domain::entity::{
-    DocumentAccessAction, KycSubmission, KycSubmissionStatus, UserProfile,
+    DocumentAccessAction, KycSubmission, KycSubmissionStatus, ReviewError, UserProfile,
 };
-use crate::domain::repository::UserRepository;
+use crate::domain::repository::{AdminKycListParams, AdminKycRow, UserRepository};
 
-const KYC_COOLDOWN_BUSINESS_DAYS: i64 = 3;
+/// Cooldown KYC setelah rejection — 3 hari kalender (M1, rename dari BUSINESS_DAYS).
+const KYC_COOLDOWN_DAYS: i64 = 3;
+/// Batas baris default untuk listing admin bila klien tak mengirim `limit`.
+const ADMIN_LIST_DEFAULT_LIMIT: i64 = 20;
+/// Batas atas baris untuk ekspor CSV (hindari memori tak terbatas / Memory Safe).
+const ADMIN_CSV_MAX: i64 = 10_000;
+/// Jenis dokumen KYC yang sah.
+const DOCUMENT_KINDS: [&str; 2] = ["ktp", "selfie"];
+
+/// Hasil listing admin yang siap dirender handler (items + meta paginasi).
+pub struct AdminKycListPage {
+    pub items: Vec<AdminKycListItem>,
+    pub total: i64,
+    pub page: u32,
+    pub per_page: u32,
+}
 
 pub struct UserService<R: UserRepository> {
     repo: Arc<R>,
@@ -108,6 +123,11 @@ impl<R: UserRepository> UserService<R> {
         email: Option<&str>,
         input: KycPersonalDataInput,
     ) -> Result<KycSubmissionResponse, anyhow::Error> {
+        // Validasi digit-only NIK (H1) — lapis tambahan selain validator derive.
+        if !input.nik.chars().all(|c| c.is_ascii_digit()) {
+            return Err(anyhow::anyhow!("NIK harus berupa 16 digit angka"));
+        }
+
         let valid = self
             .region_client
             .validate_chain(
@@ -122,24 +142,27 @@ impl<R: UserRepository> UserService<R> {
             return Err(anyhow::anyhow!("rantai wilayah tidak konsisten"));
         }
 
-        // Satu kali fetch — eliminasi TOCTOU race condition (C1).
-        let mut profile = self
-            .repo
+        // ── Transaction boundary (C2): atomic multi-step write ──────────────
+        // find_by_auth_id + update_profile + create_submission dalam satu TX.
+        // Jika create_submission gagal → rollback (NIK tidak tersimpan).
+        let mut tx = self.repo.begin_transaction().await?;
+
+        let mut profile = tx
             .find_by_auth_id(auth_id)
             .await?
             .ok_or_else(|| anyhow::anyhow!("profil tidak ditemukan"))?;
 
-        // NIK immutable (K5): cek pada record yang baru di-fetch.
+        // NIK immutable (K5): cek pada record yang baru di-fetch dalam TX.
         if profile.nik_encrypted.is_some() {
             return Err(anyhow::anyhow!("NIK tidak dapat diubah"));
         }
 
-        // Cooldown 3 hari kerja setelah rejected (K16).
+        // Cooldown 3 hari setelah rejected (K16).
+        // Baca di luar TX — read-only, isolasi snapshot cukup.
         if let Some(last_sub) = self.repo.get_latest_submission(profile.id).await? {
             if last_sub.status == KycSubmissionStatus::Rejected {
                 if let Some(reviewed_at) = last_sub.reviewed_at {
-                    let cooldown_end =
-                        reviewed_at + chrono::Duration::days(KYC_COOLDOWN_BUSINESS_DAYS);
+                    let cooldown_end = reviewed_at + chrono::Duration::days(KYC_COOLDOWN_DAYS);
                     if chrono::Utc::now() < cooldown_end {
                         return Err(anyhow::anyhow!(
                             "mohon tunggu hingga {cooldown_end} sebelum mengirim ulang KYC"
@@ -165,11 +188,20 @@ impl<R: UserRepository> UserService<R> {
         profile.village_id = Some(input.village_id);
         profile.nik_encrypted = Some(nik_encrypted.into_bytes());
         profile.nik_last4 = Some(nik_last4);
-        self.repo.update_profile(&profile).await?;
 
-        let submission = self.repo.create_submission(profile.id).await?;
+        // Atomic write: guard `AND nik_encrypted IS NULL` — cek rows_affected (C1).
+        let profile_updated = tx.update_profile(&profile).await?;
+        if !profile_updated {
+            // NIK sudah ada (concurrent request lebih dulu) — rollback + error.
+            let _ = tx.rollback().await;
+            return Err(anyhow::anyhow!("NIK tidak dapat diubah"));
+        }
 
-        // Transisi status akun (K2) — propagasi error, bukan silent discard (C2).
+        let submission = tx.create_submission(profile.id).await?;
+        tx.commit().await?;
+        // ── End transaction boundary ─────────────────────────────────────────
+
+        // Transisi status akun (K2) — propagasi error, best-effort setelah commit.
         self.auth_client
             .set_account_status(profile.auth_id, AccountStatus::PendingKyc)
             .await
@@ -219,34 +251,52 @@ impl<R: UserRepository> UserService<R> {
         }))
     }
 
+    /// Tinjau pengajuan KYC (approve/reject).
+    /// Idempoten (D5): pengajuan berstatus terminal ditolak via `ReviewError::AlreadyReviewed`.
+    /// Atomik TOCTOU-safe: `review_submission` melakukan `UPDATE ... WHERE status='pending'`
+    /// dan mengembalikan false bila baris sudah terminal (race-condition proof).
+    /// Reject memicu auto-purge dokumen (D4), best-effort + logged.
     pub async fn review_kyc(
         &self,
         submission_id: Uuid,
         admin_id: Uuid,
         approved: bool,
         note: Option<&str>,
-    ) -> Result<(), anyhow::Error> {
+    ) -> Result<(), ReviewError> {
         let status = if approved {
             KycSubmissionStatus::Approved
         } else {
             KycSubmissionStatus::Rejected
         };
 
+        // Ambil submission untuk cek keberadaan + dapatkan profile_id.
         let submission = self
             .repo
             .get_submission_by_id(submission_id)
-            .await?
-            .ok_or_else(|| anyhow::anyhow!("submission tidak ditemukan"))?;
+            .await
+            .map_err(ReviewError::Other)?
+            .ok_or(ReviewError::NotFound)?;
 
-        self.repo
+        // Atomik: UPDATE hanya bila status saat ini 'pending'. Kalau tidak ada
+        // baris yang terpengaruh → submission sudah terminal → AlreadyReviewed.
+        let updated = self
+            .repo
             .review_submission(submission_id, status, admin_id, note)
-            .await?;
+            .await
+            .map_err(ReviewError::Other)?;
+
+        if !updated {
+            return Err(ReviewError::AlreadyReviewed);
+        }
 
         let profile = self
             .repo
             .find_by_id(submission.profile_id)
-            .await?
-            .ok_or_else(|| anyhow::anyhow!("profil tidak ditemukan untuk submission"))?;
+            .await
+            .map_err(ReviewError::Other)?
+            .ok_or_else(|| {
+                ReviewError::Other(anyhow::anyhow!("profil tidak ditemukan untuk submission"))
+            })?;
 
         let target_status = if approved {
             AccountStatus::Active
@@ -299,6 +349,20 @@ impl<R: UserRepository> UserService<R> {
                     user_id = %profile.auth_id,
                     error = %e,
                     "tidak dapat mengambil email untuk notifikasi hasil KYC"
+                );
+            }
+        }
+
+        // Auto-purge dokumen saat penolakan (D4, FR-ADM-USR-05, UU PDP).
+        // Best-effort + logged: kegagalan storage TIDAK membatalkan keputusan reject
+        // yang sudah tercatat; sisa objek dicatat untuk pembersihan lanjutan.
+        if !approved {
+            if let Err(e) = self.purge_documents(profile.id).await {
+                tracing::warn!(
+                    profile_id = %profile.id,
+                    submission_id = %submission_id,
+                    error = %e,
+                    "auto-purge dokumen gagal saat penolakan KYC — perlu pembersihan lanjutan"
                 );
             }
         }
@@ -361,7 +425,7 @@ impl<R: UserRepository> UserService<R> {
 
     /// Dapatkan presigned URL baca sementara untuk dokumen KYC milik sendiri.
     /// Kembalikan `None` bila dokumen belum diupload.
-    /// Owner-only; admin read = TODO RBAC.
+    /// Owner-only; akses admin → `admin_get_document_url` (teraudit).
     pub async fn get_document_url(
         &self,
         auth_id: Uuid,
@@ -424,8 +488,8 @@ impl<R: UserRepository> UserService<R> {
     }
 
     /// Hapus dokumen KYC dari storage & kosongkan referensi di submission.
-    /// Pemicu: penutupan akun (milik auth-service — belum didefinisikan).
-    /// Task 6.4 parsial: method tersedia tapi tanpa HTTP trigger auto.
+    /// Pemicu: penolakan KYC (auto, lihat `review_kyc`). Idempoten: aman dipanggil
+    /// ulang (early-return bila tak ada submission/dokumen).
     pub async fn purge_documents(&self, profile_id: Uuid) -> Result<(), anyhow::Error> {
         let submission = match self.repo.get_latest_submission(profile_id).await? {
             Some(s) => s,
@@ -454,6 +518,123 @@ impl<R: UserRepository> UserService<R> {
             "dokumen KYC dimusnahkan"
         );
         Ok(())
+    }
+
+    /// Resolve profile_id dari auth user_id, lalu musnahkan dokumen KYC.
+    /// Dipanggil oleh UserInProcessClient saat suspend permanen (D4).
+    pub async fn purge_kyc_by_user_id(&self, user_id: Uuid) -> Result<(), anyhow::Error> {
+        let profile_id = self.resolve_profile_id(user_id).await?;
+        self.purge_documents(profile_id).await
+    }
+
+    // ── Admin: listing, detail, & akses dokumen (add-user-admin-management) ──────
+
+    /// Daftar pengajuan KYC untuk admin (filter/sort/pagination). NIK ter-mask.
+    pub async fn admin_list_submissions(
+        &self,
+        query: AdminKycListQuery,
+    ) -> Result<AdminKycListPage, anyhow::Error> {
+        let limit = normalize_limit(query.limit);
+        let offset = query.offset.unwrap_or(0).max(0);
+        let result = self
+            .repo
+            .admin_list_submissions(AdminKycListParams {
+                q: query.q,
+                status: query.status,
+                sort_dir: query.sort_dir,
+                limit,
+                offset,
+            })
+            .await?;
+
+        let per_page = limit as u32;
+        let page = (offset / limit) as u32 + 1;
+        Ok(AdminKycListPage {
+            items: result.items.iter().map(to_admin_list_item).collect(),
+            total: result.total,
+            page,
+            per_page,
+        })
+    }
+
+    /// Ambil seluruh baris sesuai filter aktif untuk ekspor CSV (dibatasi ADMIN_CSV_MAX).
+    pub async fn admin_export_submissions(
+        &self,
+        query: AdminKycListQuery,
+    ) -> Result<Vec<AdminKycListItem>, anyhow::Error> {
+        let rows = self
+            .repo
+            .admin_list_submissions_all(AdminKycListParams {
+                q: query.q,
+                status: query.status,
+                sort_dir: query.sort_dir,
+                limit: ADMIN_CSV_MAX,
+                offset: 0,
+            })
+            .await?;
+        Ok(rows.iter().map(to_admin_list_item).collect())
+    }
+
+    /// Detail satu pengajuan KYC untuk pop-up admin (NIK ter-mask). IDOR→None→404.
+    pub async fn admin_get_submission(
+        &self,
+        submission_id: Uuid,
+    ) -> Result<Option<AdminKycDetail>, anyhow::Error> {
+        Ok(self
+            .repo
+            .get_submission_with_profile(submission_id)
+            .await?
+            .as_ref()
+            .map(to_admin_detail))
+    }
+
+    /// Terbitkan presigned read URL untuk dokumen KYC milik pengajuan tertentu (admin).
+    /// - `kind` ∈ {ktp, selfie} (else Err → 422).
+    /// - submission di-resolve by id (bukan claims) — akses lintas-pengguna teraudit.
+    /// - `Ok(None)` bila dokumen sudah dimusnahkan / belum ada (handler → tidak-tersedia).
+    /// - audit `read_issued` dengan aktor = admin dicatat SEBELUM URL terbit (D3).
+    pub async fn admin_get_document_url(
+        &self,
+        submission_id: Uuid,
+        kind: &str,
+        admin_id: Uuid,
+        request_id: Option<&str>,
+    ) -> Result<Option<String>, anyhow::Error> {
+        if !DOCUMENT_KINDS.contains(&kind) {
+            return Err(anyhow::anyhow!("jenis dokumen tidak dikenal: {kind}"));
+        }
+
+        let submission = match self.repo.get_submission_with_profile(submission_id).await? {
+            Some(s) => s,
+            None => return Ok(None),
+        };
+
+        let object_key = match kind {
+            "ktp" => submission.ktp_object_key,
+            "selfie" => submission.selfie_object_key,
+            // Sudah divalidasi di atas; cabang ini tak tercapai.
+            _ => return Err(anyhow::anyhow!("jenis dokumen tidak dikenal: {kind}")),
+        };
+
+        let key = match object_key {
+            Some(k) => k,
+            None => return Ok(None), // dokumen sudah dimusnahkan / belum diupload
+        };
+
+        // Audit akses oleh admin (akuntabilitas) — dicatat sebelum URL diterbitkan.
+        self.repo
+            .log_document_access(admin_id, &key, DocumentAccessAction::ReadIssued, request_id)
+            .await?;
+
+        let url = match self.storage_client.as_ref() {
+            Some(storage) => storage
+                .request_download(&key)
+                .await
+                .map_err(|e| anyhow::anyhow!("gagal membuat presigned download URL: {e}"))?,
+            None => return Err(anyhow::anyhow!("storage tidak tersedia")),
+        };
+
+        Ok(Some(url))
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────────
@@ -499,5 +680,62 @@ impl<R: UserRepository> UserService<R> {
             nik_masked,
             kyc_status,
         }
+    }
+}
+
+// ── Free helpers (mapping & normalisasi) ───────────────────────────────────────
+
+/// Mask NIK menjadi `xxx...1234` dari 4 digit terakhir; None bila belum ada.
+fn mask_nik(nik_last4: Option<&str>) -> Option<String> {
+    nik_last4.map(|l4| format!("xxx...{l4}"))
+}
+
+/// Normalisasi `limit` ke rentang aman [1, ADMIN_CSV_MAX]; default bila None.
+fn normalize_limit(limit: Option<i64>) -> i64 {
+    limit
+        .unwrap_or(ADMIN_LIST_DEFAULT_LIMIT)
+        .clamp(1, ADMIN_CSV_MAX)
+}
+
+/// Map baris repo → item listing admin (NIK ter-mask, tanpa object key).
+fn to_admin_list_item(r: &AdminKycRow) -> AdminKycListItem {
+    AdminKycListItem {
+        id: r.submission_id,
+        full_name: r.full_name.clone(),
+        education_level: r.education_level.clone(),
+        gender: r.gender.clone(),
+        birth_date: r.birth_date,
+        address_line: r.address_line.clone(),
+        country_code: r.country_code.clone(),
+        province_id: r.province_id.clone(),
+        regency_id: r.regency_id.clone(),
+        district_id: r.district_id.clone(),
+        village_id: r.village_id.clone(),
+        nik_masked: mask_nik(r.nik_last4.as_deref()),
+        status: r.status.as_str().to_owned(),
+        created_at: r.created_at.to_rfc3339(),
+    }
+}
+
+/// Map baris repo → detail admin (NIK ter-mask + penanda ketersediaan dokumen).
+fn to_admin_detail(r: &AdminKycRow) -> AdminKycDetail {
+    AdminKycDetail {
+        id: r.submission_id,
+        profile_id: r.profile_id,
+        full_name: r.full_name.clone(),
+        education_level: r.education_level.clone(),
+        gender: r.gender.clone(),
+        birth_date: r.birth_date,
+        address_line: r.address_line.clone(),
+        country_code: r.country_code.clone(),
+        province_id: r.province_id.clone(),
+        regency_id: r.regency_id.clone(),
+        district_id: r.district_id.clone(),
+        village_id: r.village_id.clone(),
+        nik_masked: mask_nik(r.nik_last4.as_deref()),
+        status: r.status.as_str().to_owned(),
+        has_ktp: r.ktp_object_key.is_some(),
+        has_selfie: r.selfie_object_key.is_some(),
+        created_at: r.created_at.to_rfc3339(),
     }
 }

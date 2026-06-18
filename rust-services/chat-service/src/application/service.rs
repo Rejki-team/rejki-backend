@@ -2,15 +2,26 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use super::dto::{ConversationResponse, ListMessagesQuery, MessageResponse, SendMessageInput};
+use crate::domain::entity::Message;
 use crate::domain::repository::ChatRepository;
+use common_errors::CursorMeta;
+use common_rate_limit::RateLimiter;
 
 pub struct ChatService<R: ChatRepository> {
     repo: Arc<R>,
+    rate_limiter: Option<Arc<dyn RateLimiter>>,
 }
 
 impl<R: ChatRepository> ChatService<R> {
     pub fn new(repo: Arc<R>) -> Self {
-        Self { repo }
+        Self {
+            repo,
+            rate_limiter: None,
+        }
+    }
+    pub fn with_rate_limiter(mut self, rl: Arc<dyn RateLimiter>) -> Self {
+        self.rate_limiter = Some(rl);
+        self
     }
 
     pub async fn get_or_create_conversation(
@@ -36,6 +47,14 @@ impl<R: ChatRepository> ChatService<R> {
         input: SendMessageInput,
     ) -> Result<MessageResponse, anyhow::Error> {
         let exists = self.repo.conversation_exists(conversation_id).await?;
+        // Rate limit: 30 req/menit per sender
+        if let Some(rl) = &self.rate_limiter {
+            if !rl.allow("chat:send_message", &sender_id.to_string()).await {
+                return Err(anyhow::anyhow!(
+                    "terlalu banyak permintaan, coba lagi nanti"
+                ));
+            }
+        }
         if !exists {
             return Err(anyhow::anyhow!("conversation tidak ditemukan"));
         }
@@ -59,13 +78,33 @@ impl<R: ChatRepository> ChatService<R> {
         &self,
         conversation_id: Uuid,
         query: ListMessagesQuery,
-    ) -> Result<Vec<MessageResponse>, anyhow::Error> {
+    ) -> Result<(Vec<MessageResponse>, Option<CursorMeta>), anyhow::Error> {
+        let limit = query.limit.unwrap_or(50);
+        // Fetch satu ekstra untuk menentukan has_more
         let messages = self
             .repo
-            .list_messages(conversation_id, query.limit.unwrap_or(50), query.before_id)
+            .list_messages(conversation_id, limit + 1, query.before_id, query.after_id)
             .await?;
 
-        Ok(messages
+        let has_more = messages.len() > limit as usize;
+        let items: Vec<Message> = messages.into_iter().take(limit as usize).collect();
+
+        let next_cursor = if has_more {
+            items.last().map(|m| m.id.to_string())
+        } else {
+            None
+        };
+
+        let cursor = if next_cursor.is_some() || has_more {
+            Some(CursorMeta {
+                next_cursor,
+                has_more,
+            })
+        } else {
+            None
+        };
+
+        let response: Vec<MessageResponse> = items
             .into_iter()
             .map(|m| MessageResponse {
                 id: m.id,
@@ -74,6 +113,8 @@ impl<R: ChatRepository> ChatService<R> {
                 content: m.content,
                 created_at: m.created_at,
             })
-            .collect())
+            .collect();
+
+        Ok((response, cursor))
     }
 }

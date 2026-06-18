@@ -6,6 +6,7 @@ use super::dto::{
     ListQuery, SuspendEvidenceInput, SuspendInput, SuspendResponse, SuspendResultItem,
 };
 use crate::domain::repository::{AdminListParams, CreatePekerjaParams, IklanPekerjaRepository};
+use common_rate_limit::RateLimiter;
 use notification_service_client::NotificationClient;
 use storage_service_client::StorageClient;
 
@@ -17,11 +18,19 @@ pub mod storage_category {
 
 pub struct IklanPekerjaService<R: IklanPekerjaRepository> {
     repo: Arc<R>,
+    rate_limiter: Option<Arc<dyn RateLimiter>>,
 }
 
 impl<R: IklanPekerjaRepository> IklanPekerjaService<R> {
     pub fn new(repo: Arc<R>) -> Self {
-        Self { repo }
+        Self {
+            repo,
+            rate_limiter: None,
+        }
+    }
+    pub fn with_rate_limiter(mut self, rl: Arc<dyn RateLimiter>) -> Self {
+        self.rate_limiter = Some(rl);
+        self
     }
 
     pub async fn list(&self, q: ListQuery) -> Result<Vec<IklanPekerjaResponse>, anyhow::Error> {
@@ -47,6 +56,17 @@ impl<R: IklanPekerjaRepository> IklanPekerjaService<R> {
         poster_id: Uuid,
         input: CreateIklanPekerjaInput,
     ) -> Result<IklanPekerjaResponse, anyhow::Error> {
+        // Rate limit: 30 req/15 menit per user
+        if let Some(rl) = &self.rate_limiter {
+            if !rl
+                .allow("iklan_pekerja:create", &poster_id.to_string())
+                .await
+            {
+                return Err(anyhow::anyhow!(
+                    "terlalu banyak permintaan, coba lagi nanti"
+                ));
+            }
+        }
         if self.repo.is_poster_in_cooldown(poster_id).await? {
             return Err(anyhow::anyhow!(
                 "Anda tidak dapat membuat iklan baru selama 3 hari setelah iklan ditangguhkan secara permanen"

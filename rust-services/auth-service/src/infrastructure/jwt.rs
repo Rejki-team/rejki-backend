@@ -6,6 +6,8 @@ use uuid::Uuid;
 use auth_service_client::{AuthClaims, AuthClientError, Role};
 
 use crate::domain::entity::AccountStatus;
+use crate::domain::token::TokenIssuer;
+use crate::domain::token::TokenValidator;
 
 /// Internal JWT claims structure (superset dari AuthClaims publik).
 #[derive(Debug, Serialize, Deserialize)]
@@ -43,9 +45,15 @@ impl JwtService {
         })
     }
 
-    /// Issue access token untuk user (menyertakan status akun untuk gating cepat,
-    /// dan role untuk otorisasi RBAC admin).
-    pub fn issue_access_token(
+    /// Validasi token dan kembalikan claims. Dipakai oleh AuthInProcessClient.
+    /// Delegasi ke TokenValidator trait implementation.
+    pub fn validate_token(&self, token: &str) -> Result<AuthClaims, AuthClientError> {
+        TokenValidator::validate_token(self, token)
+    }
+}
+
+impl TokenIssuer for JwtService {
+    fn issue_access_token(
         &self,
         user_id: Uuid,
         email: &str,
@@ -64,9 +72,10 @@ impl JwtService {
         encode(&Header::new(Algorithm::RS256), &claims, &self.encoding_key)
             .map_err(|e| anyhow::anyhow!("gagal sign token: {e}"))
     }
+}
 
-    /// Validasi token dan kembalikan claims. Dipakai oleh AuthInProcessClient.
-    pub fn validate_token(&self, token: &str) -> Result<AuthClaims, AuthClientError> {
+impl TokenValidator for JwtService {
+    fn validate_token(&self, token: &str) -> Result<AuthClaims, AuthClientError> {
         let mut validation = Validation::new(Algorithm::RS256);
         validation.validate_exp = true;
 
