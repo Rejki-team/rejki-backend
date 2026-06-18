@@ -25,6 +25,7 @@ pub struct CreatePekerjaParams<'a> {
     pub keahlian: &'a [String],
     pub deskripsi: &'a str,
     pub lokasi: Option<&'a str>,
+    pub region_id: Option<&'a str>,
     pub tarif_min: Option<i64>,
     pub tarif_max: Option<i64>,
 }

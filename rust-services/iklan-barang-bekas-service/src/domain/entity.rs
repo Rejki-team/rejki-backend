@@ -52,6 +52,7 @@ pub struct IklanBarangBekas {
     /// Lokasi pengambilan barang (wajib diisi)
     pub lokasi_pengambilan: String,
     pub lokasi: Option<String>,
+    pub region_id: Option<String>,
     pub foto_urls: Vec<String>,
     /// Status ketersediaan: "tersedia" | "sudah_diambil"
     pub availability_status: AvailabilityStatus,

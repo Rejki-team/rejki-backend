@@ -1115,19 +1115,24 @@
 
             <!-- ── Phase 3 Hardening — active tasks ── -->
             <tr class="cl-3">
-              <td><strong>ws-testing-coverage</strong> — CI fix ✅, unit test 9 services 236 PASS ✅, 52 integration tests PASS ✅, coverage 17.90%→49.09% ✅, CI gate 49% hard ✅ <br><small><a href="../../openspec/changes/ws-testing-coverage/tasks.md" style="color:var(--yellow);">tasks.md</a> · <a href="implementation-plan-phase-3.html#w3a" style="color:var(--yellow);">W3A-01</a></small></td>
+              <td><strong>ws-testing-coverage</strong> — CI fix ✅, unit test 9 services 247 PASS ✅ (incl. MockUserRepository for user-service), 52 integration tests PASS ✅, coverage 17.90%→49.09% ✅, CI gate 49% hard ✅ <br><small><a href="../../openspec/changes/ws-testing-coverage/tasks.md" style="color:var(--yellow);">tasks.md</a> · <a href="implementation-plan-phase-3.html#w3a" style="color:var(--yellow);">W3A-01</a></small></td>
               <td style="text-align:center;">3</td>
               <td><span class="cl-status-done">✅ Done</span></td>
             </tr>
             <tr class="cl-3">
-              <td><strong>ws-rate-limiting-bisnis</strong> — common/rate-limit crate ✅, 8 services full wiring ✅, global middleware ✅, 238 unit + 52 integration PASS <br><small><a href="../../openspec/changes/ws-rate-limiting-bisnis/tasks.md" style="color:var(--green);">tasks.md</a> · <a href="implementation-plan-phase-3.html#w3a" style="color:var(--green);">W3A-02 · P0</a></small></td>
+              <td><strong>ws-rate-limiting-bisnis</strong> — common/rate-limit crate ✅, 8 services full wiring ✅, global middleware ✅, 247 unit + 52 integration PASS, archived 18 Jun <br><small><a href="../../openspec/changes/archive/2026-06-18-ws-rate-limiting-bisnis/tasks.md" style="color:var(--green);">tasks.md</a> · <a href="implementation-plan-phase-3.html#w3a" style="color:var(--green);">W3A-02 · P0 · Archived</a></small></td>
               <td style="text-align:center;">3</td>
               <td><span class="cl-status-done">✅ Done</span></td>
             </tr>
             <tr class="cl-3">
-              <td><strong>ws-region-id-iklan</strong> — normalisasi <code>lokasi</code> free-text → <code>region_id</code> FK di 4 iklan entities <br><small><a href="implementation-plan-phase-3.html#w3a" style="color:var(--yellow);">W3A-03 · P0</a></small></td>
+              <td><strong>ws-region-id-iklan</strong> — 4 migration (region_id TEXT + partial index) ✅, RegionClient::get_region() validation ✅, 247 unit + 52 integration PASS ✅, Swagger mirror DTO + path annotation ✅, archived 18 Jun <br><small><a href="../../openspec/changes/archive/2026-06-18-ws-region-id-iklan/tasks.md" style="color:var(--green);">tasks.md</a> · <a href="implementation-plan-phase-3.html#w3a" style="color:var(--green);">W3A-03 · P0 · Archived</a></small></td>
               <td style="text-align:center;">3</td>
-              <td><span class="cl-status-todo">📋 Pending</span></td>
+              <td><span class="cl-status-done">✅ Done</span></td>
+            </tr>
+            <tr class="cl-3">
+              <td><strong>ws-audit-log</strong> — migration auth.audit_log (append-only) ✅, PgAuditLogRepository ✅, 11 AuditEvent variant ✅, inject ke 10 auth events ✅, fail-open ✅, 247 unit ✅ <br><small><a href="../../openspec/changes/ws-audit-log/tasks.md" style="color:var(--yellow);">tasks.md</a> · <a href="implementation-plan-phase-3.html#w3b" style="color:var(--yellow);">W3B-04 · P1 · 19 Jun 2026</a></small></td>
+              <td style="text-align:center;">3</td>
+              <td><span class="cl-status-done">✅ Done</span></td>
             </tr>
             <tr class="cl-3">
               <td><strong>Phase 3 plan</strong> — brainstorm + implementation plan (15 task, 4 wave, 8-12 minggu) <br><small><a href="brainstorm/phase-3-hardening-analysis.html" style="color:var(--yellow);">brainstorm</a> · <a href="implementation-plan-phase-3.html" style="color:var(--yellow);">implementation plan</a></small></td>
@@ -1140,7 +1145,7 @@
     </section>
 
     <footer>
-      <p>Rejki Backend Architecture Document · Terakhir diperbarui: 18 Juni 2026 · Phase 2 selesai ✓ · Phase 3 in progress (W3A-01 ✅, W3A-02 ✅, next: W3A-03)</p>
+      <p>Rejki Backend Architecture Document · Terakhir diperbarui: 19 Juni 2026 · Phase 2 selesai ✓ · Wave 3A COMPLETE ✓ · W3B-04 ✅ Done · Next: W3B-05</p>
       <p style="margin-top:.3rem;">Stack: Rust · Axum 0.8 · sqlx 0.9 · PostgreSQL · Modular Monolith → Extraction-Ready</p>
     </footer>
 

@@ -70,6 +70,7 @@ mod tests {
                 jumlah: params.jumlah,
                 lokasi_pengambilan: params.lokasi_pengambilan.to_string(),
                 lokasi: params.lokasi.map(String::from),
+                region_id: params.region_id.map(String::from),
                 foto_urls: params.foto_urls.to_vec(),
                 availability_status: AvailabilityStatus::Tersedia,
                 moderation_status: ModerationStatus::Active,
@@ -201,6 +202,7 @@ mod tests {
                 jumlah: 1,
                 lokasi_pengambilan: "Jakarta".into(),
                 lokasi: None,
+                region_id: None,
                 foto_urls: None,
             },
         )
@@ -233,6 +235,7 @@ mod tests {
                     jumlah: 2,
                     lokasi_pengambilan: "Bandung".into(),
                     lokasi: Some("Bandung Kota".into()),
+                    region_id: None,
                     foto_urls: None,
                 },
             )
@@ -266,6 +269,7 @@ mod tests {
                     jumlah: 3,
                     lokasi_pengambilan: "Rumah".into(),
                     lokasi: None,
+                    region_id: None,
                     foto_urls: None,
                 },
             )
@@ -290,6 +294,7 @@ mod tests {
                     jumlah: 1,
                     lokasi_pengambilan: "Z".into(),
                     lokasi: None,
+                    region_id: None,
                     foto_urls: None,
                 },
             )
@@ -312,6 +317,7 @@ mod tests {
                     jumlah: 1,
                     lokasi_pengambilan: "Lobby <img src=x>".into(),
                     lokasi: None,
+                    region_id: None,
                     foto_urls: None,
                 },
             )
@@ -338,6 +344,7 @@ mod tests {
                     jumlah: 1,
                     lokasi_pengambilan: "Rumah".into(),
                     lokasi: None,
+                    region_id: None,
                     foto_urls: None,
                 },
             )
@@ -361,6 +368,7 @@ mod tests {
                     jumlah: 1,
                     lokasi_pengambilan: "Z".into(),
                     lokasi: None,
+                    region_id: None,
                     foto_urls: None,
                 },
             )
@@ -383,6 +391,7 @@ mod tests {
                     jumlah: 1,
                     lokasi_pengambilan: "Any".into(),
                     lokasi: None,
+                    region_id: None,
                     foto_urls: None,
                 },
             )
@@ -409,6 +418,7 @@ mod tests {
                     jumlah: 1,
                     lokasi_pengambilan: "X".into(),
                     lokasi: None,
+                    region_id: None,
                     foto_urls: None,
                 },
             )
@@ -432,6 +442,7 @@ mod tests {
                     jumlah: 1,
                     lokasi_pengambilan: "X".into(),
                     lokasi: None,
+                    region_id: None,
                     foto_urls: None,
                 },
             )
@@ -457,6 +468,7 @@ mod tests {
                     jumlah: 1,
                     lokasi_pengambilan: "X".into(),
                     lokasi: None,
+                    region_id: None,
                     foto_urls: None,
                 },
             )

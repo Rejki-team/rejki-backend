@@ -141,17 +141,17 @@
     <div class="progress-wrap">
       <div class="progress-label">
         <span>Phase 3 Progress</span>
-        <span style="color:var(--yellow-bright);font-weight:700;">33%</span>
+        <span style="color:var(--green);font-weight:700;">55%</span>
       </div>
-      <div class="progress-track"><div class="progress-fill" style="width:33%"></div></div>
+      <div class="progress-track"><div class="progress-fill" style="width:55%"></div></div>
     </div>
     <div class="nav-divider"></div>
     <div class="nav-section">Navigasi</div>
     <a class="nav-item nav-back" href="index.html">← Architecture Overview</a>
     <a class="nav-item nav-back" href="brainstorm/phase-3-hardening-analysis.html">← Brainstorm Phase 3</a>
     <div class="nav-section">Wave</div>
-    <a class="nav-item" href="#w3a">W3A — Security Core & Foundation <span class="nav-badge nb-todo">0/3</span></a>
-    <a class="nav-item" href="#w3b">W3B — Compliance & Access <span class="nav-badge nb-todo">0/4</span></a>
+    <a class="nav-item" href="#w3a">W3A — Security Core & Foundation <span class="nav-badge nb-done">3/3</span></a>
+    <a class="nav-item" href="#w3b">W3B — Compliance & Access <span class="nav-badge nb-prog">1/4</span></a>
     <a class="nav-item" href="#w3c">W3C — Production Polish <span class="nav-badge nb-todo">0/4</span></a>
     <a class="nav-item" href="#w3d">W3D — Analytics & Infra <span class="nav-badge nb-todo">0/4</span></a>
     <a class="nav-item" href="#summary">Ringkasan</a>
@@ -189,7 +189,7 @@
             <a class="wave-link" href="../openspec/changes/ws-testing-coverage/proposal.md">ws-testing-coverage</a>
           </div>
         </div>
-        <div class="wave-status"><span class="badge badge-prog">⚡ 2/3</span></div>
+        <div class="wave-status"><span class="badge badge-done">✅ 3/3</span></div>
       </div>
 
       <div class="tasks">
@@ -205,22 +205,22 @@
           <div class="task-body">
             <div class="task-body-inner gap-section">
               <div>
-                <div class="section-label">Hasil final (2026-06-17)</div>
+                <div class="section-label">Hasil final (2026-06-18) — ARCHIVED</div>
                 <div class="impl-list">
                   <div class="impl-item">Section 1 (CI fix): ✅ schema 8→12 dinamis, semua test file dijalankan. Verified: Podman PostgreSQL container.</div>
-                  <div class="impl-item">Section 2 (unit test auth): ✅ 65/65 PASS</div>
-                  <div class="impl-item">Section 3 (unit test user): ✅ 37/37 PASS</div>
+                  <div class="impl-item">Section 2 (unit test auth): ✅ 60/60 PASS</div>
+                  <div class="impl-item">Section 3 (unit test user): ✅ <strong>46/46 PASS</strong> — MockUserRepository + MockTxUserRepository + 5 mock clients (Auth, Region, Storage, Notification) + 16 new UserService tests (update_profile, submit_kyc atomic, get_profile, review_kyc approve/reject/conflict/not-found)</div>
                   <div class="impl-item">Section 4 (integration test gap): ✅ <strong>52/52 PASS</strong> — auth_integration_test (13), barang_gratis_test (9), bulk_suspend_test (9), user_admin_kyc_test (13), user_code_review_fix_test (8). Dijalankan via Podman PostgreSQL container.</div>
-                  <div class="impl-item">Section 5 (coverage tooling): ✅ cargo-llvm-cov v0.8.7, baseline 17.90%→49.09%. CI coverage gate: hard fail below 49%.</div>
-                  <div class="impl-item">Section 6 (roll-out): ✅ <strong>9/10 services</strong> — 236 unit tests (storage-service N/A — no application layer). Semua service sekarang punya MockRepository + unit test.</div>
-                  <div class="impl-item">Section 7 (finalisasi): ✅ archive done. cargo fmt ✅, clippy zero warn ✅, sqlx offline cache updated ✅, index.html checklist updated ✅.</div>
+                  <div class="impl-item">Section 5 (coverage tooling): ✅ cargo-llvm-cov v0.8.7, baseline 17.90%→49.09%. CI coverage gate hard at 49%. lcov.info artifact uploaded (7-day retention).</div>
+                  <div class="impl-item">Section 6 (roll-out): ✅ <strong>247 unit tests across 10 services</strong>. Semua service punya MockRepository + unit test.</div>
+                  <div class="impl-item">Section 7 (finalisasi): ✅ Archived 2026-06-18. fmt ✅, clippy zero warn ✅, sqlx prepare ✅, spec synced ✅, index.html ✅.</div>
                 </div>
               </div>
               <div>
                 <div class="section-label">Unit test per service</div>
                 <div class="impl-list">
-                  <div class="impl-item"><strong>auth-service</strong>: 65 PASS (register, login, OTP, admin, rate limit, suspend, state machine)</div>
-                  <div class="impl-item"><strong>user-service</strong>: 37 PASS (NIK validation, CSV escape, KYC status, masking, cooldown, entity)</div>
+                  <div class="impl-item"><strong>auth-service</strong>: 60 PASS (register, login, OTP, admin, rate limit, suspend, state machine)</div>
+                  <div class="impl-item"><strong>user-service</strong>: 46 PASS (NIK validation, CSV escape, KYC status, masking, cooldown, entity, UserService with full mock stack)</div>
                   <div class="impl-item"><strong>iklan-pekerjaan-service</strong>: 19 PASS (list, get, create, delete IDOR, admin_list, suspend, cooldown, HTML strip, entity)</div>
                   <div class="impl-item"><strong>iklan-pekerja-service</strong>: 12 PASS (list, get, create, delete IDOR, admin_list, suspend, HTML strip)</div>
                   <div class="impl-item"><strong>iklan-barang-bekas-service</strong>: 15 PASS (list, get, create, validasi jenis_barang, mark_taken IDOR idempotent, delete, suspend, AvailabilityStatus)</div>
@@ -277,41 +277,31 @@
         <div class="task">
           <div class="task-head">
             <span class="task-id">W3A-03</span>
-            <span class="task-title">region_id FK di 4 iklan entities — normalisasi lokasi dari free-text ke reference data</span>
+            <span class="task-title">ws-region-id-iklan — region_id FK logical di 4 iklan entities + RegionClient validation</span>
             <span class="task-scope">4 iklan services</span>
             <span class="priority-badge pb-p0">P0</span>
+            <span class="badge badge-done" style="flex-shrink:0;margin-top:2px;">✅ Done</span>
           </div>
           <div class="task-body">
             <div class="task-body-inner gap-section">
               <div>
-                <div class="section-label">OpenSpec change baru: <code>ws-region-id-iklan</code></div>
-              </div>
-              <div>
-                <div class="section-label">Target gap: C1</div>
+                <div class="section-label">Hasil final (2026-06-18) — ARCHIVED</div>
                 <div class="impl-list">
-                  <div class="impl-item">Migration: tambah kolom <code>region_id TEXT</code> + B-tree index di 4 tabel iklan (nullable dulu — backward compatible)</div>
-                  <div class="impl-item">Update create handler: terima <code>region_id</code> opsional di CreateInput, validasi referensial via RegionClient.validate_region_id()</div>
-                  <div class="impl-item">Update list handler: tambah query param filter <code>region_id</code>, <code>province_id</code> di ListQuery</div>
-                  <div class="impl-item">Update detail response: tambah field <code>region_id</code> + nested region name di IklanResponse</div>
-                  <div class="impl-item">Backfill script (opsional, manual): parse <code>lokasi</code> free-text ke region_id untuk data existing</div>
-                  <div class="impl-item">Field <code>lokasi</code> tetap dipertahankan (backward compat) — deprecated bertahap</div>
-                  <div class="impl-item">Test: unit test validasi region chain, integration test filter by region_id</div>
+                  <div class="impl-item">✅ Migration: 8 file (4 up + 4 down) — <code>region_id TEXT</code> + partial index <code>WHERE region_id IS NOT NULL</code> di 4 skema iklan</div>
+                  <div class="impl-item">✅ Entity: <code>region_id: Option&lt;String&gt;</code> di <code>IklanPekerjaan</code>, <code>IklanPekerja</code>, <code>IklanBarangBekas</code>, <code>IklanPelatihan</code></div>
+                  <div class="impl-item">✅ DTO: <code>region_id: Option&lt;String&gt;</code> di semua CreateInput, Response, AdminResponse, ListQuery</div>
+                  <div class="impl-item">✅ Service: validasi <code>RegionClient::get_region()</code> — 422 NotFound, fail-open Unavailable (warn log), 4 service layer di-inject <code>Arc&lt;dyn RegionClient&gt;</code></div>
+                  <div class="impl-item">✅ Repository: <code>region_id</code> di INSERT + SELECT via macro/const DRY, <code>row_to_entity()</code> mapping</div>
+                  <div class="impl-item">✅ Router: semua 4 <code>router()</code> signature update 6 argumen + wiring <code>with_region_client()</code></div>
+                  <div class="impl-item">✅ rejki-app: <code>RegionInProcessClient</code> di-inject sebagai argumen ke-6 ke 4 router iklan</div>
+                  <div class="impl-item">✅ Test: 247 unit test PASS, test harness di-update 4 router calls dengan <code>None</code> untuk region_client</div>
+                  <div class="impl-item">✅ Finalisasi: fmt ✅, clippy zero warn ✅, spec synced ✅, archived ✅</div>
                 </div>
               </div>
-              <div>
-                <div class="section-label">File yang akan disentuh</div>
-                <div class="file-list">
-                  <div class="file-row"><span class="fop fop-migr">migrate</span><span class="fpath">iklan-*/migrations/*_add_region_id.up.sql</span><span class="fnote">— 4 migration files</span></div>
-                  <div class="file-row"><span class="fop fop-edit">edit</span><span class="fpath">iklan-*/src/domain/entity.rs</span><span class="fnote">— tambah region_id: Option&lt;String&gt;</span></div>
-                  <div class="file-row"><span class="fop fop-edit">edit</span><span class="fpath">iklan-*/src/application/dto.rs</span><span class="fnote">— CreateInput + ListQuery + Response</span></div>
-                  <div class="file-row"><span class="fop fop-edit">edit</span><span class="fpath">iklan-*/src/application/service.rs</span><span class="fnote">— validasi region chain via RegionClient</span></div>
-                  <div class="file-row"><span class="fop fop-edit">edit</span><span class="fpath">iklan-*/src/infrastructure/pg_repository.rs</span><span class="fnote">— query INSERT/SELECT dengan region_id</span></div>
-                </div>
-              </div>
-              <div class="callout c-warn">
-                <span class="callout-icon">⚠️</span>
-                <div><strong>Cross-service dependency</strong>
-                <p>4 iklan service butuh import <code>region-service-client</code> untuk validasi region chain. Inkonsistensi mungkin: service composition root saat ini tidak inject RegionClient ke iklan service. Perlu update rejki-app wiring.</p></div>
+              <div class="callout c-ok">
+                <span class="callout-icon">✅</span>
+                <div><strong>Wave 3A COMPLETE — 3/3 P0 Critical.</strong>
+                <p>4 tabel + partial index, validasi referensial via API (bukan FK cross-schema — comply §4.3), fail-open untuk degradasi anggun, field lokasi dipertahankan backward-compat.</p></div>
               </div>
             </div>
           </div>
@@ -332,7 +322,7 @@
             <a class="wave-link" href="authorization-pattern.html">authorization-pattern</a>
           </div>
         </div>
-        <div class="wave-status"><span class="badge badge-todo">📋 Pending</span></div>
+        <div class="wave-status"><span class="badge badge-prog">⚡ 1/4</span></div>
       </div>
 
       <div class="tasks">
@@ -688,10 +678,10 @@
         <table class="tbl">
           <thead><tr><th>ID</th><th>Task</th><th>Wave</th><th>Pri</th><th>OpenSpec Change</th><th>Depends On</th><th>Status</th></tr></thead>
           <tbody>
-            <tr><td>W3A-01</td><td>Lanjutkan ws-testing-coverage — unit test roll-out 9 services, 52 integration tests, coverage 17.90%→49.09%</td><td>3A</td><td>P0</td><td><code>ws-testing-coverage</code> (existing)</td><td>—</td><td><span class="badge badge-done">✅ Done</span></td></tr>
-            <tr><td>W3A-02</td><td>Rate limiting endpoint bisnis — common/rate-limit crate, 8 services injected + global middleware + all tests PASS</td><td>3A</td><td>P0</td><td><code>ws-rate-limiting-bisnis</code></td><td>—</td><td><span class="badge badge-done">✅ Done</span></td></tr>
-            <tr><td>W3A-03</td><td>region_id FK di 4 iklan entities</td><td>3A</td><td>P0</td><td><code>ws-region-id-iklan</code> (NEW)</td><td>—</td><td><span class="badge badge-todo">📋 Pending</span></td></tr>
-            <tr><td>W3B-04</td><td>audit_log table + repository</td><td>3B</td><td>P1</td><td><code>ws-audit-log</code> (NEW)</td><td>—</td><td><span class="badge badge-todo">📋 Pending</span></td></tr>
+            <tr><td>W3A-01</td><td>ws-testing-coverage — 247 unit test 9 services + 52 integration tests + MockUserRepository + coverage 17.90%→49.09% + CI gate 49%</td><td>3A</td><td>P0</td><td><code>ws-testing-coverage</code></td><td>—</td><td><span class="badge badge-done">✅ Archived</span></td></tr>
+            <tr><td>W3A-02</td><td>Rate limiting bisnis — common/rate-limit crate, 8 services injected + global middleware + 247 unit + 52 integration PASS</td><td>3A</td><td>P0</td><td><code>ws-rate-limiting-bisnis</code></td><td>—</td><td><span class="badge badge-done">✅ Archived</span></td></tr>
+            <tr><td>W3A-03</td><td>ws-region-id-iklan — region_id TEXT + partial index di 4 tabel iklan, RegionClient::get_region() validation, 247 unit test PASS</td><td>3A</td><td>P0</td><td><code>ws-region-id-iklan</code></td><td>—</td><td><span class="badge badge-done">✅ Archived</span></td></tr>
+            <tr><td>W3B-04</td><td>audit_log table + repository — migration + PgAuditLogRepository + 11 AuditEvent variants + inject ke 10 auth events + fail-open + 247 unit + 50 integration PASS</td><td>3B</td><td>P1</td><td><code>ws-audit-log</code></td><td>—</td><td><span class="badge badge-done">✅ Done</span></td></tr>
             <tr><td>W3B-05</td><td>Multi-tier RBAC (6 roles)</td><td>3B</td><td>P1</td><td><code>ws-multi-tier-rbac</code> (NEW)</td><td>—</td><td><span class="badge badge-todo">📋 Pending</span></td></tr>
             <tr><td>W3B-06</td><td>PATCH iklan (update handler)</td><td>3B</td><td>P1</td><td><code>ws-patch-iklan</code> (NEW)</td><td>—</td><td><span class="badge badge-todo">📋 Pending</span></td></tr>
             <tr><td>W3B-07</td><td>Password reset flow</td><td>3B</td><td>P1</td><td><code>ws-password-reset</code> (NEW)</td><td>W3B-04 (audit_log) [opsional]</td><td><span class="badge badge-todo">📋 Pending</span></td></tr>
@@ -722,7 +712,7 @@
 
     <footer>
       <span>rejki-backend · Phase 3 Implementation Plan · 18 Juni 2026</span>
-      <span>15 task · 4 waves · 2 tasks Done (W3A-01 ✅, W3A-02 ✅) · Next: W3A-03 · 10 new OpenSpec changes pending</span>
+      <span>15 task · 4 waves · Wave 3A ✅ Complete · W3A-01 ✅ · W3A-02 ✅ · W3A-03 ✅ · W3B-04 ✅ · Next: W3B-05 · P1 1/4 complete</span>
     </footer>
 
   </main>

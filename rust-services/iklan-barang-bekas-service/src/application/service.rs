@@ -12,6 +12,7 @@ use crate::domain::repository::{
 };
 use common_rate_limit::RateLimiter;
 use notification_service_client::NotificationClient;
+use region_service_client::RegionClient;
 use storage_service_client::StorageClient;
 
 const DEFAULT_LIMIT: i64 = 20;
@@ -25,6 +26,7 @@ pub mod storage_category {
 pub struct IklanBarangBekasService<R: IklanBarangBekasRepository> {
     repo: Arc<R>,
     rate_limiter: Option<Arc<dyn RateLimiter>>,
+    region_client: Option<Arc<dyn RegionClient>>,
 }
 
 impl<R: IklanBarangBekasRepository> IklanBarangBekasService<R> {
@@ -32,10 +34,16 @@ impl<R: IklanBarangBekasRepository> IklanBarangBekasService<R> {
         Self {
             repo,
             rate_limiter: None,
+            region_client: None,
         }
     }
     pub fn with_rate_limiter(mut self, rl: Arc<dyn RateLimiter>) -> Self {
         self.rate_limiter = Some(rl);
+        self
+    }
+
+    pub fn with_region_client(mut self, rc: Arc<dyn RegionClient>) -> Self {
+        self.region_client = Some(rc);
         self
     }
 
@@ -91,6 +99,22 @@ impl<R: IklanBarangBekasRepository> IklanBarangBekasService<R> {
         let deskripsi = ammonia::clean_text(&input.deskripsi);
         let lokasi_pengambilan = ammonia::clean_text(&input.lokasi_pengambilan);
         let lokasi = input.lokasi.as_deref().map(ammonia::clean_text);
+
+        // Validasi region_id jika diisi.
+        if let (Some(rc), Some(ref rid)) = (&self.region_client, &input.region_id) {
+            if !rid.is_empty() {
+                match rc.get_region(rid).await {
+                    Err(region_service_client::RegionClientError::NotFound) => {
+                        return Err(anyhow::anyhow!("region_id tidak ditemukan"));
+                    }
+                    Err(_) => {
+                        tracing::warn!(region_id = %rid, "region-service unavailable saat validasi create");
+                    }
+                    Ok(_) => {}
+                }
+            }
+        }
+
         let foto_urls = input.foto_urls.unwrap_or_default();
         Ok(to_resp(
             self.repo
@@ -102,6 +126,7 @@ impl<R: IklanBarangBekasRepository> IklanBarangBekasService<R> {
                     jumlah: input.jumlah,
                     lokasi_pengambilan: &lokasi_pengambilan,
                     lokasi: lokasi.as_deref(),
+                    region_id: input.region_id.as_deref(),
                     foto_urls: &foto_urls,
                 })
                 .await?,
@@ -271,6 +296,7 @@ fn to_resp(e: IklanBarangBekas) -> IklanBarangBekasResponse {
         jumlah: e.jumlah,
         lokasi_pengambilan: e.lokasi_pengambilan,
         lokasi: e.lokasi,
+        region_id: e.region_id,
         foto_urls: e.foto_urls,
         availability_status: e.availability_status,
         moderation_status: e.moderation_status,
@@ -288,6 +314,7 @@ fn to_admin_resp(e: IklanBarangBekas) -> AdminIklanBarangBekasResponse {
         jumlah: e.jumlah,
         lokasi_pengambilan: e.lokasi_pengambilan,
         lokasi: e.lokasi,
+        region_id: e.region_id,
         foto_urls: e.foto_urls,
         availability_status: e.availability_status,
         moderation_status: e.moderation_status,

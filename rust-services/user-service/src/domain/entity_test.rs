@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use crate::domain::entity::*;
-    use std::str::FromStr;
+    use std::str::FromStr as _;
 
     // ── KycSubmissionStatus ─────────────────────────────────────────────────
 

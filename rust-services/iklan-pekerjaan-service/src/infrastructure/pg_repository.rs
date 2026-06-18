@@ -28,6 +28,12 @@ macro_rules! warn_slow {
     };
 }
 
+macro_rules! pekerjaan_cols {
+    () => {
+        "id,poster_id,judul,perusahaan,deskripsi,lokasi,region_id,gaji_min,gaji_max,tipe,foto_urls,is_active,moderation_status,deleted_at,created_at,updated_at"
+    };
+}
+
 fn row_to_entity(r: &sqlx::postgres::PgRow) -> IklanPekerjaan {
     IklanPekerjaan {
         id: r.get("id"),
@@ -36,6 +42,7 @@ fn row_to_entity(r: &sqlx::postgres::PgRow) -> IklanPekerjaan {
         perusahaan: r.get("perusahaan"),
         deskripsi: r.get("deskripsi"),
         lokasi: r.get("lokasi"),
+        region_id: r.get("region_id"),
         gaji_min: r.get("gaji_min"),
         gaji_max: r.get("gaji_max"),
         tipe: r.get("tipe"),
@@ -67,9 +74,11 @@ fn row_to_suspension(r: &sqlx::postgres::PgRow) -> IklanSuspension {
 impl IklanPekerjaanRepository for PgIklanPekerjaanRepository {
     async fn find_by_id(&self, id: Uuid) -> Result<Option<IklanPekerjaan>, anyhow::Error> {
         let t = Instant::now();
-        let r = sqlx::query(
-            "SELECT id,poster_id,judul,perusahaan,deskripsi,lokasi,gaji_min,gaji_max,tipe,foto_urls,is_active,moderation_status,deleted_at,created_at,updated_at FROM iklan_pekerjaan.iklan WHERE id=$1",
-        )
+        let r = sqlx::query(concat!(
+            "SELECT ",
+            pekerjaan_cols!(),
+            " FROM iklan_pekerjaan.iklan WHERE id=$1"
+        ))
         .bind(id)
         .fetch_optional(&self.pool)
         .await?;
@@ -79,9 +88,9 @@ impl IklanPekerjaanRepository for PgIklanPekerjaanRepository {
 
     async fn list(&self, limit: i64, offset: i64) -> Result<Vec<IklanPekerjaan>, anyhow::Error> {
         let t = Instant::now();
-        let rows = sqlx::query(
-            "SELECT id,poster_id,judul,perusahaan,deskripsi,lokasi,gaji_min,gaji_max,tipe,foto_urls,is_active,moderation_status,deleted_at,created_at,updated_at FROM iklan_pekerjaan.iklan WHERE is_active=true AND moderation_status='active' AND deleted_at IS NULL ORDER BY created_at DESC LIMIT $1 OFFSET $2",
-        )
+        let rows = sqlx::query(concat!(
+            "SELECT ", pekerjaan_cols!(), " FROM iklan_pekerjaan.iklan WHERE is_active=true AND moderation_status='active' AND deleted_at IS NULL ORDER BY created_at DESC LIMIT $1 OFFSET $2"
+        ))
         .bind(limit)
         .bind(offset)
         .fetch_all(&self.pool)
@@ -95,15 +104,16 @@ impl IklanPekerjaanRepository for PgIklanPekerjaanRepository {
         params: CreatePekerjaanParams<'_>,
     ) -> Result<IklanPekerjaan, anyhow::Error> {
         let t = Instant::now();
-        let r = sqlx::query(
-            "INSERT INTO iklan_pekerjaan.iklan (id,poster_id,judul,perusahaan,deskripsi,tipe,lokasi,gaji_min,gaji_max) VALUES (gen_random_uuid(),$1,$2,$3,$4,$5,$6,$7,$8) RETURNING id,poster_id,judul,perusahaan,deskripsi,lokasi,gaji_min,gaji_max,tipe,foto_urls,is_active,moderation_status,deleted_at,created_at,updated_at",
-        )
+        let r = sqlx::query(concat!(
+            "INSERT INTO iklan_pekerjaan.iklan (id,poster_id,judul,perusahaan,deskripsi,tipe,lokasi,region_id,gaji_min,gaji_max) VALUES (gen_random_uuid(),$1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING ", pekerjaan_cols!(),
+        ))
         .bind(params.poster_id)
         .bind(params.judul)
         .bind(params.perusahaan)
         .bind(params.deskripsi)
         .bind(params.tipe)
         .bind(params.lokasi)
+        .bind(params.region_id)
         .bind(params.gaji_min)
         .bind(params.gaji_max)
         .fetch_one(&self.pool)
@@ -145,19 +155,19 @@ impl IklanPekerjaanRepository for PgIklanPekerjaanRepository {
         // Single query with COUNT(*) OVER() — eliminates extra round-trip.
         let rows = match (&q_pattern, asc) {
             (Some(q), true) => {
-                sqlx::query("SELECT id,poster_id,judul,perusahaan,deskripsi,lokasi,gaji_min,gaji_max,tipe,foto_urls,is_active,moderation_status,deleted_at,created_at,updated_at,COUNT(*) OVER() AS total_rows FROM iklan_pekerjaan.iklan WHERE moderation_status=$1 AND deleted_at IS NULL AND (judul ILIKE $2 OR poster_id::text ILIKE $2 OR perusahaan ILIKE $2) ORDER BY created_at ASC LIMIT $3 OFFSET $4")
+                sqlx::query(concat!("SELECT ", pekerjaan_cols!(), ", COUNT(*) OVER() AS total_rows FROM iklan_pekerjaan.iklan WHERE moderation_status=$1 AND deleted_at IS NULL AND (judul ILIKE $2 OR poster_id::text ILIKE $2 OR perusahaan ILIKE $2) ORDER BY created_at ASC LIMIT $3 OFFSET $4"))
                     .bind(status).bind(q).bind(params.limit).bind(params.offset).fetch_all(&self.pool).await?
             }
             (Some(q), false) => {
-                sqlx::query("SELECT id,poster_id,judul,perusahaan,deskripsi,lokasi,gaji_min,gaji_max,tipe,foto_urls,is_active,moderation_status,deleted_at,created_at,updated_at,COUNT(*) OVER() AS total_rows FROM iklan_pekerjaan.iklan WHERE moderation_status=$1 AND deleted_at IS NULL AND (judul ILIKE $2 OR poster_id::text ILIKE $2 OR perusahaan ILIKE $2) ORDER BY created_at DESC LIMIT $3 OFFSET $4")
+                sqlx::query(concat!("SELECT ", pekerjaan_cols!(), ", COUNT(*) OVER() AS total_rows FROM iklan_pekerjaan.iklan WHERE moderation_status=$1 AND deleted_at IS NULL AND (judul ILIKE $2 OR poster_id::text ILIKE $2 OR perusahaan ILIKE $2) ORDER BY created_at DESC LIMIT $3 OFFSET $4"))
                     .bind(status).bind(q).bind(params.limit).bind(params.offset).fetch_all(&self.pool).await?
             }
             (None, true) => {
-                sqlx::query("SELECT id,poster_id,judul,perusahaan,deskripsi,lokasi,gaji_min,gaji_max,tipe,foto_urls,is_active,moderation_status,deleted_at,created_at,updated_at,COUNT(*) OVER() AS total_rows FROM iklan_pekerjaan.iklan WHERE moderation_status=$1 AND deleted_at IS NULL ORDER BY created_at ASC LIMIT $2 OFFSET $3")
+                sqlx::query(concat!("SELECT ", pekerjaan_cols!(), ", COUNT(*) OVER() AS total_rows FROM iklan_pekerjaan.iklan WHERE moderation_status=$1 AND deleted_at IS NULL ORDER BY created_at ASC LIMIT $2 OFFSET $3"))
                     .bind(status).bind(params.limit).bind(params.offset).fetch_all(&self.pool).await?
             }
             (None, false) => {
-                sqlx::query("SELECT id,poster_id,judul,perusahaan,deskripsi,lokasi,gaji_min,gaji_max,tipe,foto_urls,is_active,moderation_status,deleted_at,created_at,updated_at,COUNT(*) OVER() AS total_rows FROM iklan_pekerjaan.iklan WHERE moderation_status=$1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT $2 OFFSET $3")
+                sqlx::query(concat!("SELECT ", pekerjaan_cols!(), ", COUNT(*) OVER() AS total_rows FROM iklan_pekerjaan.iklan WHERE moderation_status=$1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT $2 OFFSET $3"))
                     .bind(status).bind(params.limit).bind(params.offset).fetch_all(&self.pool).await?
             }
         };
@@ -184,11 +194,11 @@ impl IklanPekerjaanRepository for PgIklanPekerjaanRepository {
 
         let rows = match &q_pattern {
             Some(q) => {
-                sqlx::query("SELECT id,poster_id,judul,perusahaan,deskripsi,lokasi,gaji_min,gaji_max,tipe,foto_urls,is_active,moderation_status,deleted_at,created_at,updated_at FROM iklan_pekerjaan.iklan WHERE moderation_status=$1 AND deleted_at IS NULL AND (judul ILIKE $2 OR poster_id::text ILIKE $2 OR perusahaan ILIKE $2) ORDER BY created_at DESC LIMIT $3")
+                sqlx::query(concat!("SELECT ", pekerjaan_cols!(), " FROM iklan_pekerjaan.iklan WHERE moderation_status=$1 AND deleted_at IS NULL AND (judul ILIKE $2 OR poster_id::text ILIKE $2 OR perusahaan ILIKE $2) ORDER BY created_at DESC LIMIT $3"))
                     .bind(status).bind(q).bind(params.limit).fetch_all(&self.pool).await?
             }
             None => {
-                sqlx::query("SELECT id,poster_id,judul,perusahaan,deskripsi,lokasi,gaji_min,gaji_max,tipe,foto_urls,is_active,moderation_status,deleted_at,created_at,updated_at FROM iklan_pekerjaan.iklan WHERE moderation_status=$1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT $2")
+                sqlx::query(concat!("SELECT ", pekerjaan_cols!(), " FROM iklan_pekerjaan.iklan WHERE moderation_status=$1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT $2"))
                     .bind(status).bind(params.limit).fetch_all(&self.pool).await?
             }
         };

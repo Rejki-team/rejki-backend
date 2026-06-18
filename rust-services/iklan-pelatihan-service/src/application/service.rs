@@ -16,6 +16,7 @@ use crate::domain::repository::{
 };
 use common_rate_limit::RateLimiter;
 use notification_service_client::NotificationClient;
+use region_service_client::RegionClient;
 use storage_service_client::StorageClient;
 
 /// Nama kategori storage — bukan hardcoded string literal.
@@ -28,6 +29,7 @@ pub mod storage_category {
 pub struct IklanPelatihanService<R: IklanPelatihanRepository> {
     repo: Arc<R>,
     rate_limiter: Option<Arc<dyn RateLimiter>>,
+    region_client: Option<Arc<dyn RegionClient>>,
 }
 
 impl<R: IklanPelatihanRepository> IklanPelatihanService<R> {
@@ -35,10 +37,16 @@ impl<R: IklanPelatihanRepository> IklanPelatihanService<R> {
         Self {
             repo,
             rate_limiter: None,
+            region_client: None,
         }
     }
     pub fn with_rate_limiter(mut self, rl: Arc<dyn RateLimiter>) -> Self {
         self.rate_limiter = Some(rl);
+        self
+    }
+
+    pub fn with_region_client(mut self, rc: Arc<dyn RegionClient>) -> Self {
+        self.region_client = Some(rc);
         self
     }
 
@@ -86,6 +94,22 @@ impl<R: IklanPelatihanRepository> IklanPelatihanService<R> {
                 "Anda tidak dapat membuat iklan baru selama 3 hari setelah iklan ditangguhkan secara permanen"
             ));
         }
+
+        // Validasi region_id jika diisi.
+        if let (Some(rc), Some(ref rid)) = (&self.region_client, &input.region_id) {
+            if !rid.is_empty() {
+                match rc.get_region(rid).await {
+                    Err(region_service_client::RegionClientError::NotFound) => {
+                        return Err(anyhow::anyhow!("region_id tidak ditemukan"));
+                    }
+                    Err(_) => {
+                        tracing::warn!(region_id = %rid, "region-service unavailable saat validasi create");
+                    }
+                    Ok(_) => {}
+                }
+            }
+        }
+
         Ok(to_resp(
             self.repo
                 .create(CreatePelatihanParams {
@@ -94,6 +118,7 @@ impl<R: IklanPelatihanRepository> IklanPelatihanService<R> {
                     penyelenggara: &sanitize(&input.penyelenggara),
                     deskripsi: &sanitize(&input.deskripsi),
                     lokasi: input.lokasi.as_deref(),
+                    region_id: input.region_id.as_deref(),
                     harga: input.harga,
                     tanggal_mulai: input.tanggal_mulai,
                     tanggal_selesai: input.tanggal_selesai,
@@ -119,6 +144,7 @@ impl<R: IklanPelatihanRepository> IklanPelatihanService<R> {
                     penyelenggara: &sanitize(&input.penyelenggara),
                     deskripsi: &sanitize(&input.deskripsi),
                     lokasi: input.lokasi.as_deref(),
+                    region_id: input.region_id.as_deref(),
                     harga: input.harga,
                     tanggal_mulai: input.tanggal_mulai,
                     tanggal_selesai: input.tanggal_selesai,
@@ -205,6 +231,7 @@ impl<R: IklanPelatihanRepository> IklanPelatihanService<R> {
                 penyelenggara: &sanitize(&input.penyelenggara),
                 deskripsi: &sanitize(&input.deskripsi),
                 lokasi: input.lokasi.as_deref(),
+                region_id: input.region_id.as_deref(),
                 harga: input.harga,
                 tanggal_mulai: input.tanggal_mulai,
                 tanggal_selesai: input.tanggal_selesai,
@@ -902,6 +929,7 @@ fn to_resp(e: crate::domain::entity::IklanPelatihan) -> IklanPelatihanResponse {
         penyelenggara: e.penyelenggara,
         deskripsi: e.deskripsi,
         lokasi: e.lokasi,
+        region_id: e.region_id,
         harga: e.harga,
         tanggal_mulai: e.tanggal_mulai,
         tanggal_selesai: e.tanggal_selesai,
@@ -923,6 +951,7 @@ fn to_admin_resp(e: crate::domain::entity::IklanPelatihan) -> AdminIklanPelatiha
         penyelenggara: e.penyelenggara,
         deskripsi: e.deskripsi,
         lokasi: e.lokasi,
+        region_id: e.region_id,
         harga: e.harga,
         tanggal_mulai: e.tanggal_mulai,
         tanggal_selesai: e.tanggal_selesai,

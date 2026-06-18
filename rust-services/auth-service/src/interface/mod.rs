@@ -1,5 +1,7 @@
 pub mod handlers;
 
+pub mod audit_extractor;
+
 use std::env;
 use std::sync::Arc;
 
@@ -11,9 +13,12 @@ use axum::{
 use sqlx::PgPool;
 
 use crate::application::service::{self, AuthService};
+use crate::domain::audit_log::AuditLogRepository;
 use crate::domain::rate_limit::RateLimiter;
 use crate::domain::token::TokenIssuer;
-use crate::infrastructure::{AuthInProcessClient, JwtService, OtpRateLimiter, PgAuthRepository};
+use crate::infrastructure::{
+    AuthInProcessClient, JwtService, OtpRateLimiter, PgAuditLogRepository, PgAuthRepository,
+};
 use auth_service_client::AuthClient;
 use common_auth_mw::{require_active_account, require_admin, require_auth};
 use notification_service_client::NotificationClient;
@@ -26,6 +31,7 @@ pub struct AppState {
     pub storage_client: Option<Arc<dyn StorageClient>>,
     pub user_client: Option<Arc<dyn UserClient>>,
     pub notifier: Option<Arc<dyn NotificationClient>>,
+    pub audit_log_repo: Option<Arc<dyn AuditLogRepository>>,
 }
 
 /// Entry point yang dipanggil oleh rejki-app (Composition Root) dan main.rs standalone.
@@ -69,17 +75,24 @@ pub fn router_with_deps_ex(
     let token_issuer: Arc<dyn TokenIssuer> = jwt.clone();
     let rate_limiter: Arc<dyn RateLimiter> = Arc::new(OtpRateLimiter::from_env());
 
-    let mut svc = AuthService::new(repo, token_issuer, refresh_ttl, rate_limiter);
+    let mut svc = AuthService::new(repo.clone(), token_issuer, refresh_ttl, rate_limiter);
     let notifier_for_state = notifier.clone();
     if let Some(n) = notifier {
         svc = svc.with_notifier(n);
     }
+
+    // Audit log: wire PgAuditLogRepository dari pool yang sama.
+    // Fail-open: bila tidak di-wire (mis. standalone test tanpa migration), no-op.
+    let audit_log_repo: Arc<dyn AuditLogRepository> =
+        Arc::new(PgAuditLogRepository::new(repo.pool()));
+    svc = svc.with_audit_log(audit_log_repo.clone());
 
     let state = AppState {
         auth_svc: Arc::new(svc),
         storage_client,
         user_client,
         notifier: notifier_for_state,
+        audit_log_repo: Some(audit_log_repo),
     };
 
     build_router(state, auth_client)

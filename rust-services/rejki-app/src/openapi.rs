@@ -697,6 +697,7 @@ pub struct IklanPekerjaanDocResponse {
     pub perusahaan: String,
     pub deskripsi: String,
     pub lokasi: Option<String>,
+    pub region_id: Option<String>,
     pub gaji_min: Option<i64>,
     pub gaji_max: Option<i64>,
     pub tipe: String,
@@ -716,6 +717,7 @@ pub struct AdminIklanDocResponse {
     pub perusahaan: String,
     pub deskripsi: String,
     pub lokasi: Option<String>,
+    pub region_id: Option<String>,
     pub foto_urls: Vec<String>,
     pub is_active: bool,
     pub moderation_status: String,
@@ -731,6 +733,7 @@ pub struct CreateIklanDocRequest {
     pub judul: String,
     pub deskripsi: String,
     pub lokasi: Option<String>,
+    pub region_id: Option<String>,
     pub foto_urls: Option<Vec<String>>,
 }
 
@@ -787,7 +790,10 @@ fn get_pekerjaan_doc() {}
 /// POST /api/v1/pekerjaan — buat iklan baru (authed).
 #[utoipa::path(post, path = "/api/v1/pekerjaan", tag = "iklan-pekerjaan",
     request_body = CreateIklanDocRequest,
-    responses((status = 201, description = "Iklan dibuat"))
+    responses(
+        (status = 201, description = "Iklan dibuat"),
+        (status = 429, description = "Terlalu banyak permintaan — coba lagi nanti", headers(("Retry-After" = String, description = "Detik sebelum boleh mencoba lagi")))
+    )
 )]
 #[allow(dead_code)]
 fn create_pekerjaan_doc() {}
@@ -839,6 +845,296 @@ fn suspend_evidence_pekerjaan_doc() {}
 #[allow(dead_code)]
 fn suspend_pekerjaan_doc() {}
 
+// ── Iklan Pekerja: mirror DTO ──────────────────────────────────────────────────
+// Ref: openspec/changes/fix-phase2-code-review-findings + W3A-03 (region_id)
+
+/// Respons iklan pekerja (publik).
+#[derive(Debug, Serialize, ToSchema)]
+pub struct IklanPekerjaDocResponse {
+    pub id: uuid::Uuid,
+    pub poster_id: uuid::Uuid,
+    pub nama: String,
+    #[schema(example = json!(["Las","Bangunan"]))]
+    pub keahlian: Vec<String>,
+    pub deskripsi: String,
+    pub lokasi: Option<String>,
+    pub region_id: Option<String>,
+    pub tarif_min: Option<i64>,
+    pub tarif_max: Option<i64>,
+    pub foto_urls: Vec<String>,
+    pub is_active: bool,
+    pub moderation_status: String,
+    pub created_at: String,
+}
+
+/// Respons iklan pekerja (admin — menyertakan deleted_at).
+#[derive(Debug, Serialize, ToSchema)]
+pub struct AdminPekerjaDocResponse {
+    pub id: uuid::Uuid,
+    pub poster_id: uuid::Uuid,
+    pub nama: String,
+    pub keahlian: Vec<String>,
+    pub deskripsi: String,
+    pub lokasi: Option<String>,
+    pub region_id: Option<String>,
+    pub tarif_min: Option<i64>,
+    pub tarif_max: Option<i64>,
+    pub foto_urls: Vec<String>,
+    pub is_active: bool,
+    pub moderation_status: String,
+    pub deleted_at: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+/// Payload buat iklan pekerja.
+#[allow(dead_code)]
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct CreatePekerjaDocRequest {
+    #[schema(example = "Tukang Las Profesional")]
+    pub nama: String,
+    pub keahlian: Vec<String>,
+    pub deskripsi: String,
+    pub lokasi: Option<String>,
+    pub region_id: Option<String>,
+    pub tarif_min: Option<i64>,
+    pub tarif_max: Option<i64>,
+    pub foto_urls: Option<Vec<String>>,
+}
+
+// ── Iklan Pekerja: path annotations (public) ─────────────────────────────────────
+
+/// GET /api/v1/pekerja — daftar pekerja publik.
+#[utoipa::path(get, path = "/api/v1/pekerja", tag = "iklan-pekerja",
+    params(
+        ("limit" = Option<i64>, Query, description = "Items per halaman (default 20)"),
+        ("offset" = Option<i64>, Query, description = "Offset halaman (default 0)"),
+    ),
+    responses((status = 200, description = "Daftar iklan pekerja", body = Vec<IklanPekerjaDocResponse>))
+)]
+#[allow(dead_code)]
+fn list_pekerja_doc() {}
+
+/// GET /api/v1/pekerja/{id} — detail pekerja.
+#[utoipa::path(get, path = "/api/v1/pekerja/{id}", tag = "iklan-pekerja",
+    responses(
+        (status = 200, description = "Iklan pekerja", body = IklanPekerjaDocResponse),
+        (status = 404, description = "Tidak ditemukan")
+    )
+)]
+#[allow(dead_code)]
+fn get_pekerja_doc() {}
+
+/// POST /api/v1/pekerja — buat iklan pekerja (authed).
+#[utoipa::path(post, path = "/api/v1/pekerja", tag = "iklan-pekerja",
+    request_body = CreatePekerjaDocRequest,
+    responses(
+        (status = 201, description = "Iklan pekerja dibuat"),
+        (status = 429, description = "Terlalu banyak permintaan — coba lagi nanti", headers(("Retry-After" = String, description = "Detik sebelum boleh mencoba lagi")))
+    )
+)]
+#[allow(dead_code)]
+fn create_pekerja_doc() {}
+
+// ── Iklan Pekerja: path annotations (admin) ─────────────────────────────────────
+
+/// GET /api/v1/admin/pekerja — listing admin.
+#[utoipa::path(get, path = "/api/v1/admin/pekerja", tag = "admin-iklan",
+    params(
+        ("q" = Option<String>, Query, description = "Pencarian (nama / keahlian / pembuat)"),
+        ("status" = Option<String>, Query, description = "Filter status moderasi"),
+        ("sort_by" = Option<String>, Query, description = "Kolom sort"),
+        ("sort_dir" = Option<String>, Query, description = "Arah sort (asc/desc)"),
+        ("limit" = Option<i64>, Query, description = "Items per halaman"),
+        ("offset" = Option<i64>, Query, description = "Offset halaman"),
+    ),
+    responses((status = 200, description = "Daftar pekerja (admin view)", body = Vec<AdminPekerjaDocResponse>))
+)]
+#[allow(dead_code)]
+fn admin_list_pekerja_doc() {}
+
+/// GET /api/v1/admin/pekerja/export.csv
+#[utoipa::path(get, path = "/api/v1/admin/pekerja/export.csv", tag = "admin-iklan",
+    params(
+        ("q" = Option<String>, Query),
+        ("status" = Option<String>, Query),
+    ),
+    responses((status = 200, description = "File CSV", content_type = "text/csv"))
+)]
+#[allow(dead_code)]
+fn export_csv_pekerja_doc() {}
+
+/// POST /api/v1/admin/pekerja/suspend/evidence — presigned URL upload bukti.
+#[utoipa::path(post, path = "/api/v1/admin/pekerja/suspend/evidence", tag = "admin-iklan",
+    request_body = SuspendEvidenceDocRequest,
+    responses(
+        (status = 200, description = "Presigned URL", body = UploadPermissionDocResponse),
+        (status = 422, description = "MIME/ukuran tidak valid")
+    )
+)]
+#[allow(dead_code)]
+fn suspend_evidence_pekerja_doc() {}
+
+/// POST /api/v1/admin/pekerja/suspend — suspend iklan pekerja (single/bulk).
+#[utoipa::path(post, path = "/api/v1/admin/pekerja/suspend", tag = "admin-iklan",
+    request_body = SuspendIklanDocRequest,
+    responses((status = 200, description = "Hasil suspend per item", body = SuspendIklanDocResponse))
+)]
+#[allow(dead_code)]
+fn suspend_pekerja_doc() {}
+
+// ── Barang Bekas: mirror DTO ────────────────────────────────────────────────────
+// Ref: openspec/changes/extend-barang-bekas-gratis-model + W3A-03 (region_id)
+
+/// Respons barang bekas (publik).
+#[derive(Debug, Serialize, ToSchema)]
+pub struct IklanBarangBekasDocResponse {
+    pub id: uuid::Uuid,
+    pub seller_id: uuid::Uuid,
+    pub judul: String,
+    pub deskripsi: String,
+    #[schema(example = "bekas")]
+    pub jenis_barang: String,
+    #[schema(example = 1)]
+    pub jumlah: i32,
+    pub lokasi_pengambilan: String,
+    pub lokasi: Option<String>,
+    pub region_id: Option<String>,
+    pub foto_urls: Vec<String>,
+    pub availability_status: String,
+    pub moderation_status: String,
+    pub created_at: String,
+}
+
+/// Respons barang bekas (admin — menyertakan deleted_at).
+#[derive(Debug, Serialize, ToSchema)]
+pub struct AdminBarangBekasDocResponse {
+    pub id: uuid::Uuid,
+    pub seller_id: uuid::Uuid,
+    pub judul: String,
+    pub deskripsi: String,
+    pub jenis_barang: String,
+    pub jumlah: i32,
+    pub lokasi_pengambilan: String,
+    pub lokasi: Option<String>,
+    pub region_id: Option<String>,
+    pub foto_urls: Vec<String>,
+    pub availability_status: String,
+    pub moderation_status: String,
+    pub deleted_at: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+/// Payload buat iklan barang bekas.
+#[allow(dead_code)]
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct CreateBarangBekasDocRequest {
+    #[schema(example = "Meja Kayu Jati Bekas")]
+    pub judul: String,
+    pub deskripsi: String,
+    #[schema(example = "bekas")]
+    pub jenis_barang: String,
+    #[schema(example = 2)]
+    pub jumlah: i32,
+    #[schema(example = "Jl. Mangga Besar No. 5")]
+    pub lokasi_pengambilan: String,
+    pub lokasi: Option<String>,
+    pub region_id: Option<String>,
+    pub foto_urls: Option<Vec<String>>,
+}
+
+// ── Barang Bekas: path annotations (public) ──────────────────────────────────────
+
+/// GET /api/v1/barang — daftar barang bekas publik.
+#[utoipa::path(get, path = "/api/v1/barang", tag = "barang-bekas",
+    params(
+        ("limit" = Option<i64>, Query, description = "Items per halaman (default 20)"),
+        ("offset" = Option<i64>, Query, description = "Offset halaman (default 0)"),
+    ),
+    responses((status = 200, description = "Daftar barang bekas", body = Vec<IklanBarangBekasDocResponse>))
+)]
+#[allow(dead_code)]
+fn list_barang_doc() {}
+
+/// GET /api/v1/barang/{id} — detail barang bekas.
+#[utoipa::path(get, path = "/api/v1/barang/{id}", tag = "barang-bekas",
+    responses(
+        (status = 200, description = "Detail barang bekas", body = IklanBarangBekasDocResponse),
+        (status = 404, description = "Tidak ditemukan")
+    )
+)]
+#[allow(dead_code)]
+fn get_barang_doc() {}
+
+/// POST /api/v1/barang — buat iklan barang bekas (authed).
+#[utoipa::path(post, path = "/api/v1/barang", tag = "barang-bekas",
+    request_body = CreateBarangBekasDocRequest,
+    responses(
+        (status = 201, description = "Iklan barang bekas dibuat"),
+        (status = 429, description = "Terlalu banyak permintaan — coba lagi nanti", headers(("Retry-After" = String, description = "Detik sebelum boleh mencoba lagi")))
+    )
+)]
+#[allow(dead_code)]
+fn create_barang_doc() {}
+
+/// PATCH /api/v1/barang/{id}/taken — tandai barang sudah diambil (authed, owner only).
+#[utoipa::path(patch, path = "/api/v1/barang/{id}/taken", tag = "barang-bekas",
+    responses(
+        (status = 200, description = "Barang ditandai sudah diambil", body = IklanBarangBekasDocResponse),
+        (status = 404, description = "Tidak ditemukan atau bukan pemilik")
+    )
+)]
+#[allow(dead_code)]
+fn mark_taken_barang_doc() {}
+
+// ── Barang Bekas: path annotations (admin) ───────────────────────────────────────
+
+/// GET /api/v1/admin/barang — listing admin.
+#[utoipa::path(get, path = "/api/v1/admin/barang", tag = "admin-iklan",
+    params(
+        ("q" = Option<String>, Query, description = "Pencarian (judul / pembuat)"),
+        ("status" = Option<String>, Query, description = "Filter status moderasi"),
+        ("sort_by" = Option<String>, Query, description = "Kolom sort"),
+        ("sort_dir" = Option<String>, Query, description = "Arah sort (asc/desc)"),
+        ("limit" = Option<i64>, Query, description = "Items per halaman"),
+        ("offset" = Option<i64>, Query, description = "Offset halaman"),
+    ),
+    responses((status = 200, description = "Daftar barang bekas (admin view)", body = Vec<AdminBarangBekasDocResponse>))
+)]
+#[allow(dead_code)]
+fn admin_list_barang_doc() {}
+
+/// GET /api/v1/admin/barang/export.csv
+#[utoipa::path(get, path = "/api/v1/admin/barang/export.csv", tag = "admin-iklan",
+    params(
+        ("q" = Option<String>, Query),
+        ("status" = Option<String>, Query),
+    ),
+    responses((status = 200, description = "File CSV", content_type = "text/csv"))
+)]
+#[allow(dead_code)]
+fn export_csv_barang_doc() {}
+
+/// POST /api/v1/admin/barang/suspend/evidence — presigned URL upload bukti.
+#[utoipa::path(post, path = "/api/v1/admin/barang/suspend/evidence", tag = "admin-iklan",
+    request_body = SuspendEvidenceDocRequest,
+    responses(
+        (status = 200, description = "Presigned URL", body = UploadPermissionDocResponse),
+        (status = 422, description = "MIME/ukuran tidak valid")
+    )
+)]
+#[allow(dead_code)]
+fn suspend_evidence_barang_doc() {}
+
+/// POST /api/v1/admin/barang/suspend — suspend iklan barang bekas (single/bulk).
+#[utoipa::path(post, path = "/api/v1/admin/barang/suspend", tag = "admin-iklan",
+    request_body = SuspendIklanDocRequest,
+    responses((status = 200, description = "Hasil suspend per item", body = SuspendIklanDocResponse))
+)]
+#[allow(dead_code)]
+fn suspend_barang_doc() {}
+
 // ── Pelatihan: mirror DTO ──────────────────────────────────────────────────────
 // Ref: openspec/changes/add-pelatihan-enrollment-badge
 
@@ -851,6 +1147,7 @@ pub struct IklanPelatihanDocResponse {
     pub penyelenggara: String,
     pub deskripsi: String,
     pub lokasi: Option<String>,
+    pub region_id: Option<String>,
     pub harga: Option<i64>,
     pub tanggal_mulai: Option<String>,
     pub tanggal_selesai: Option<String>,
@@ -871,6 +1168,7 @@ pub struct AdminPelatihanDocResponse {
     pub penyelenggara: String,
     pub deskripsi: String,
     pub lokasi: Option<String>,
+    pub region_id: Option<String>,
     pub harga: Option<i64>,
     pub tanggal_mulai: Option<String>,
     pub tanggal_selesai: Option<String>,
@@ -892,6 +1190,7 @@ pub struct CreatePelatihanDocRequest {
     pub penyelenggara: String,
     pub deskripsi: String,
     pub lokasi: Option<String>,
+    pub region_id: Option<String>,
     pub harga: Option<i64>,
     pub tanggal_mulai: Option<String>,
     pub tanggal_selesai: Option<String>,
@@ -907,6 +1206,7 @@ pub struct UpdatePelatihanDocRequest {
     pub penyelenggara: String,
     pub deskripsi: String,
     pub lokasi: Option<String>,
+    pub region_id: Option<String>,
     pub harga: Option<i64>,
     pub tanggal_mulai: Option<String>,
     pub tanggal_selesai: Option<String>,
@@ -992,7 +1292,10 @@ fn get_pelatihan_doc() {}
 /// POST /api/v1/pelatihan/ — user create pelatihan.
 #[utoipa::path(post, path = "/api/v1/pelatihan/", tag = "pelatihan",
     request_body = CreatePelatihanDocRequest,
-    responses((status = 201, description = "Pelatihan dibuat oleh user", body = IklanPelatihanDocResponse))
+    responses(
+        (status = 201, description = "Pelatihan dibuat oleh user", body = IklanPelatihanDocResponse),
+        (status = 429, description = "Terlalu banyak permintaan — coba lagi nanti", headers(("Retry-After" = String, description = "Detik sebelum boleh mencoba lagi")))
+    )
 )]
 #[allow(dead_code)]
 fn create_pelatihan_doc() {}
@@ -1025,7 +1328,10 @@ fn admin_list_pelatihan_doc() {}
 /// POST /api/v1/pelatihan/admin/pelatihan — admin create pelatihan (auto-approve).
 #[utoipa::path(post, path = "/api/v1/pelatihan/admin/pelatihan", tag = "admin-pelatihan",
     request_body = CreatePelatihanDocRequest,
-    responses((status = 201, description = "Pelatihan dibuat oleh admin (auto-approve)", body = AdminPelatihanDocResponse))
+    responses(
+        (status = 201, description = "Pelatihan dibuat oleh admin (auto-approve)", body = AdminPelatihanDocResponse),
+        (status = 429, description = "Terlalu banyak permintaan — coba lagi nanti", headers(("Retry-After" = String, description = "Detik sebelum boleh mencoba lagi")))
+    )
 )]
 #[allow(dead_code)]
 fn admin_create_pelatihan_doc() {}
@@ -1199,7 +1505,8 @@ fn admin_list_articles_doc() {}
     request_body = CreateArticleDocRequest,
     responses(
         (status = 201, description = "Artikel dibuat; broadcast notifikasi ke seluruh pengguna"),
-        (status = 422, description = "Validasi gagal (judul min 3, body min 1)")
+        (status = 422, description = "Validasi gagal (judul min 3, body min 1)"),
+        (status = 429, description = "Terlalu banyak permintaan — coba lagi nanti", headers(("Retry-After" = String, description = "Detik sebelum boleh mencoba lagi")))
     )
 )]
 #[allow(dead_code)]
@@ -1313,7 +1620,8 @@ pub struct ReviewReportDocRequest {
     request_body = CreateReportDocRequest,
     responses(
         (status = 201, description = "Aduan dibuat; menunggu tinjauan admin", body = ReportDocResponse),
-        (status = 422, description = "Validasi gagal (keterangan kosong, target_type invalid)")
+        (status = 422, description = "Validasi gagal (keterangan kosong, target_type invalid)"),
+        (status = 429, description = "Terlalu banyak permintaan — coba lagi nanti", headers(("Retry-After" = String, description = "Detik sebelum boleh mencoba lagi")))
     )
 )]
 #[allow(dead_code)]
@@ -1392,11 +1700,21 @@ fn admin_export_reports_doc() {}
         provinces_doc, regencies_doc, districts_doc, villages_doc,
         // Notifications
         notif_doc,
-        // Iklan — public
+        // Iklan Pekerjaan — public
         list_pekerjaan_doc, get_pekerjaan_doc, create_pekerjaan_doc,
-        // Iklan — admin
+        // Iklan Pekerjaan — admin
         admin_list_pekerjaan_doc, export_csv_pekerjaan_doc,
         suspend_evidence_pekerjaan_doc, suspend_pekerjaan_doc,
+        // Iklan Pekerja — public
+        list_pekerja_doc, get_pekerja_doc, create_pekerja_doc,
+        // Iklan Pekerja — admin
+        admin_list_pekerja_doc, export_csv_pekerja_doc,
+        suspend_evidence_pekerja_doc, suspend_pekerja_doc,
+        // Barang Bekas — public
+        list_barang_doc, get_barang_doc, create_barang_doc, mark_taken_barang_doc,
+        // Barang Bekas — admin
+        admin_list_barang_doc, export_csv_barang_doc,
+        suspend_evidence_barang_doc, suspend_barang_doc,
         // Pelatihan — public
         list_pelatihan_doc, get_pelatihan_doc, create_pelatihan_doc,
         enroll_pelatihan_doc, badge_pelatihan_doc,
@@ -1434,10 +1752,16 @@ fn admin_export_reports_doc() {}
         RegionDocItem,
         // Notifications
         NotifItemDocResponse,
-        // Iklan
+        // Iklan Pekerjaan
         IklanPekerjaanDocResponse, AdminIklanDocResponse,
         CreateIklanDocRequest, SuspendIklanDocRequest,
         SuspendIklanDocResponse, SuspendIklanItemDocResponse,
+        // Iklan Pekerja
+        IklanPekerjaDocResponse, AdminPekerjaDocResponse,
+        CreatePekerjaDocRequest,
+        // Barang Bekas
+        IklanBarangBekasDocResponse, AdminBarangBekasDocResponse,
+        CreateBarangBekasDocRequest,
         // Pelatihan
         IklanPelatihanDocResponse, AdminPelatihanDocResponse,
         CreatePelatihanDocRequest, UpdatePelatihanDocRequest,
@@ -1461,6 +1785,8 @@ fn admin_export_reports_doc() {}
         (name = "regions", description = "Data wilayah Indonesia (cascading)"),
         (name = "notifications", description = "Notifikasi in-app pengguna"),
         (name = "iklan-pekerjaan", description = "Iklan lowongan pekerjaan (publik)"),
+        (name = "iklan-pekerja", description = "Iklan tukang / pekerja — listing publik, create, delete"),
+        (name = "barang-bekas", description = "Barang bekas gratis — listing publik, create, tandai sudah diambil"),
         (name = "admin-iklan", description = "Moderasi iklan — listing, suspend, CSV export (semua vertikal)"),
         (name = "pelatihan", description = "Pelatihan — listing publik, pendaftaran (enroll), & pengajuan badge"),
         (name = "admin-pelatihan", description = "Admin pelatihan — moderasi, enrollment review, badge review, CSV export"),

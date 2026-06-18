@@ -42,6 +42,7 @@ fn row_to_entity(r: &sqlx::postgres::PgRow) -> IklanPelatihan {
         penyelenggara: r.get("penyelenggara"),
         deskripsi: r.get("deskripsi"),
         lokasi: r.get("lokasi"),
+        region_id: r.get("region_id"),
         harga: r.get("harga"),
         tanggal_mulai: r.get("tanggal_mulai"),
         tanggal_selesai: r.get("tanggal_selesai"),
@@ -106,14 +107,14 @@ fn row_to_badge(r: &sqlx::postgres::PgRow) -> PelatihanBadge {
 }
 
 /// Full column list for iklan_pelatihan.iklan (keep in sync with schema).
-const _PELATIHAN_COLS: &str = "id,poster_id,judul,penyelenggara,deskripsi,lokasi,harga,tanggal_mulai,tanggal_selesai,foto_urls,is_active,moderation_status,status,created_by_role,jumlah_peserta,reviewed_by,review_note,deleted_at,created_at,updated_at";
+const _PELATIHAN_COLS: &str = "id,poster_id,judul,penyelenggara,deskripsi,lokasi,region_id,harga,tanggal_mulai,tanggal_selesai,foto_urls,is_active,moderation_status,status,created_by_role,jumlah_peserta,reviewed_by,review_note,deleted_at,created_at,updated_at";
 
 // Keep original static string approach — sqlx 0.9 requires literal SQL strings.
 // Every query uses the full column list inline.
 
 macro_rules! pelatihan_cols {
     () => {
-        "id,poster_id,judul,penyelenggara,deskripsi,lokasi,harga,tanggal_mulai,tanggal_selesai,foto_urls,is_active,moderation_status,status,created_by_role,jumlah_peserta,reviewed_by,review_note,deleted_at,created_at,updated_at"
+        "id,poster_id,judul,penyelenggara,deskripsi,lokasi,region_id,harga,tanggal_mulai,tanggal_selesai,foto_urls,is_active,moderation_status,status,created_by_role,jumlah_peserta,reviewed_by,review_note,deleted_at,created_at,updated_at"
     };
 }
 
@@ -167,7 +168,7 @@ impl IklanPelatihanRepository for PgIklanPelatihanRepository {
     ) -> Result<IklanPelatihan, anyhow::Error> {
         let t = Instant::now();
         let r = sqlx::query(concat!(
-            "INSERT INTO iklan_pelatihan.iklan (id,poster_id,judul,penyelenggara,deskripsi,lokasi,harga,tanggal_mulai,tanggal_selesai,created_by_role,status,jumlah_peserta) VALUES (gen_random_uuid(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING ",
+            "INSERT INTO iklan_pelatihan.iklan (id,poster_id,judul,penyelenggara,deskripsi,lokasi,region_id,harga,tanggal_mulai,tanggal_selesai,created_by_role,status,jumlah_peserta) VALUES (gen_random_uuid(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING ",
             pelatihan_cols!()
         ))
         .bind(params.poster_id)
@@ -175,6 +176,7 @@ impl IklanPelatihanRepository for PgIklanPelatihanRepository {
         .bind(params.penyelenggara)
         .bind(params.deskripsi)
         .bind(params.lokasi)
+        .bind(params.region_id)
         .bind(params.harga)
         .bind(params.tanggal_mulai)
         .bind(params.tanggal_selesai)
@@ -289,7 +291,7 @@ impl IklanPelatihanRepository for PgIklanPelatihanRepository {
     ) -> Result<Option<IklanPelatihan>, anyhow::Error> {
         let t = Instant::now();
         let r = sqlx::query(concat!(
-            "UPDATE iklan_pelatihan.iklan SET judul=$3,penyelenggara=$4,deskripsi=$5,lokasi=$6,harga=$7,tanggal_mulai=$8,tanggal_selesai=$9,jumlah_peserta=$10,updated_at=now() WHERE id=$1 AND poster_id=$2 AND deleted_at IS NULL RETURNING ",
+            "UPDATE iklan_pelatihan.iklan SET judul=$3,penyelenggara=$4,deskripsi=$5,lokasi=$6,region_id=$7,harga=$8,tanggal_mulai=$9,tanggal_selesai=$10,jumlah_peserta=$11,updated_at=now() WHERE id=$1 AND poster_id=$2 AND deleted_at IS NULL RETURNING ",
             pelatihan_cols!()
         ))
         .bind(params.id)
@@ -298,6 +300,7 @@ impl IklanPelatihanRepository for PgIklanPelatihanRepository {
         .bind(params.penyelenggara)
         .bind(params.deskripsi)
         .bind(params.lokasi)
+        .bind(params.region_id)
         .bind(params.harga)
         .bind(params.tanggal_mulai)
         .bind(params.tanggal_selesai)

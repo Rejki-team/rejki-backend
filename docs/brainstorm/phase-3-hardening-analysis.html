@@ -226,10 +226,10 @@
           <p>Hanya enum Role { user, admin }. PRD menyebut butuh super_admin, moderator, support, executive. Middleware require_admin belum support multi-role.</p>
           <p class="evidence">Evidence: auth-service/domain/entity.rs — pub use auth_service_client::Role. Search graph 0 results untuk super_admin/moderator/support/executive.</p>
         </div>
-        <div class="gap-card p1">
-          <h4><span class="id-tag">A3</span> audit_log table <span class="priority-badge pb-p1">P1</span></h4>
-          <p>Security baseline §Phase 3 mensyaratkan tabel append-only untuk login/logout/refresh/failed. Tidak ada migrasi, tidak ada repository, tidak ada trigger.</p>
-          <p class="evidence">Evidence: search_graph "audit_log" → 0 results. Hanya disebut di security-baseline.html §Phase 3 dan test cleanup helper sebagai "TODO".</p>
+        <div class="gap-card done">
+          <h4><span class="id-tag">A3</span> audit_log table <span class="priority-badge pb-done">✅ DONE</span></h4>
+          <p>✅ W3B-04 selesai 19 Jun 2026. Migration <code>auth.audit_log</code> (append-only), <code>PgAuditLogRepository</code>, 11 <code>AuditEvent</code> variant, inject ke 10 auth events (login, admin_login, logout, refresh, OTP sent, password changed/reset, suspend/bulk), <code>AuditContext</code> FromRequestParts extractor, fail-open. <a href="../../openspec/changes/ws-audit-log/tasks.md" style="color:var(--green);">tasks.md</a></p>
+          <p class="evidence">Evidence: 67 auth unit tests PASS, 247 total + 50 integration PASS. Migration applied to dev & test DB.</p>
         </div>
         <div class="gap-card p2">
           <h4><span class="id-tag">A4</span> CORS production policy <span class="priority-badge pb-p2">P2</span></h4>
@@ -627,7 +627,7 @@
         <table class="tbl">
           <thead><tr><th>Urutan</th><th>ID</th><th>Task</th><th>Depends On</th><th>OpenSpec Change</th></tr></thead>
           <tbody>
-            <tr><td>4</td><td>A3</td><td>audit_log table — migration, PgAuditLogRepository, trigger di auth events (login/logout/refresh/failed)</td><td>—</td><td><code>ws-audit-log</code> (new)</td></tr>
+            <tr><td>4</td><td>A3</td><td>✅ audit_log table — migration, PgAuditLogRepository, trigger di auth events (login/logout/refresh/failed) — <strong>DONE 19 Jun 2026</strong></td><td>—</td><td><code>ws-audit-log</code> (active)</td></tr>
             <tr><td>5</td><td>A2</td><td>Multi-tier RBAC — extend enum Role (6 value), require_role() middleware, migrasi role</td><td>—</td><td><code>ws-multi-tier-rbac</code> (new)</td></tr>
             <tr><td>6</td><td>D1</td><td>PATCH iklan — update handler di 4 iklan service, ownership check di SQL, validasi field editable</td><td>A1 (rate limit pada endpoint baru)</td><td><code>ws-patch-iklan</code> (new)</td></tr>
             <tr><td>7</td><td>D2</td><td>Password reset flow — handler POST /auth/reset-password, POST /auth/confirm-reset, OTP-based</td><td>A3 (audit_log ready)</td><td><code>ws-password-reset</code> (new)</td></tr>
@@ -670,7 +670,7 @@
 
     <footer>
       <p>Rejki Backend — Brainstorm: Phase 3 Hardening Analysis · 17 Juni 2026<br>
-      <strong>Status 18 Juni 2026:</strong> W3A-01 ✅ Done · W3A-02 ✅ Done · Next: W3A-03 (region_id FK)</p>
+      <strong>Status 18 Juni 2026:</strong> W3A-01 ✅ Archived (247 unit tests) · W3A-02 ✅ Archived · Next: W3A-03 (region_id FK)</p>
       <p style="margin-top:.3rem;">Sumber: kode di rust-services/ · dokumen di docs/ · spesifikasi di openspec/ · CLAUDE.md</p>
     </footer>
 

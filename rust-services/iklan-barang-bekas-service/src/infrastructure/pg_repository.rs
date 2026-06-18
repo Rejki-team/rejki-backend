@@ -42,6 +42,7 @@ fn row_to_entity(r: &sqlx::postgres::PgRow) -> IklanBarangBekas {
         jumlah: r.get("jumlah"),
         lokasi_pengambilan: r.get("lokasi_pengambilan"),
         lokasi: r.get("lokasi"),
+        region_id: r.get("region_id"),
         foto_urls: r.get("foto_urls"),
         availability_status: AvailabilityStatus::parse(&avail_raw).unwrap_or_default(),
         moderation_status: ModerationStatus::parse(&moderation_raw).unwrap_or_default(),
@@ -99,6 +100,7 @@ impl IklanBarangBekasRepository for PgIklanBarangBekasRepository {
             .bind(params.jumlah)
             .bind(params.lokasi_pengambilan)
             .bind(params.lokasi)
+            .bind(params.region_id)
             .bind(params.foto_urls)
             .fetch_one(&self.pool)
             .await?;
@@ -293,9 +295,9 @@ impl IklanBarangBekasRepository for PgIklanBarangBekasRepository {
 // Kolom baru (gratis/donasi): jenis_barang, jumlah, lokasi_pengambilan, availability_status.
 // Kolom dihapus: harga, kondisi, is_sold.
 
-const SQL_FIND_BY_ID: &str = "SELECT id,seller_id,judul,deskripsi,jenis_barang,jumlah,lokasi_pengambilan,lokasi,foto_urls,availability_status,moderation_status,deleted_at,created_at,updated_at FROM iklan_barang_bekas.iklan WHERE id=$1";
-const SQL_LIST: &str = "SELECT id,seller_id,judul,deskripsi,jenis_barang,jumlah,lokasi_pengambilan,lokasi,foto_urls,availability_status,moderation_status,deleted_at,created_at,updated_at FROM iklan_barang_bekas.iklan WHERE availability_status='tersedia' AND moderation_status='active' AND deleted_at IS NULL ORDER BY created_at DESC LIMIT $1 OFFSET $2";
-const SQL_CREATE: &str = "INSERT INTO iklan_barang_bekas.iklan (id,seller_id,judul,deskripsi,jenis_barang,jumlah,lokasi_pengambilan,lokasi,foto_urls) VALUES (gen_random_uuid(),$1,$2,$3,$4,$5,$6,$7,$8) RETURNING id,seller_id,judul,deskripsi,jenis_barang,jumlah,lokasi_pengambilan,lokasi,foto_urls,availability_status,moderation_status,deleted_at,created_at,updated_at";
+const SQL_FIND_BY_ID: &str = "SELECT id,seller_id,judul,deskripsi,jenis_barang,jumlah,lokasi_pengambilan,lokasi,region_id,foto_urls,availability_status,moderation_status,deleted_at,created_at,updated_at FROM iklan_barang_bekas.iklan WHERE id=$1";
+const SQL_LIST: &str = "SELECT id,seller_id,judul,deskripsi,jenis_barang,jumlah,lokasi_pengambilan,lokasi,region_id,foto_urls,availability_status,moderation_status,deleted_at,created_at,updated_at FROM iklan_barang_bekas.iklan WHERE availability_status='tersedia' AND moderation_status='active' AND deleted_at IS NULL ORDER BY created_at DESC LIMIT $1 OFFSET $2";
+const SQL_CREATE: &str = "INSERT INTO iklan_barang_bekas.iklan (id,seller_id,judul,deskripsi,jenis_barang,jumlah,lokasi_pengambilan,lokasi,region_id,foto_urls) VALUES (gen_random_uuid(),$1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id,seller_id,judul,deskripsi,jenis_barang,jumlah,lokasi_pengambilan,lokasi,region_id,foto_urls,availability_status,moderation_status,deleted_at,created_at,updated_at";
 const SQL_MARK_TAKEN: &str = "UPDATE iklan_barang_bekas.iklan SET availability_status='sudah_diambil', updated_at=now() WHERE id=$1 AND seller_id=$2 AND availability_status='tersedia'";
 const SQL_DELETE: &str = "DELETE FROM iklan_barang_bekas.iklan WHERE id=$1 AND seller_id=$2";
 const SQL_EXISTS: &str = "SELECT EXISTS(SELECT 1 FROM iklan_barang_bekas.iklan WHERE id=$1)";
@@ -306,9 +308,9 @@ const SQL_SOFT_DELETE: &str =
 const SQL_EXPIRE_TEMP: &str = "UPDATE iklan_barang_bekas.iklan SET moderation_status='active', updated_at=now() WHERE moderation_status='suspended_temp' AND id IN (SELECT iklan_id FROM iklan_barang_bekas.iklan_suspension WHERE is_permanent=false AND expires_at IS NOT NULL AND expires_at <= now()) AND deleted_at IS NULL";
 const SQL_COOLDOWN: &str = "SELECT EXISTS(SELECT 1 FROM iklan_barang_bekas.iklan_suspension WHERE is_permanent=true AND created_at > now() - INTERVAL '3 days' AND iklan_id IN (SELECT id FROM iklan_barang_bekas.iklan WHERE seller_id=$1))";
 
-const ADMIN_LIST_SEARCH_ASC: &str = "SELECT id,seller_id,judul,deskripsi,jenis_barang,jumlah,lokasi_pengambilan,lokasi,foto_urls,availability_status,moderation_status,deleted_at,created_at,updated_at,COUNT(*) OVER() AS total_rows FROM iklan_barang_bekas.iklan WHERE moderation_status=$1 AND deleted_at IS NULL AND (judul ILIKE $2 OR seller_id::text ILIKE $2) ORDER BY created_at ASC LIMIT $3 OFFSET $4";
-const ADMIN_LIST_SEARCH_DESC: &str = "SELECT id,seller_id,judul,deskripsi,jenis_barang,jumlah,lokasi_pengambilan,lokasi,foto_urls,availability_status,moderation_status,deleted_at,created_at,updated_at,COUNT(*) OVER() AS total_rows FROM iklan_barang_bekas.iklan WHERE moderation_status=$1 AND deleted_at IS NULL AND (judul ILIKE $2 OR seller_id::text ILIKE $2) ORDER BY created_at DESC LIMIT $3 OFFSET $4";
-const ADMIN_LIST_ASC: &str = "SELECT id,seller_id,judul,deskripsi,jenis_barang,jumlah,lokasi_pengambilan,lokasi,foto_urls,availability_status,moderation_status,deleted_at,created_at,updated_at,COUNT(*) OVER() AS total_rows FROM iklan_barang_bekas.iklan WHERE moderation_status=$1 AND deleted_at IS NULL ORDER BY created_at ASC LIMIT $2 OFFSET $3";
-const ADMIN_LIST_DESC: &str = "SELECT id,seller_id,judul,deskripsi,jenis_barang,jumlah,lokasi_pengambilan,lokasi,foto_urls,availability_status,moderation_status,deleted_at,created_at,updated_at,COUNT(*) OVER() AS total_rows FROM iklan_barang_bekas.iklan WHERE moderation_status=$1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT $2 OFFSET $3";
-const ADMIN_EXPORT_SEARCH: &str = "SELECT id,seller_id,judul,deskripsi,jenis_barang,jumlah,lokasi_pengambilan,lokasi,foto_urls,availability_status,moderation_status,deleted_at,created_at,updated_at FROM iklan_barang_bekas.iklan WHERE moderation_status=$1 AND deleted_at IS NULL AND (judul ILIKE $2 OR seller_id::text ILIKE $2) ORDER BY created_at DESC LIMIT $3";
-const ADMIN_EXPORT: &str = "SELECT id,seller_id,judul,deskripsi,jenis_barang,jumlah,lokasi_pengambilan,lokasi,foto_urls,availability_status,moderation_status,deleted_at,created_at,updated_at FROM iklan_barang_bekas.iklan WHERE moderation_status=$1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT $2";
+const ADMIN_LIST_SEARCH_ASC: &str = "SELECT id,seller_id,judul,deskripsi,jenis_barang,jumlah,lokasi_pengambilan,lokasi,region_id,foto_urls,availability_status,moderation_status,deleted_at,created_at,updated_at,COUNT(*) OVER() AS total_rows FROM iklan_barang_bekas.iklan WHERE moderation_status=$1 AND deleted_at IS NULL AND (judul ILIKE $2 OR seller_id::text ILIKE $2) ORDER BY created_at ASC LIMIT $3 OFFSET $4";
+const ADMIN_LIST_SEARCH_DESC: &str = "SELECT id,seller_id,judul,deskripsi,jenis_barang,jumlah,lokasi_pengambilan,lokasi,region_id,foto_urls,availability_status,moderation_status,deleted_at,created_at,updated_at,COUNT(*) OVER() AS total_rows FROM iklan_barang_bekas.iklan WHERE moderation_status=$1 AND deleted_at IS NULL AND (judul ILIKE $2 OR seller_id::text ILIKE $2) ORDER BY created_at DESC LIMIT $3 OFFSET $4";
+const ADMIN_LIST_ASC: &str = "SELECT id,seller_id,judul,deskripsi,jenis_barang,jumlah,lokasi_pengambilan,lokasi,region_id,foto_urls,availability_status,moderation_status,deleted_at,created_at,updated_at,COUNT(*) OVER() AS total_rows FROM iklan_barang_bekas.iklan WHERE moderation_status=$1 AND deleted_at IS NULL ORDER BY created_at ASC LIMIT $2 OFFSET $3";
+const ADMIN_LIST_DESC: &str = "SELECT id,seller_id,judul,deskripsi,jenis_barang,jumlah,lokasi_pengambilan,lokasi,region_id,foto_urls,availability_status,moderation_status,deleted_at,created_at,updated_at,COUNT(*) OVER() AS total_rows FROM iklan_barang_bekas.iklan WHERE moderation_status=$1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT $2 OFFSET $3";
+const ADMIN_EXPORT_SEARCH: &str = "SELECT id,seller_id,judul,deskripsi,jenis_barang,jumlah,lokasi_pengambilan,lokasi,region_id,foto_urls,availability_status,moderation_status,deleted_at,created_at,updated_at FROM iklan_barang_bekas.iklan WHERE moderation_status=$1 AND deleted_at IS NULL AND (judul ILIKE $2 OR seller_id::text ILIKE $2) ORDER BY created_at DESC LIMIT $3";
+const ADMIN_EXPORT: &str = "SELECT id,seller_id,judul,deskripsi,jenis_barang,jumlah,lokasi_pengambilan,lokasi,region_id,foto_urls,availability_status,moderation_status,deleted_at,created_at,updated_at FROM iklan_barang_bekas.iklan WHERE moderation_status=$1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT $2";

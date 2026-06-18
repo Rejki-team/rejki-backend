@@ -278,9 +278,9 @@
         </div>
 
         <div class="sec-card ph3">
-          <div class="card-phase"><span class="ph-tag ph-3">◌ Phase 3 — Hardening</span></div>
+          <div class="card-phase"><span class="ph-tag ph-done">✅ Implemented</span></div>
           <h4>Audit Log</h4>
-          <p>Log setiap auth event: login, logout, refresh, failed attempts. Log write ke tabel <code>auth.audit_log</code> — tidak bisa diedit.</p>
+          <p>Log setiap auth event: login, logout, refresh, failed attempts, OTP sent, password changed, suspend. Log write ke tabel <code>auth.audit_log</code> — append-only, 11 AuditEvent variant, fail-open. <a href="../../openspec/changes/ws-audit-log/tasks.md" style="color:var(--green);">W3B-04 · 19 Jun 2026</a></p>
         </div>
 
         <div class="sec-card ph3">
@@ -902,14 +902,14 @@ location /api/v1/auth/ {
     <section id="audit-log">
       <h2 class="sec-title"><span class="sec-icon ic-y">📜</span>Audit Log (Phase 3)</h2>
 
-      <p style="color:var(--muted);font-size:.85rem;margin-bottom:1rem;">Rekam setiap event auth penting ke tabel immutable. Berguna untuk investigasi insiden dan compliance.</p>
+      <p style="color:var(--muted);font-size:.85rem;margin-bottom:1rem;">Rekam setiap event auth penting ke tabel immutable. Berguna untuk investigasi insiden dan compliance. ✅ <strong>Sudah diimplementasi</strong> — lihat <a href="../../openspec/changes/ws-audit-log/tasks.md" style="color:var(--green);">W3B-04 · ws-audit-log</a>.</p>
 
       <div class="code">
-        <pre><span class="cc">-- migrations/create_audit_log.sql</span>
+        <pre><span class="cc">-- migrations/20260619000001_create_audit_log.up.sql</span>
 <span class="ck">CREATE TABLE</span> auth.audit_log (
   id         <span class="ct">UUID</span>      <span class="ck">PRIMARY KEY DEFAULT</span> gen_random_uuid(),
   user_id    <span class="ct">UUID</span>,                  <span class="cc">-- NULL untuk failed login (user tidak ada)</span>
-  event      <span class="ct">TEXT</span>      <span class="ck">NOT NULL</span>,  <span class="cc">-- 'login_success', 'login_failed', 'logout', 'token_refresh', 'otp_sent'</span>
+  event      <span class="ct">TEXT</span>      <span class="ck">NOT NULL</span>,  <span class="cc">-- 'login_success', 'login_failed', 'admin_login_success', 'logout', 'token_refresh', 'otp_sent', 'password_changed', 'password_reset', 'account_suspended', 'account_suspended_bulk'</span>
   ip_address <span class="ct">INET</span>,
   user_agent <span class="ct">TEXT</span>,
   request_id <span class="ct">TEXT</span>,
@@ -917,8 +917,9 @@ location /api/v1/auth/ {
   created_at <span class="ct">TIMESTAMPTZ</span> <span class="ck">NOT NULL DEFAULT</span> now()
 );
 
-<span class="cc">-- Tidak ada UPDATE atau DELETE — append-only</span>
-<span class="ck">REVOKE</span> UPDATE, DELETE <span class="ck">ON</span> auth.audit_log <span class="ck">FROM</span> rejki;</pre>
+<span class="cc">-- 11 AuditEvent variant, fail-open, FromRequestParts extractor</span>
+<span class="cc">-- Append-only di-enforce di application layer (PgAuditLogRepository INSERT-only).</span>
+<span class="cc">-- Di production, jalankan: REVOKE UPDATE, DELETE ON auth.audit_log FROM &lt;app_role&gt;;</span></pre>
       </div>
     </section>
 

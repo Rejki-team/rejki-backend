@@ -24,6 +24,12 @@ impl PgAuthRepository {
     pub fn new(pool: PgPool) -> Self {
         Self { pool }
     }
+
+    /// Akses pool untuk wiring infrastructure lain (mis. PgAuditLogRepository)
+    /// tanpa harus passing pool terpisah lewat seluruh routing chain.
+    pub fn pool(&self) -> PgPool {
+        self.pool.clone()
+    }
 }
 
 /// Map string status dari DB ke enum domain; status tak dikenal dianggap error data.

@@ -44,6 +44,7 @@ pub struct IklanPekerjaan {
     pub perusahaan: String,
     pub deskripsi: String,
     pub lokasi: Option<String>,
+    pub region_id: Option<String>,
     pub gaji_min: Option<i64>,
     pub gaji_max: Option<i64>,
     pub tipe: String, // "full_time" | "part_time" | "freelance" | "internship"

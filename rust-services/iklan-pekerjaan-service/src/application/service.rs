@@ -8,6 +8,7 @@ use super::dto::{
 use crate::domain::repository::{AdminListParams, CreatePekerjaanParams, IklanPekerjaanRepository};
 use common_rate_limit::RateLimiter;
 use notification_service_client::NotificationClient;
+use region_service_client::RegionClient;
 use storage_service_client::StorageClient;
 
 /// Default untuk pagination & storage.
@@ -20,6 +21,7 @@ pub mod storage_category {
 pub struct IklanPekerjaanService<R: IklanPekerjaanRepository> {
     repo: Arc<R>,
     rate_limiter: Option<Arc<dyn RateLimiter>>,
+    region_client: Option<Arc<dyn RegionClient>>,
 }
 
 impl<R: IklanPekerjaanRepository> IklanPekerjaanService<R> {
@@ -27,11 +29,17 @@ impl<R: IklanPekerjaanRepository> IklanPekerjaanService<R> {
         Self {
             repo,
             rate_limiter: None,
+            region_client: None,
         }
     }
 
     pub fn with_rate_limiter(mut self, rl: Arc<dyn RateLimiter>) -> Self {
         self.rate_limiter = Some(rl);
+        self
+    }
+
+    pub fn with_region_client(mut self, rc: Arc<dyn RegionClient>) -> Self {
+        self.region_client = Some(rc);
         self
     }
 
@@ -82,6 +90,21 @@ impl<R: IklanPekerjaanRepository> IklanPekerjaanService<R> {
                 "Anda tidak dapat membuat iklan baru selama 3 hari setelah iklan ditangguhkan secara permanen"
             ));
         }
+        // Validasi region_id jika diisi.
+        if let (Some(rc), Some(ref rid)) = (&self.region_client, &input.region_id) {
+            if !rid.is_empty() {
+                match rc.get_region(rid).await {
+                    Err(region_service_client::RegionClientError::NotFound) => {
+                        return Err(anyhow::anyhow!("region_id tidak ditemukan"));
+                    }
+                    Err(_) => {
+                        tracing::warn!(region_id = %rid, "region-service unavailable saat validasi create");
+                    }
+                    Ok(_) => { /* valid */ }
+                }
+            }
+        }
+
         let judul = ammonia::clean_text(&input.judul);
         let deskripsi = ammonia::clean_text(&input.deskripsi);
         let item = self
@@ -93,6 +116,7 @@ impl<R: IklanPekerjaanRepository> IklanPekerjaanService<R> {
                 deskripsi: &deskripsi,
                 tipe: &input.tipe,
                 lokasi: input.lokasi.as_deref(),
+                region_id: input.region_id.as_deref(),
                 gaji_min: input.gaji_min,
                 gaji_max: input.gaji_max,
             })
@@ -275,6 +299,7 @@ fn to_response(e: crate::domain::entity::IklanPekerjaan) -> IklanPekerjaanRespon
         perusahaan: e.perusahaan,
         deskripsi: e.deskripsi,
         lokasi: e.lokasi,
+        region_id: e.region_id,
         gaji_min: e.gaji_min,
         gaji_max: e.gaji_max,
         tipe: e.tipe,
@@ -293,6 +318,7 @@ fn to_admin_response(e: crate::domain::entity::IklanPekerjaan) -> AdminIklanPeke
         perusahaan: e.perusahaan,
         deskripsi: e.deskripsi,
         lokasi: e.lokasi,
+        region_id: e.region_id,
         gaji_min: e.gaji_min,
         gaji_max: e.gaji_max,
         tipe: e.tipe,

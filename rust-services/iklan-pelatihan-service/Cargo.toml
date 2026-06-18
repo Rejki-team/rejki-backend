@@ -20,6 +20,7 @@ iklan-pelatihan-service-client = { path = "../iklan-pelatihan-service-client" }
 user-service-client            = { path = "../user-service-client" }
 notification-service-client    = { path = "../notification-service-client" }
 storage-service-client         = { path = "../storage-service-client" }
+region-service-client          = { path = "../region-service-client" }
 auth-service-client            = { path = "../auth-service-client" }
 async-trait                    = "0.1"
 

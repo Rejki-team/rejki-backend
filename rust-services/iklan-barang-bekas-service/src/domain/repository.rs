@@ -27,6 +27,7 @@ pub struct CreateBarangBekasParams<'a> {
     pub jumlah: i32,
     pub lokasi_pengambilan: &'a str,
     pub lokasi: Option<&'a str>,
+    pub region_id: Option<&'a str>,
     pub foto_urls: &'a [String],
 }
 
