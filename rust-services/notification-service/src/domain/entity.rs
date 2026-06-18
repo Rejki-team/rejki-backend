@@ -11,3 +11,13 @@ pub struct Notification {
     pub is_read: bool,
     pub created_at: DateTime<Utc>,
 }
+
+#[derive(Debug, Clone)]
+pub struct DeviceToken {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub token: String,
+    pub platform: String, // android | ios | web
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}

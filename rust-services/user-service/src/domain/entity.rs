@@ -70,6 +70,22 @@ impl std::str::FromStr for KycSubmissionStatus {
     }
 }
 
+/// Galat domain saat meninjau pengajuan KYC (add-user-admin-management D5).
+/// Tipe eksplisit agar interface dapat memetakan ke kode HTTP yang tepat
+/// (mis. AlreadyReviewed → 409) tanpa string-matching pesan yang rapuh.
+#[derive(Debug, thiserror::Error)]
+pub enum ReviewError {
+    /// Submission sudah berstatus terminal (approved/rejected) — tak boleh ditinjau ulang.
+    #[error("pengajuan sudah ditinjau dan tidak dapat ditinjau ulang")]
+    AlreadyReviewed,
+    /// Submission tidak ditemukan.
+    #[error("submission tidak ditemukan")]
+    NotFound,
+    /// Galat lain (DB, klien eksternal, dll.).
+    #[error(transparent)]
+    Other(#[from] anyhow::Error),
+}
+
 /// Jenis akses dokumen yang dicatat di audit trail (Q2).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DocumentAccessAction {

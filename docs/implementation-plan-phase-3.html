@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rejki Backend — Implementation Plan Phase 3</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0d1117; --surf: #161b22; --surf2: #1c2230; --surf3: #21262d;
+      --border: #30363d; --border2: #21262d;
+      --text: #e6edf3; --muted: #8b949e; --muted2: #6e7681;
+      --green: #3fb950; --green-dim: #238636;
+      --blue: #79c0ff; --blue-dim: #1f6feb;
+      --orange: #f78166; --yellow: #d29922; --yellow-bright: #e3b341;
+      --purple: #bc8cff; --purple-dim: #6e40c9;
+      --cyan: #39c5cf; --red: #f85149;
+      --r: 8px; --r-lg: 12px;
+    }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    html { scroll-behavior: smooth; }
+    body { font-family: -apple-system, 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; font-size: 14px; }
+    .layout { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
+    @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } .nav { display: none; } }
+    .nav { position: sticky; top: 0; height: 100vh; overflow-y: auto; overflow-x: hidden; background: var(--surf); border-right: 1px solid var(--border); padding: 1.25rem .75rem; display: flex; flex-direction: column; gap: .1rem; }
+    .nav-brand { font-size: .85rem; font-weight: 800; letter-spacing: -.2px; color: var(--yellow-bright); padding: .25rem .5rem .75rem; border-bottom: 1px solid var(--border2); margin-bottom: .5rem; }
+    .nav-brand span { color: var(--muted); }
+    .nav-section { font-size: .6rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted2); padding: .6rem .5rem .2rem; }
+    .nav-item { display: flex; align-items: center; gap: .5rem; padding: .3rem .5rem; border-radius: 6px; font-size: .78rem; color: var(--muted); text-decoration: none; transition: background .1s, color .1s; }
+    .nav-item:hover { background: var(--surf3); color: var(--text); }
+    .nav-item .nav-badge { margin-left: auto; font-size: .58rem; font-weight: 700; padding: .1rem .35rem; border-radius: 20px; }
+    .nb-todo { background: rgba(139,148,158,.15); color: var(--muted); }
+    .nb-prog { background: rgba(121,192,255,.12); color: var(--blue); }
+    .nb-done { background: rgba(63,185,80,.15); color: var(--green); }
+    .nav-divider { height: 1px; background: var(--border2); margin: .5rem 0; }
+    .nav-back { color: var(--blue); font-size: .75rem; }
+    .progress-wrap { padding: .5rem; margin-bottom: .25rem; }
+    .progress-label { display: flex; justify-content: space-between; font-size: .65rem; color: var(--muted); margin-bottom: .35rem; }
+    .progress-track { height: 4px; background: var(--surf3); border-radius: 2px; overflow: hidden; }
+    .progress-fill { height: 100%; border-radius: 2px; background: linear-gradient(90deg, var(--yellow), var(--yellow-bright)); transition: width .3s; }
+    main { max-width: 900px; margin: 0 auto; padding: 2.5rem 2rem 6rem; }
+    @media (max-width: 600px) { main { padding: 1.75rem 1rem 4rem; } }
+    .hero { margin-bottom: 2.5rem; padding-bottom: 2rem; border-bottom: 1px solid var(--border); }
+    .eyebrow { display: inline-flex; align-items: center; gap: .4rem; font-size: .68rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--yellow-bright); background: rgba(227,179,65,.07); border: 1px solid rgba(227,179,65,.2); border-radius: 20px; padding: .2rem .65rem; margin-bottom: .75rem; }
+    .hero h1 { font-size: clamp(1.5rem, 3.5vw, 2.1rem); font-weight: 800; line-height: 1.15; letter-spacing: -.4px; margin-bottom: .65rem; }
+    .hero h1 em { font-style: normal; color: var(--yellow-bright); }
+    .hero p { color: var(--muted); font-size: .9rem; max-width: 640px; line-height: 1.75; }
+    .meta-pills { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: 1rem; }
+    .pill { font-size: .7rem; font-weight: 600; padding: .18rem .6rem; border-radius: 20px; border: 1px solid; }
+    .pill-y { color: var(--yellow-bright); border-color: rgba(227,179,65,.35); background: rgba(227,179,65,.07); }
+    .pill-g { color: var(--green); border-color: rgba(63,185,80,.35); background: rgba(63,185,80,.07); }
+    .pill-r { color: var(--red); border-color: rgba(248,81,73,.35); background: rgba(248,81,73,.07); }
+    .pill-b { color: var(--blue); border-color: rgba(121,192,255,.35); background: rgba(121,192,255,.07); }
+    .wave { margin-bottom: 2.75rem; scroll-margin-top: 1rem; }
+    .wave-header { display: flex; align-items: flex-start; gap: .85rem; margin-bottom: 1.25rem; padding-bottom: .6rem; border-bottom: 1px solid var(--border); }
+    .wave-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 2.2rem; height: 2.2rem; font-size: .65rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; border-radius: 8px; flex-shrink: 0; margin-top: 2px; }
+    .wb-3a { background: #b75239; color: #fff; }
+    .wb-3b { background: var(--yellow); color: #000; }
+    .wb-3c { background: var(--blue-dim); color: #fff; }
+    .wb-3d { background: var(--purple-dim); color: #fff; }
+    .wave-info { flex: 1; min-width: 0; }
+    .wave-title { font-size: 1rem; font-weight: 700; line-height: 1.3; }
+    .wave-desc { font-size: .8rem; color: var(--muted); margin-top: .2rem; line-height: 1.55; }
+    .wave-links { display: flex; flex-wrap: wrap; gap: .35rem; margin-top: .4rem; }
+    .wave-link { font-size: .68rem; color: var(--blue); text-decoration: none; opacity: .8; }
+    .wave-link:hover { opacity: 1; text-decoration: underline; }
+    .wave-status { flex-shrink: 0; margin-top: 3px; }
+    .badge { display: inline-flex; align-items: center; gap: .3rem; font-size: .66rem; font-weight: 700; padding: .2rem .55rem; border-radius: 20px; white-space: nowrap; }
+    .badge::before { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%; }
+    .badge-todo { background: rgba(139,148,158,.1); color: var(--muted); border: 1px solid rgba(139,148,158,.25); }
+    .badge-todo::before { background: var(--muted); }
+    .badge-prog { background: rgba(121,192,255,.1); color: var(--blue); border: 1px solid rgba(121,192,255,.25); }
+    .badge-prog::before { background: var(--blue); }
+    .badge-done { background: rgba(63,185,80,.12); color: var(--green); border: 1px solid rgba(63,185,80,.3); }
+    .badge-done::before { background: var(--green); }
+    .tasks { display: flex; flex-direction: column; gap: .6rem; }
+    .task { background: var(--surf); border: 1px solid var(--border); border-radius: var(--r); overflow: hidden; }
+    .task-head { display: flex; align-items: flex-start; gap: .7rem; padding: .85rem 1rem; transition: background .1s; cursor: default; }
+    .task-head:hover { background: var(--surf2); }
+    .task-id { font-size: .62rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--muted2); background: var(--surf2); border: 1px solid var(--border); border-radius: 4px; padding: .15rem .4rem; white-space: nowrap; flex-shrink: 0; margin-top: 1px; }
+    .task-title { font-size: .875rem; font-weight: 600; flex: 1; line-height: 1.45; }
+    .task-scope { font-size: .68rem; color: var(--cyan); background: rgba(57,197,207,.07); border: 1px solid rgba(57,197,207,.2); border-radius: 4px; padding: .1rem .4rem; white-space: nowrap; flex-shrink: 0; margin-top: 2px; }
+    .task-body { padding: 0 1rem 1rem; border-top: 1px solid var(--border2); display: flex; flex-direction: column; gap: .65rem; }
+    .task-body-inner { padding-top: .75rem; }
+    .section-label { font-size: .65rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted2); margin-bottom: .35rem; }
+    .file-list { display: flex; flex-direction: column; gap: .22rem; }
+    .file-row { display: flex; align-items: baseline; gap: .5rem; font-size: .8rem; line-height: 1.5; flex-wrap: wrap; }
+    .fop { font-size: .6rem; font-weight: 700; text-transform: uppercase; border-radius: 3px; padding: .05rem .28rem; flex-shrink: 0; }
+    .fop-new { background: rgba(63,185,80,.12); color: var(--green); border: 1px solid rgba(63,185,80,.28); }
+    .fop-edit { background: rgba(121,192,255,.12); color: var(--blue); border: 1px solid rgba(121,192,255,.28); }
+    .fop-migr { background: rgba(227,179,65,.12); color: var(--yellow-bright); border: 1px solid rgba(227,179,65,.28); }
+    .fpath { font-family: 'Cascadia Code','Fira Code','Consolas',monospace; font-size: .76rem; color: var(--blue); }
+    .fnote { color: var(--muted); font-size: .76rem; }
+    .impl-list { display: flex; flex-direction: column; gap: .22rem; }
+    .impl-item { font-size: .8rem; color: var(--muted); padding-left: .9rem; position: relative; line-height: 1.6; }
+    .impl-item::before { content: '·'; position: absolute; left: .2rem; color: var(--muted2); }
+    .impl-item code { font-family: 'Cascadia Code','Fira Code','Consolas',monospace; font-size: .73rem; background: var(--surf3); border: 1px solid var(--border); border-radius: 3px; padding: .02rem .28rem; color: var(--blue); }
+    .callout { border-radius: var(--r); padding: .7rem .9rem; font-size: .8rem; display: flex; gap: .6rem; line-height: 1.65; }
+    .callout-icon { flex-shrink: 0; font-size: .95rem; line-height: 1.6; }
+    .callout strong { display: block; color: var(--text); margin-bottom: .1rem; font-size: .82rem; }
+    .callout p { color: var(--muted); }
+    .c-warn { background: rgba(227,179,65,.06); border: 1px solid rgba(227,179,65,.2); }
+    .c-info { background: rgba(121,192,255,.06); border: 1px solid rgba(121,192,255,.2); }
+    .c-ok { background: rgba(63,185,80,.06); border: 1px solid rgba(63,185,80,.2); }
+    .c-danger { background: rgba(247,129,102,.06); border: 1px solid rgba(247,129,102,.2); }
+    .tbl-wrap { overflow-x: auto; border-radius: var(--r); border: 1px solid var(--border); margin-bottom: 1rem; }
+    .tbl { width: 100%; border-collapse: collapse; font-size: .8rem; }
+    .tbl th { background: var(--surf2); padding: .5rem .75rem; text-align: left; font-size: .65rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+    .tbl td { padding: .5rem .75rem; border-top: 1px solid var(--border2); vertical-align: top; line-height: 1.5; }
+    .tbl tr:hover td { background: var(--surf2); }
+    .dep-list { display: flex; flex-wrap: wrap; gap: .3rem; }
+    .dep { font-family: 'Cascadia Code','Fira Code','Consolas',monospace; font-size: .71rem; background: var(--surf2); border: 1px solid var(--border); border-radius: 4px; padding: .08rem .4rem; color: var(--orange); }
+    .dep-none { color: var(--green); font-size: .71rem; }
+    code { font-family: 'Cascadia Code','Fira Code','Consolas',monospace; font-size: .74rem; background: var(--surf3); border: 1px solid var(--border); border-radius: 3px; padding: .02rem .3rem; color: var(--blue); }
+    .priority-badge { display: inline-flex; align-items: center; font-size: .62rem; font-weight: 700; padding: .08rem .4rem; border-radius: 4px; border: 1px solid; white-space: nowrap; }
+    .pb-p0 { color: var(--red); border-color: rgba(248,81,73,.35); background: rgba(248,81,73,.1); }
+    .pb-p1 { color: var(--yellow-bright); border-color: rgba(227,179,65,.35); background: rgba(227,179,65,.1); }
+    .pb-p2 { color: var(--blue); border-color: rgba(121,192,255,.35); background: rgba(121,192,255,.1); }
+    .pb-p3 { color: var(--muted); border-color: rgba(139,148,158,.35); background: rgba(139,148,158,.08); }
+    .timeline { margin: 1.5rem 0; display: flex; flex-direction: column; gap: .5rem; }
+    .tl-row { display: flex; align-items: center; gap: .75rem; }
+    .tl-week { font-size: .65rem; font-weight: 700; color: var(--muted2); min-width: 60px; text-align: right; }
+    .tl-bar-wrap { flex: 1; height: 20px; background: var(--surf3); border-radius: 4px; position: relative; overflow: hidden; }
+    .tl-bar { position: absolute; top: 0; height: 100%; border-radius: 4px; display: flex; align-items: center; font-size: .58rem; font-weight: 700; padding: 0 .5rem; white-space: nowrap; }
+    .tl-3a { background: rgba(248,81,73,.3); left: 0; }
+    .tl-3b { background: rgba(227,179,65,.3); }
+    .tl-3c { background: rgba(121,192,255,.3); }
+    .tl-3d { background: rgba(188,140,255,.3); }
+    .gap-section { display: flex; flex-direction: column; gap: .65rem; }
+    .section-title { font-size: 1rem; font-weight: 700; margin-bottom: 1.25rem; padding-bottom: .5rem; border-bottom: 1px solid var(--border); }
+    footer { margin-top: 3.5rem; padding-top: 1.25rem; border-top: 1px solid var(--border); font-size: .72rem; color: var(--muted2); display: flex; justify-content: space-between; flex-wrap: wrap; gap: .5rem; }
+  </style>
+</head>
+<body>
+<div class="layout">
+
+  <nav class="nav">
+    <div class="nav-brand">rejki<span>-backend</span></div>
+    <div class="progress-wrap">
+      <div class="progress-label">
+        <span>Phase 3 Progress</span>
+        <span style="color:var(--yellow-bright);font-weight:700;">33%</span>
+      </div>
+      <div class="progress-track"><div class="progress-fill" style="width:33%"></div></div>
+    </div>
+    <div class="nav-divider"></div>
+    <div class="nav-section">Navigasi</div>
+    <a class="nav-item nav-back" href="index.html">← Architecture Overview</a>
+    <a class="nav-item nav-back" href="brainstorm/phase-3-hardening-analysis.html">← Brainstorm Phase 3</a>
+    <div class="nav-section">Wave</div>
+    <a class="nav-item" href="#w3a">W3A — Security Core & Foundation <span class="nav-badge nb-todo">0/3</span></a>
+    <a class="nav-item" href="#w3b">W3B — Compliance & Access <span class="nav-badge nb-todo">0/4</span></a>
+    <a class="nav-item" href="#w3c">W3C — Production Polish <span class="nav-badge nb-todo">0/4</span></a>
+    <a class="nav-item" href="#w3d">W3D — Analytics & Infra <span class="nav-badge nb-todo">0/4</span></a>
+    <a class="nav-item" href="#summary">Ringkasan</a>
+    <div class="nav-divider"></div>
+    <div class="nav-section">Referensi</div>
+    <a class="nav-item" href="security-baseline.html">Security Baseline</a>
+    <a class="nav-item" href="testing-standard.html">Testing Standard</a>
+    <a class="nav-item" href="api-standard.html">API Standard</a>
+    <a class="nav-item" href="authorization-pattern.html">Authorization Pattern</a>
+  </nav>
+
+  <main>
+
+    <div class="hero">
+      <div class="eyebrow">Implementation Plan</div>
+      <h1>Phase 3 — <em>Rencana Implementasi</em></h1>
+      <p>Seluruh task implementasi Phase 3 (Hardening) dikelompokkan dalam 4 wave berurutan (W3A–W3D). Setiap wave adalah satu OpenSpec change yang berdiri sendiri. Urutan didesain untuk menghindari bottleneck dan deadlock — dependency eksplisit, parallel work dimaksimalkan.</p>
+      <div class="meta-pills">
+        <span class="pill pill-y">4 Waves</span>
+        <span class="pill pill-g">15 Task</span>
+        <span class="pill pill-r">8-12 Minggu</span>
+        <span class="pill pill-b">22 Gap Target</span>
+      </div>
+    </div>
+
+    <!-- ═══════════════ W3A ═══════════════ -->
+    <div class="wave" id="w3a">
+      <div class="wave-header">
+        <div class="wave-badge wb-3a">W3A</div>
+        <div class="wave-info">
+          <div class="wave-title">Security Core & Foundation (P0) — Production Minimum Viable</div>
+          <div class="wave-desc">Tiga P0 Critical yang harus selesai sebelum production deployment. Fokus: testing coverage gate, rate limiting bisnis, region integrity.</div>
+          <div class="wave-links">
+            <a class="wave-link" href="brainstorm/phase-3-hardening-analysis.html">brainstorm Phase 3</a>
+            <a class="wave-link" href="../openspec/changes/ws-testing-coverage/proposal.md">ws-testing-coverage</a>
+          </div>
+        </div>
+        <div class="wave-status"><span class="badge badge-prog">⚡ 2/3</span></div>
+      </div>
+
+      <div class="tasks">
+
+        <div class="task">
+          <div class="task-head">
+            <span class="task-id">W3A-01</span>
+            <span class="task-title">ws-testing-coverage — Unit test roll-out ke 9 service + 52 integration tests + coverage gate 49%</span>
+            <span class="task-scope">semua service</span>
+            <span class="priority-badge pb-p0">P0</span>
+            <span class="badge badge-done" style="flex-shrink:0;margin-top:2px;">Done</span>
+          </div>
+          <div class="task-body">
+            <div class="task-body-inner gap-section">
+              <div>
+                <div class="section-label">Hasil final (2026-06-17)</div>
+                <div class="impl-list">
+                  <div class="impl-item">Section 1 (CI fix): ✅ schema 8→12 dinamis, semua test file dijalankan. Verified: Podman PostgreSQL container.</div>
+                  <div class="impl-item">Section 2 (unit test auth): ✅ 65/65 PASS</div>
+                  <div class="impl-item">Section 3 (unit test user): ✅ 37/37 PASS</div>
+                  <div class="impl-item">Section 4 (integration test gap): ✅ <strong>52/52 PASS</strong> — auth_integration_test (13), barang_gratis_test (9), bulk_suspend_test (9), user_admin_kyc_test (13), user_code_review_fix_test (8). Dijalankan via Podman PostgreSQL container.</div>
+                  <div class="impl-item">Section 5 (coverage tooling): ✅ cargo-llvm-cov v0.8.7, baseline 17.90%→49.09%. CI coverage gate: hard fail below 49%.</div>
+                  <div class="impl-item">Section 6 (roll-out): ✅ <strong>9/10 services</strong> — 236 unit tests (storage-service N/A — no application layer). Semua service sekarang punya MockRepository + unit test.</div>
+                  <div class="impl-item">Section 7 (finalisasi): ✅ archive done. cargo fmt ✅, clippy zero warn ✅, sqlx offline cache updated ✅, index.html checklist updated ✅.</div>
+                </div>
+              </div>
+              <div>
+                <div class="section-label">Unit test per service</div>
+                <div class="impl-list">
+                  <div class="impl-item"><strong>auth-service</strong>: 65 PASS (register, login, OTP, admin, rate limit, suspend, state machine)</div>
+                  <div class="impl-item"><strong>user-service</strong>: 37 PASS (NIK validation, CSV escape, KYC status, masking, cooldown, entity)</div>
+                  <div class="impl-item"><strong>iklan-pekerjaan-service</strong>: 19 PASS (list, get, create, delete IDOR, admin_list, suspend, cooldown, HTML strip, entity)</div>
+                  <div class="impl-item"><strong>iklan-pekerja-service</strong>: 12 PASS (list, get, create, delete IDOR, admin_list, suspend, HTML strip)</div>
+                  <div class="impl-item"><strong>iklan-barang-bekas-service</strong>: 15 PASS (list, get, create, validasi jenis_barang, mark_taken IDOR idempotent, delete, suspend, AvailabilityStatus)</div>
+                  <div class="impl-item"><strong>iklan-pelatihan-service</strong>: 19 PASS (list, get, create_user/create_admin, delete IDOR, admin_update, review approve/reject/already-reviewed, enrollment, entity)</div>
+                  <div class="impl-item"><strong>corporate-comms-service</strong>: 14 PASS (create, get, update, delete soft-delete, HTML strip, ArticleCategory)</div>
+                  <div class="impl-item"><strong>report-service</strong>: 21 PASS (create_report, admin_get_detail, review approve/reject/already-reviewed, in-process client, ReportStatus/ReportTargetType)</div>
+                  <div class="impl-item"><strong>region-service</strong>: 11 PASS (list_provinces/regencies/districts/villages, get, validate_chain, entity)</div>
+                  <div class="impl-item"><strong>notification-service</strong>: 10 PASS (send, list_for_user, mark_read, send_bulk, register_device_token android/ios/invalid, delete)</div>
+                  <div class="impl-item"><strong>chat-service</strong>: 10 PASS (get_or_create_conversation new/existing/reversed, send_message, HTML strip, list_messages cursor, default limit)</div>
+                  <div class="impl-item"><strong>storage-service</strong>: N/A — pure infrastructure (Minio + StorageInProcessClient), no domain/application layer</div>
+                </div>
+              </div>
+              <div class="callout c-ok">
+                <span class="callout-icon">✅</span>
+                <div><strong>Metrik final: 288 tests / 0 FAIL. Coverage: 49.09% (+31.19% dari baseline).</strong>
+                <p>Unit test: 236 PASS (9 services). Integration test: 52 PASS (5 test files). CI coverage gate: hard fail &lt;49%. Semua task selesai dan terverifikasi.</p></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- W3A-02: Rate limiting bisnis -->
+        <div class="task">
+          <div class="task-head">
+            <span class="task-id">W3A-02</span>
+            <span class="task-title">Rate limiting endpoint bisnis — common/rate-limit crate, 6 services injected, OtpRateLimiter extracted</span>
+            <span class="task-scope">semua service</span>
+            <span class="priority-badge pb-p0">P0</span>
+            <span class="badge badge-done" style="flex-shrink:0;margin-top:2px;">✅ Done</span>
+          </div>
+          <div class="task-body">
+            <div class="task-body-inner gap-section">
+              <div>
+                <div class="section-label">OpenSpec change: <code>ws-rate-limiting-bisnis</code> — <a href="../../openspec/changes/ws-rate-limiting-bisnis/tasks.md" style="color:var(--blue);">tasks.md</a></div>
+              </div>
+              <div>
+                <div class="section-label">Progress (2026-06-18)</div>
+                <div class="impl-list">
+                  <div class="impl-item">✅ <strong>Task 1:</strong> <code>common/rate-limit</code> crate — RateLimiter trait + OtpRateLimiter (Redis Lua atomik, fail-open) + 6 unit tests PASS</div>
+                  <div class="impl-item">✅ <strong>Task 2:</strong> auth-service backward compat — re-export + OTP calls migrated ke <code>allow_raw()</code> — 60/60 PASS</div>
+                  <div class="impl-item">✅ <strong>Task 3:</strong> <code>AppError::RateLimited</code> — HTTP 429 + Retry-After: 60 header</div>
+                  <div class="impl-item">✅ <strong>Task 4:</strong> Global middleware — <code>RateLimitState</code> + <code>global_rate_limit()</code> di rejki-app, X-Forwarded-For/X-Real-IP, 100 req/menit skip health</div>
+                  <div class="impl-item">✅ <strong>Task 5-6:</strong> Service injection — 8 services — semua service layer + handler 429 mapping + router signature + wiring</div>
+                  <div class="impl-item">✅ <strong>Task 7:</strong> rejki-app wiring — rate_limiter.clone() passed ke semua 8 service routers</div>
+                  <div class="impl-item">✅ <strong>Task 8:</strong> Integration tests — 52/52 PASS via Podman (PostgreSQL + Redis)</div>
+                  <div class="impl-item">✅ <strong>Task 9:</strong> Finalisasi — fmt, clippy (zero warnings), 238 unit PASS, 52 integration PASS, sqlx prepare</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- W3A-03: region_id FK -->
+        <div class="task">
+          <div class="task-head">
+            <span class="task-id">W3A-03</span>
+            <span class="task-title">region_id FK di 4 iklan entities — normalisasi lokasi dari free-text ke reference data</span>
+            <span class="task-scope">4 iklan services</span>
+            <span class="priority-badge pb-p0">P0</span>
+          </div>
+          <div class="task-body">
+            <div class="task-body-inner gap-section">
+              <div>
+                <div class="section-label">OpenSpec change baru: <code>ws-region-id-iklan</code></div>
+              </div>
+              <div>
+                <div class="section-label">Target gap: C1</div>
+                <div class="impl-list">
+                  <div class="impl-item">Migration: tambah kolom <code>region_id TEXT</code> + B-tree index di 4 tabel iklan (nullable dulu — backward compatible)</div>
+                  <div class="impl-item">Update create handler: terima <code>region_id</code> opsional di CreateInput, validasi referensial via RegionClient.validate_region_id()</div>
+                  <div class="impl-item">Update list handler: tambah query param filter <code>region_id</code>, <code>province_id</code> di ListQuery</div>
+                  <div class="impl-item">Update detail response: tambah field <code>region_id</code> + nested region name di IklanResponse</div>
+                  <div class="impl-item">Backfill script (opsional, manual): parse <code>lokasi</code> free-text ke region_id untuk data existing</div>
+                  <div class="impl-item">Field <code>lokasi</code> tetap dipertahankan (backward compat) — deprecated bertahap</div>
+                  <div class="impl-item">Test: unit test validasi region chain, integration test filter by region_id</div>
+                </div>
+              </div>
+              <div>
+                <div class="section-label">File yang akan disentuh</div>
+                <div class="file-list">
+                  <div class="file-row"><span class="fop fop-migr">migrate</span><span class="fpath">iklan-*/migrations/*_add_region_id.up.sql</span><span class="fnote">— 4 migration files</span></div>
+                  <div class="file-row"><span class="fop fop-edit">edit</span><span class="fpath">iklan-*/src/domain/entity.rs</span><span class="fnote">— tambah region_id: Option&lt;String&gt;</span></div>
+                  <div class="file-row"><span class="fop fop-edit">edit</span><span class="fpath">iklan-*/src/application/dto.rs</span><span class="fnote">— CreateInput + ListQuery + Response</span></div>
+                  <div class="file-row"><span class="fop fop-edit">edit</span><span class="fpath">iklan-*/src/application/service.rs</span><span class="fnote">— validasi region chain via RegionClient</span></div>
+                  <div class="file-row"><span class="fop fop-edit">edit</span><span class="fpath">iklan-*/src/infrastructure/pg_repository.rs</span><span class="fnote">— query INSERT/SELECT dengan region_id</span></div>
+                </div>
+              </div>
+              <div class="callout c-warn">
+                <span class="callout-icon">⚠️</span>
+                <div><strong>Cross-service dependency</strong>
+                <p>4 iklan service butuh import <code>region-service-client</code> untuk validasi region chain. Inkonsistensi mungkin: service composition root saat ini tidak inject RegionClient ke iklan service. Perlu update rejki-app wiring.</p></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ═══════════════ W3B ═══════════════ -->
+    <div class="wave" id="w3b">
+      <div class="wave-header">
+        <div class="wave-badge wb-3b">W3B</div>
+        <div class="wave-info">
+          <div class="wave-title">Compliance & Access Control (P1) — Audit + RBAC + Fitur Dasar</div>
+          <div class="wave-desc">Audit trail, multi-tier RBAC, PATCH iklan, password reset. Bisa dimulai paralel dengan Wave 3A.</div>
+          <div class="wave-links">
+            <a class="wave-link" href="security-baseline.html">security-baseline</a>
+            <a class="wave-link" href="authorization-pattern.html">authorization-pattern</a>
+          </div>
+        </div>
+        <div class="wave-status"><span class="badge badge-todo">📋 Pending</span></div>
+      </div>
+
+      <div class="tasks">
+
+        <!-- W3B-04: audit_log -->
+        <div class="task">
+          <div class="task-head">
+            <span class="task-id">W3B-04</span>
+            <span class="task-title">audit_log table — migration + repository + trigger di auth events</span>
+            <span class="task-scope">auth-service</span>
+            <span class="priority-badge pb-p1">P1</span>
+          </div>
+          <div class="task-body">
+            <div class="task-body-inner gap-section">
+              <div>
+                <div class="section-label">OpenSpec change baru: <code>ws-audit-log</code></div>
+              </div>
+              <div>
+                <div class="section-label">Target gap: A3</div>
+                <div class="impl-list">
+                  <div class="impl-item">Migration: <code>CREATE TABLE auth.audit_log (id UUID PK, user_id UUID, event TEXT, ip_address INET, user_agent TEXT, request_id TEXT, metadata JSONB, created_at TIMESTAMPTZ)</code></div>
+                  <div class="impl-item">Domain trait: <code>AuditLogRepository</code> — <code>log(event, user_id, context)</code></div>
+                  <div class="impl-item">Infrastructure: <code>PgAuditLogRepository</code> — INSERT-only, REVOKE UPDATE/DELETE</div>
+                  <div class="impl-item">Trigger: setiap auth event (login_success, login_failed, logout, token_refresh, otp_sent, password_changed)</div>
+                  <div class="impl-item">Metadata: request_id, user_agent, ip_address — jangan simpan password/token</div>
+                  <div class="impl-item">Test: integration test verifikasi INSERT + REVOKE, unit test AuditLogRepository trait</div>
+                </div>
+              </div>
+              <div>
+                <div class="section-label">File yang akan disentuh</div>
+                <div class="file-list">
+                  <div class="file-row"><span class="fop fop-migr">migrate</span><span class="fpath">auth-service/migrations/*_create_audit_log.up.sql</span></div>
+                  <div class="file-row"><span class="fop fop-new">new</span><span class="fpath">auth-service/src/domain/audit_log.rs</span><span class="fnote">— AuditEvent enum + AuditLogRepository trait</span></div>
+                  <div class="file-row"><span class="fop fop-new">new</span><span class="fpath">auth-service/src/infrastructure/audit_log_repository.rs</span><span class="fnote">— Pg impl</span></div>
+                  <div class="file-row"><span class="fop fop-edit">edit</span><span class="fpath">auth-service/src/application/service.rs</span><span class="fnote">— panggil audit_log.log() di setiap auth event</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- W3B-05: Multi-tier RBAC -->
+        <div class="task">
+          <div class="task-head">
+            <span class="task-id">W3B-05</span>
+            <span class="task-title">Multi-tier RBAC — extend Role enum (6 value) + require_role() middleware</span>
+            <span class="task-scope">auth-service + common</span>
+            <span class="priority-badge pb-p1">P1</span>
+          </div>
+          <div class="task-body">
+            <div class="task-body-inner gap-section">
+              <div>
+                <div class="section-label">OpenSpec change baru: <code>ws-multi-tier-rbac</code></div>
+              </div>
+              <div>
+                <div class="section-label">Target gap: A2</div>
+                <div class="impl-list">
+                  <div class="impl-item">Extend enum <code>Role</code>: <code>User</code>, <code>Admin</code>, <code>Moderator</code>, <code>SuperAdmin</code>, <code>Support</code>, <code>Executive</code></div>
+                  <div class="impl-item">Migration: extend CHECK constraint di <code>auth.users.role</code></div>
+                  <div class="impl-item">Update <code>require_admin</code> → <code>require_role(required: &[Role])</code> — support multiple roles</div>
+                  <div class="impl-item">Update JWT claims: tambah <code>role</code> field agar middleware tidak perlu DB lookup per request</div>
+                  <div class="impl-item">Dashboard endpoints: moderator = moderasi konten; super_admin = suspend user + RBAC management</div>
+                  <div class="impl-item">CEO endpoints: executive = read-only analytics</div>
+                  <div class="impl-item">Support endpoints: support = lihat user profile + audit log (read-only)</div>
+                  <div class="impl-item">Test: unit test require_role() middleware, integration test role-based access (200/403 matrix)</div>
+                </div>
+              </div>
+              <div>
+                <div class="section-label">File yang akan disentuh</div>
+                <div class="file-list">
+                  <div class="file-row"><span class="fop fop-migr">migrate</span><span class="fpath">auth-service/migrations/*_extend_role.up.sql</span></div>
+                  <div class="file-row"><span class="fop fop-edit">edit</span><span class="fpath">auth-service-client/src/lib.rs</span><span class="fnote">— extend Role enum</span></div>
+                  <div class="file-row"><span class="fop fop-edit">edit</span><span class="fpath">common/auth-middleware/src/lib.rs</span><span class="fnote">— require_role()</span></div>
+                  <div class="file-row"><span class="fop fop-edit">edit</span><span class="fpath">auth-service/src/infrastructure/jwt.rs</span><span class="fnote">— inject role ke JWT claims</span></div>
+                  <div class="file-row"><span class="fop fop-edit">edit</span><span class="fpath">semua service interface/mod.rs</span><span class="fnote">— update middleware auth gate</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- W3B-06: PATCH iklan -->
+        <div class="task">
+          <div class="task-head">
+            <span class="task-id">W3B-06</span>
+            <span class="task-title">PATCH iklan — update handler di 4 iklan service + ownership check SQL</span>
+            <span class="task-scope">4 iklan services</span>
+            <span class="priority-badge pb-p1">P1</span>
+          </div>
+          <div class="task-body">
+            <div class="task-body-inner gap-section">
+              <div>
+                <div class="section-label">OpenSpec change baru: <code>ws-patch-iklan</code></div>
+              </div>
+              <div>
+                <div class="section-label">Target gap: D1</div>
+                <div class="impl-list">
+                  <div class="impl-item">DTO: <code>Update*Input</code> struct — semua field <code>Option&lt;T&gt;</code> (hanya update yang diberikan)</div>
+                  <div class="impl-item">Domain trait: <code>update(id, owner_id, input) -> Result<Iklan, AppError></code></div>
+                  <div class="impl-item">Repository: <code>UPDATE ... SET field1 = COALESCE($3, field1), ... WHERE id = $1 AND owner_id = $2 AND deleted_at IS NULL</code></div>
+                  <div class="impl-item">Handler: <code>PATCH /api/v1/{resource}/{id}</code> dengan ownership check → 404 untuk IDOR</div>
+                  <div class="impl-item">Field yang boleh di-update per vertikal — definisikan whitelist (mis. judul, deskripsi, gaji, harga, lokasi — tapi TIDAK poster_id/role/is_active)</div>
+                  <div class="impl-item">Rate limit: 30 req/min per user (bergantung W3A-02)</div>
+                  <div class="impl-item">Test: unit test update service, integration test IDOR (other_user → 404), field immutable guard</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- W3B-07: Password reset -->
+        <div class="task">
+          <div class="task-head">
+            <span class="task-id">W3B-07</span>
+            <span class="task-title">Password reset flow — OTP-based reset password + confirm-reset</span>
+            <span class="task-scope">auth-service</span>
+            <span class="priority-badge pb-p1">P1</span>
+          </div>
+          <div class="task-body">
+            <div class="task-body-inner gap-section">
+              <div>
+                <div class="section-label">OpenSpec change baru: <code>ws-password-reset</code></div>
+              </div>
+              <div>
+                <div class="section-label">Target gap: D2</div>
+                <div class="impl-list">
+                  <div class="impl-item">Handler: <code>POST /api/v1/auth/reset-password</code> — terima email, kirim OTP, timing-safe response (anti-enumeration)</div>
+                  <div class="impl-item">Handler: <code>POST /api/v1/auth/confirm-reset</code> — terima email + OTP + new_password, consume OTP, update password_hash</div>
+                  <div class="impl-item">Rate limit: 3 reset request per email per jam, 5 OTP verify attempt (sama dengan register)</div>
+                  <div class="impl-item">Audit log: event password_reset_requested, password_changed (via W3B-04)</div>
+                  <div class="impl-item">Notification: kirim OTP via email/SMS (pakai notification-service)</div>
+                  <div class="impl-item">Invalidate semua refresh token setelah password berubah (security — session hijacking prevention)</div>
+                  <div class="impl-item">Test: unit test reset flow, integration test OTP consume + password verify + token invalidation</div>
+                </div>
+              </div>
+              <div class="callout c-info">
+                <span class="callout-icon">📌</span>
+                <div><strong>Dependency opsional</strong>
+                <p>W3B-07 idealnya dikerjakan setelah W3B-04 (audit_log) agar event tercatat. Tapi bisa dimulai duluan dengan TODO marker untuk audit log integration.</p></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ═══════════════ W3C ═══════════════ -->
+    <div class="wave" id="w3c">
+      <div class="wave-header">
+        <div class="wave-badge wb-3c">W3C</div>
+        <div class="wave-info">
+          <div class="wave-title">Production Polish (P2) — CORS, Enkripsi, Integration Test, Region Validation</div>
+          <div class="wave-desc">Polish untuk production readiness. Sebagian besar bisa dikerjakan paralel.</div>
+          <div class="wave-links">
+            <a class="wave-link" href="security-baseline.html">security-baseline</a>
+            <a class="wave-link" href="../openspec/changes/ws-testing-coverage/design.md">ws-testing-coverage design</a>
+          </div>
+        </div>
+        <div class="wave-status"><span class="badge badge-todo">📋 Pending</span></div>
+      </div>
+
+      <div class="tasks">
+
+        <div class="task">
+          <div class="task-head">
+            <span class="task-id">W3C-08</span>
+            <span class="task-title">CORS production policy — whitelist origin dari env var</span>
+            <span class="task-scope">rejki-app</span>
+            <span class="priority-badge pb-p2">P2</span>
+          </div>
+          <div class="task-body">
+            <div class="task-body-inner gap-section">
+              <div><div class="section-label">Target gap: A4</div></div>
+              <div class="impl-list">
+                <div class="impl-item">Env var: <code>CORS_ALLOWED_ORIGINS</code> — comma-separated list (default: <code>https://rejki.id,https://app.rejki.id</code>)</div>
+                <div class="impl-item">Development fallback: <code>Any</code> jika <code>APP_ENV=development</code></div>
+                <div class="impl-item">Patch: <code>rejki-app/src/main.rs</code> — CorsLayer conditional</div>
+                <div class="impl-item">Test: integration test CORS preflight (OPTIONS) + CORS header presence</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="task">
+          <div class="task-head">
+            <span class="task-id">W3C-09</span>
+            <span class="task-title">Enkripsi at rest — phone + future kolom sensitif via common/crypto AES-256-GCM</span>
+            <span class="task-scope">auth + user service</span>
+            <span class="priority-badge pb-p2">P2</span>
+          </div>
+          <div class="task-body">
+            <div class="task-body-inner gap-section">
+              <div><div class="section-label">Target gap: A5</div></div>
+              <div class="impl-list">
+                <div class="impl-item">Encrypt/decrypt phone di auth-service: pakai <code>common/crypto</code> AES-256-GCM (NIK sudah pakai pola yang sama)</div>
+                <div class="impl-item">Migration: enkripsi existing phone plaintext → ciphertext (one-time backfill script)</div>
+                <div class="impl-item">Future: tambah field rekening_bank di user-service — encrypted by default di application layer</div>
+                <div class="impl-item">Key rotation strategy: dokumentasikan di security-baseline</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="task">
+          <div class="task-head">
+            <span class="task-id">W3C-10</span>
+            <span class="task-title">Integration test per-service crate — pindahkan + tambah test di 12 *-service/tests/</span>
+            <span class="task-scope">semua service</span>
+            <span class="priority-badge pb-p2">P2</span>
+          </div>
+          <div class="task-body">
+            <div class="task-body-inner gap-section">
+              <div><div class="section-label">Target gap: B2</div></div>
+              <div class="impl-list">
+                <div class="impl-item">Setiap service crate: buat folder <code>tests/</code> dengan <code>common/mod.rs</code> (setup) + <code>fixtures.rs</code> (factory)</div>
+                <div class="impl-item">Pindahkan test rejki-app yang relevan ke service crate masing-masing</div>
+                <div class="impl-item">Tambah integration test baru: repository test (sqlx::test), IDOR test, rate limit test</div>
+                <div class="impl-item">CI: pastikan semua service test file dijalankan di integration-test job</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="task">
+          <div class="task-head">
+            <span class="task-id">W3C-11</span>
+            <span class="task-title">Validasi chain region_id di user profiles — trigger/check atau validasi aplikasi</span>
+            <span class="task-scope">user + region service</span>
+            <span class="priority-badge pb-p2">P2</span>
+          </div>
+          <div class="task-body">
+            <div class="task-body-inner gap-section">
+              <div><div class="section-label">Target gap: C2</div></div>
+              <div class="impl-list">
+                <div class="impl-item">Validasi parent_id chain: province_id valid → regency_id.parent = province_id → district_id.parent = regency_id → village_id.parent = district_id</div>
+                <div class="impl-item">Implementasi: RegionClient.validate_chain(province_id, regency_id, district_id, village_id) → bool</div>
+                <div class="impl-item">Panggil di user-service update_profile handler sebelum save</div>
+                <div class="impl-item">Test: unit test validasi chain + invalid chain → 422</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ═══════════════ W3D ═══════════════ -->
+    <div class="wave" id="w3d">
+      <div class="wave-header">
+        <div class="wave-badge wb-3d">W3D</div>
+        <div class="wave-info">
+          <div class="wave-title">Analytics + Infra Polish (P3) — CEO insights, cargo audit, backup, webhook</div>
+          <div class="wave-desc">Nice-to-haves dan polishing. Bisa dikerjakan paralel atau bertahap setelah production.</div>
+          <div class="wave-links">
+            <a class="wave-link" href="prd/prd-ceo.md">prd-ceo.md</a>
+          </div>
+        </div>
+        <div class="wave-status"><span class="badge badge-todo">📋 Pending</span></div>
+      </div>
+
+      <div class="tasks">
+
+        <div class="task">
+          <div class="task-head">
+            <span class="task-id">W3D-12</span>
+            <span class="task-title">CEO analytics endpoints — /api/v1/insights/* + materialized view + RBAC-gated</span>
+            <span class="task-scope">new analytics module</span>
+            <span class="priority-badge pb-p2">P2</span>
+          </div>
+          <div class="task-body">
+            <div class="task-body-inner gap-section">
+              <div><div class="section-label">Target gap: E1, E2, E3, E4</div></div>
+              <div class="impl-list">
+                <div class="impl-item">Endpoint: <code>GET /insights/users</code> — total, baru (harian/mingguan/bulanan), aktif, terverifikasi</div>
+                <div class="impl-item">Endpoint: <code>GET /insights/iklan</code> — per vertikal, aktif, baru, barang terjual ( %)</div>
+                <div class="impl-item">Endpoint: <code>GET /insights/geo</code> — sebaran per wilayah (bergantung C1 — region_id sudah ada)</div>
+                <div class="impl-item">Endpoint: <code>GET /insights/engagement</code> — volume chat, notif terkirim/dibaca</div>
+                <div class="impl-item">Auth: RBAC role <code>executive</code> (read-only) — via W3B-05</div>
+                <div class="impl-item">Strategi agregasi: materialized view + refresh cron (setiap 1 jam) — hindari beban DB transaksional</div>
+                <div class="impl-item">Cache: response di-cache 5 menit (Redis atau in-memory)</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="task">
+          <div class="task-head">
+            <span class="task-id">W3D-13</span>
+            <span class="task-title">cargo audit + cargo deny di CI pipeline</span>
+            <span class="task-scope">GitHub Actions</span>
+            <span class="priority-badge pb-p3">P3</span>
+          </div>
+          <div class="task-body">
+            <div class="task-body-inner gap-section">
+              <div><div class="section-label">Target gap: A6</div></div>
+              <div class="impl-list">
+                <div class="impl-item"><code>cargo audit</code> job: scan Cargo.lock untuk CVE (fail on CRITICAL/HIGH)</div>
+                <div class="impl-item"><code>cargo deny check</code> job: license compliance — reject GPL/AGPL</div>
+                <div class="impl-item">Schedule: run mingguan (bukan setiap PR — terlalu berisik)</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="task">
+          <div class="task-head">
+            <span class="task-id">W3D-14</span>
+            <span class="task-title">Device token verification + Idempotency-Key + argon2</span>
+            <span class="task-scope">notification + auth service</span>
+            <span class="priority-badge pb-p3">P3</span>
+          </div>
+          <div class="task-body">
+            <div class="task-body-inner gap-section">
+              <div><div class="section-label">Target gap: D3, D4, D5</div></div>
+              <div class="impl-list">
+                <div class="impl-item">Verifikasi endpoint device token register/unregister — pastikan sudah berfungsi</div>
+                <div class="impl-item">Tabel <code>idempotency_keys</code> + middleware/handler check — 24 jam TTL</div>
+                <div class="impl-item">argon2 sebagai alternatif bcrypt — column <code>password_algorithm</code> di users table untuk dual-support</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="task">
+          <div class="task-head">
+            <span class="task-id">W3D-15</span>
+            <span class="task-title">Infra polish — backup cron + virus scan + webhook + metrics</span>
+            <span class="task-scope">root / infra</span>
+            <span class="priority-badge pb-p3">P3</span>
+          </div>
+          <div class="task-body">
+            <div class="task-body-inner gap-section">
+              <div><div class="section-label">Target gap: F1, F2, F3, B3</div></div>
+              <div class="impl-list">
+                <div class="impl-item">DB backup: pg_dump cron job (docker compose atau VPS cron) + upload ke R2/S3</div>
+                <div class="impl-item">Virus scan: ClamAV container atau API-based scan untuk file upload (presigned upload hook)</div>
+                <div class="impl-item">Webhook standard: dokumentasi signature (HMAC-SHA256), retry policy, payload format</div>
+                <div class="impl-item">Metrics: GET /metrics endpoint (Prometheus format) — request count, latency, error rate</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ═══════════════ SUMMARY ═══════════════ -->
+    <section id="summary">
+      <div class="section-title">Ringkasan — Semua Task Phase 3</div>
+
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>ID</th><th>Task</th><th>Wave</th><th>Pri</th><th>OpenSpec Change</th><th>Depends On</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr><td>W3A-01</td><td>Lanjutkan ws-testing-coverage — unit test roll-out 9 services, 52 integration tests, coverage 17.90%→49.09%</td><td>3A</td><td>P0</td><td><code>ws-testing-coverage</code> (existing)</td><td>—</td><td><span class="badge badge-done">✅ Done</span></td></tr>
+            <tr><td>W3A-02</td><td>Rate limiting endpoint bisnis — common/rate-limit crate, 8 services injected + global middleware + all tests PASS</td><td>3A</td><td>P0</td><td><code>ws-rate-limiting-bisnis</code></td><td>—</td><td><span class="badge badge-done">✅ Done</span></td></tr>
+            <tr><td>W3A-03</td><td>region_id FK di 4 iklan entities</td><td>3A</td><td>P0</td><td><code>ws-region-id-iklan</code> (NEW)</td><td>—</td><td><span class="badge badge-todo">📋 Pending</span></td></tr>
+            <tr><td>W3B-04</td><td>audit_log table + repository</td><td>3B</td><td>P1</td><td><code>ws-audit-log</code> (NEW)</td><td>—</td><td><span class="badge badge-todo">📋 Pending</span></td></tr>
+            <tr><td>W3B-05</td><td>Multi-tier RBAC (6 roles)</td><td>3B</td><td>P1</td><td><code>ws-multi-tier-rbac</code> (NEW)</td><td>—</td><td><span class="badge badge-todo">📋 Pending</span></td></tr>
+            <tr><td>W3B-06</td><td>PATCH iklan (update handler)</td><td>3B</td><td>P1</td><td><code>ws-patch-iklan</code> (NEW)</td><td>—</td><td><span class="badge badge-todo">📋 Pending</span></td></tr>
+            <tr><td>W3B-07</td><td>Password reset flow</td><td>3B</td><td>P1</td><td><code>ws-password-reset</code> (NEW)</td><td>W3B-04 (audit_log) [opsional]</td><td><span class="badge badge-todo">📋 Pending</span></td></tr>
+            <tr><td>W3C-08</td><td>CORS production policy</td><td>3C</td><td>P2</td><td>Langsung ke kode</td><td>—</td><td><span class="badge badge-todo">📋 Pending</span></td></tr>
+            <tr><td>W3C-09</td><td>Enkripsi phone + rekening bank</td><td>3C</td><td>P2</td><td><code>ws-encryption-at-rest</code> (NEW)</td><td>—</td><td><span class="badge badge-todo">📋 Pending</span></td></tr>
+            <tr><td>W3C-10</td><td>Integration test per-service crate</td><td>3C</td><td>P2</td><td>Extend <code>ws-testing-coverage</code></td><td>W3A-01</td><td><span class="badge badge-todo">📋 Pending</span></td></tr>
+            <tr><td>W3C-11</td><td>Validasi chain region_id di user profiles</td><td>3C</td><td>P2</td><td><code>ws-region-validation</code> (NEW)</td><td>W3A-03 (region_id exist)</td><td><span class="badge badge-todo">📋 Pending</span></td></tr>
+            <tr><td>W3D-12</td><td>CEO analytics endpoints</td><td>3D</td><td>P2</td><td><code>ws-ceo-analytics</code> (NEW)</td><td>W3A-03 (C1), W3B-05 (A2)</td><td><span class="badge badge-todo">📋 Pending</span></td></tr>
+            <tr><td>W3D-13</td><td>cargo audit + cargo deny CI</td><td>3D</td><td>P3</td><td>Langsung ke ci.yml</td><td>—</td><td><span class="badge badge-todo">📋 Pending</span></td></tr>
+            <tr><td>W3D-14</td><td>Device token + Idempotency-Key + argon2</td><td>3D</td><td>P3</td><td><code>ws-p3-nice-to-haves</code> (NEW)</td><td>—</td><td><span class="badge badge-todo">📋 Pending</span></td></tr>
+            <tr><td>W3D-15</td><td>Infra polish — backup + virus scan + webhook + metrics</td><td>3D</td><td>P3</td><td><code>ws-infra-polish</code> (NEW)</td><td>—</td><td><span class="badge badge-todo">📋 Pending</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout c-ok">
+        <span class="callout-icon">📐</span>
+        <div><strong>Strategi Anti-Bottleneck & Anti-Deadlock</strong>
+        <p><strong>W3A-01, W3A-02, W3A-03</strong> — independent, bisa paralel. Tidak ada yang saling menunggu.<br>
+        <strong>W3B-04, W3B-05</strong> — independent dari W3A, bisa paralel dengan W3A.<br>
+        <strong>W3B-06</strong> — minimal dependency: W3A-02 (rate limit pada endpoint baru). Tapi rate limit bisa di-skip dulu (test pakai mock).<br>
+        <strong>W3B-07</strong> — opsional dependency W3B-04 (audit_log). Bisa dikerjakan tanpa itu — tinggal TODO marker.<br>
+        <strong>W3C</strong> — mayoritas independent. Hanya W3C-10 (integration test) dan W3C-11 (region validation) yang ada dependency, tapi tidak block start.<br>
+        <strong>W3D</strong> — mayoritas independent. Hanya W3D-12 (CEO analytics) yang nunggu W3A-03 + W3B-05.<br>
+        <strong>Total parallel capacity: 5-7 task bisa dikerjakan bersamaan</strong> jika ada multiple developers.</p></div>
+      </div>
+    </section>
+
+    <footer>
+      <span>rejki-backend · Phase 3 Implementation Plan · 18 Juni 2026</span>
+      <span>15 task · 4 waves · 2 tasks Done (W3A-01 ✅, W3A-02 ✅) · Next: W3A-03 · 10 new OpenSpec changes pending</span>
+    </footer>
+
+  </main>
+</div>
+</body>
+</html>

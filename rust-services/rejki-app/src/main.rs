@@ -9,6 +9,7 @@ use tower_http::{
 };
 
 mod openapi;
+mod rate_limit_middleware;
 
 #[tokio::main]
 async fn main() {
@@ -87,16 +88,41 @@ async fn main() {
     let storage_client: Arc<dyn storage_service::StorageClient> =
         Arc::new(storage_service::StorageInProcessClient::new().await);
 
-    // ── 7. Build router ───────────────────────────────────────────────────────
+    // UserClient — in-process untuk suspend permanen → purge dokumen KYC (D4).
+    // Dibangun dari UserService yang sama dengan user-service router (satu instance,
+    // satu sumber kebenaran profil/dokumen).
+    let user_client: Arc<dyn user_service_client::UserClient> = {
+        let user_repo = Arc::new(user_service::PgUserRepository::new(pool.clone()));
+        let user_svc = Arc::new(user_service::UserService::new(
+            user_repo,
+            auth_client.clone(),
+            region_client.clone(),
+            Some(storage_client.clone()),
+            notifier.clone(),
+        ));
+        Arc::new(user_service::UserInProcessClient::new(user_svc))
+    };
+
+    // ── 7. Rate limiter (shared — Redis Lua atomik, fail-open) ────────────────
+    let rate_limiter: Option<Arc<dyn common_rate_limit::RateLimiter>> =
+        if std::env::var("REDIS_URL").is_ok() || cfg!(test) {
+            Some(Arc::new(common_rate_limit::OtpRateLimiter::from_env()))
+        } else {
+            tracing::warn!("REDIS_URL tidak diset — rate limiter non-aktif");
+            None
+        };
+
+    // ── 8. Build router ───────────────────────────────────────────────────────
     let api_v1 = Router::new()
         .nest(
             "/auth",
-            auth_service::router_with_deps(
+            auth_service::router_with_deps_ex(
                 jwt.clone(),
                 auth_repo.clone(),
                 auth_client.clone(),
                 notifier.clone(),
                 Some(storage_client.clone()),
+                Some(user_client.clone()),
             ),
         )
         .nest("/regions", region_service::router(pool.clone()))
@@ -112,11 +138,11 @@ async fn main() {
         )
         .nest(
             "/chat",
-            chat_service::router(pool.clone(), auth_client.clone()),
+            chat_service::router(pool.clone(), auth_client.clone(), rate_limiter.clone()),
         )
         .nest(
             "/notif",
-            notification_service::router(pool.clone(), auth_client.clone()),
+            notification_service::router(pool.clone(), auth_client.clone(), rate_limiter.clone()),
         )
         .nest(
             "/pekerjaan",
@@ -125,6 +151,7 @@ async fn main() {
                 auth_client.clone(),
                 Some(storage_client.clone()),
                 notifier.clone(),
+                rate_limiter.clone(),
             ),
         )
         .nest(
@@ -134,6 +161,7 @@ async fn main() {
                 auth_client.clone(),
                 Some(storage_client.clone()),
                 notifier.clone(),
+                rate_limiter.clone(),
             ),
         )
         .nest(
@@ -143,6 +171,7 @@ async fn main() {
                 auth_client.clone(),
                 Some(storage_client.clone()),
                 notifier.clone(),
+                rate_limiter.clone(),
             ),
         )
         .nest(
@@ -152,6 +181,7 @@ async fn main() {
                 auth_client.clone(),
                 Some(storage_client.clone()),
                 notifier.clone(),
+                rate_limiter.clone(),
             ),
         )
         .nest(
@@ -161,6 +191,7 @@ async fn main() {
                 auth_client.clone(),
                 Some(storage_client.clone()),
                 notifier.clone(),
+                rate_limiter.clone(),
             ),
         )
         .nest(
@@ -170,6 +201,7 @@ async fn main() {
                 auth_client.clone(),
                 Some(storage_client.clone()),
                 notifier.clone(),
+                rate_limiter.clone(),
             ),
         );
 
@@ -189,7 +221,15 @@ async fn main() {
         tracing::info!("Swagger UI aktif (development) — /swagger-ui");
     }
 
+    let rl_state = rate_limit_middleware::RateLimitState {
+        limiter: rate_limiter.clone(),
+    };
+
     let app = app
+        .layer(axum::middleware::from_fn_with_state(
+            rl_state,
+            rate_limit_middleware::global_rate_limit,
+        ))
         .layer(axum::middleware::from_fn(common_tracing::request_id_layer))
         .layer(CompressionLayer::new())
         .layer(TraceLayer::new_for_http())

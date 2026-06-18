@@ -13,6 +13,7 @@ path = "src/main.rs"
 common-config  = { workspace = true }
 common-errors  = { workspace = true }
 common-tracing = { workspace = true }
+common-rate-limit = { workspace = true }
 
 # Import SERVICE (implementasi), bukan client (trait/kontrak).
 # Tipe trait (AuthClient, RegionClient, dll.) di-re-export dari service crate,
@@ -29,6 +30,7 @@ corporate-comms-service     = { path = "../corporate-comms-service" }
 report-service              = { path = "../report-service" }
 region-service              = { path = "../region-service" }
 storage-service             = { path = "../storage-service" }
+user-service-client         = { path = "../user-service-client" }
 
 axum        = { workspace = true }
 tokio       = { workspace = true }

@@ -9,6 +9,7 @@ use axum::{
     Router,
 };
 use common_auth_mw::{require_admin, require_auth};
+use common_rate_limit::RateLimiter;
 use notification_service_client::NotificationClient;
 use sqlx::PgPool;
 use std::sync::Arc;
@@ -29,9 +30,17 @@ pub fn router(
     auth_client: Arc<dyn AuthClient>,
     storage: Option<Arc<dyn StorageClient>>,
     notifier: Option<Arc<dyn NotificationClient>>,
+    rate_limiter: Option<Arc<dyn RateLimiter>>,
 ) -> Router {
+    let svc = {
+        let mut b = ReportService::new(Arc::new(PgReportRepository::new(pool)));
+        if let Some(rl) = rate_limiter {
+            b = b.with_rate_limiter(rl);
+        }
+        b
+    };
     let state = AppState {
-        svc: Arc::new(ReportService::new(Arc::new(PgReportRepository::new(pool)))),
+        svc: Arc::new(svc),
         auth_client: auth_client.clone(),
         storage,
         notifier,

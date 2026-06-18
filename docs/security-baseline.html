@@ -1004,8 +1004,8 @@ location /api/v1/auth/ {
             <tr><td>IDOR check pattern di semua handler yang modify resource</td><td>Semua <code>interface/handlers.rs</code></td><td><span class="ph-tag ph-15">Pending</span></td></tr>
             <tr><td>Password field tidak di-log (<code>#[debug(skip)]</code>)</td><td><code>auth-service</code> DTO</td><td><span class="ph-tag ph-15">Pending</span></td></tr>
             <tr><td>Security response headers di nginx config</td><td><code>nginx.dev.conf</code></td><td><span class="ph-tag ph-15">Pending</span></td></tr>
-            <tr><td>File upload: magic bytes verification + mime whitelist</td><td>Upload handler (Phase 2)</td><td><span class="ph-tag ph-15">Pending (saat Phase 2)</span></td></tr>
-            <tr><td>Server-generated filename untuk upload</td><td>Upload handler (Phase 2)</td><td><span class="ph-tag ph-15">Pending (saat Phase 2)</span></td></tr>
+            <tr><td>File upload: magic bytes verification + mime whitelist</td><td>storage-service-client/src/lib.rs — verify_magic_bytes() untuk JPEG/PNG/PDF, mime whitelist per kategori</td><td><span class="ph-tag ph-done">✓ Selesai</span></td></tr>
+            <tr><td>Server-generated filename untuk upload</td><td>storage-service/src/infrastructure/minio.rs — object_key di-generate server: <code>{category}/{user_id}/{uuid}.{ext}</code></td><td><span class="ph-tag ph-done">✓ Selesai</span></td></tr>
             <tr><td><code>AppError::Internal</code> tidak bocorkan detail ke client</td><td><code>common/errors/src/lib.rs</code></td><td><span class="ph-tag ph-15">Pending</span></td></tr>
           </tbody>
         </table>

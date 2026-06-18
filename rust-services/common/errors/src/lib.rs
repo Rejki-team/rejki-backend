@@ -28,6 +28,14 @@ pub enum AppError {
     #[error("forbidden")]
     Forbidden(String),
 
+    #[error("too many requests")]
+    TooManyRequests(String),
+
+    /// Rate limiting active — identical to TooManyRequests but with explicit
+    /// error code RATE_LIMITED (per api-standard + security-baseline docs).
+    #[error("rate limited")]
+    RateLimited(String),
+
     /// Akun belum aktif (gating fitur). Kode mesin spesifik: ACCOUNT_NOT_ACTIVE.
     #[error("account not active")]
     AccountNotActive,
@@ -59,6 +67,32 @@ impl IntoResponse for AppError {
             AppError::Validation(m) => (StatusCode::UNPROCESSABLE_ENTITY, "VALIDATION_ERROR", m),
             AppError::Conflict(m) => (StatusCode::CONFLICT, "CONFLICT", m),
             AppError::Forbidden(m) => (StatusCode::FORBIDDEN, "FORBIDDEN", m),
+            AppError::TooManyRequests(m) => {
+                let mut resp = (
+                    StatusCode::TOO_MANY_REQUESTS,
+                    Json(ErrorBody {
+                        error: "TOO_MANY_REQUESTS",
+                        message: m,
+                    }),
+                )
+                    .into_response();
+                resp.headers_mut()
+                    .insert(header::RETRY_AFTER, HeaderValue::from_static("60"));
+                return resp;
+            }
+            AppError::RateLimited(m) => {
+                let mut resp = (
+                    StatusCode::TOO_MANY_REQUESTS,
+                    Json(ErrorBody {
+                        error: "RATE_LIMITED",
+                        message: m,
+                    }),
+                )
+                    .into_response();
+                resp.headers_mut()
+                    .insert(header::RETRY_AFTER, HeaderValue::from_static("60"));
+                return resp;
+            }
             AppError::AccountNotActive => (
                 StatusCode::FORBIDDEN,
                 "ACCOUNT_NOT_ACTIVE",

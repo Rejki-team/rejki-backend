@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rejki Backend — Brainstorm: Phase 3 Hardening Analysis</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0d1117; --surf: #161b22; --surf2: #1c2230; --border: #30363d;
+      --text: #e6edf3; --muted: #8b949e; --tag: #21262d;
+      --green: #56d364; --blue: #79c0ff; --orange: #f78166;
+      --yellow: #e3b341; --purple: #bc8cff; --red: #ff7b72; --r: 10px;
+    }
+    html { scroll-behavior: smooth; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; font-size: 15px; }
+    .layout { display: grid; grid-template-columns: 250px 1fr; min-height: 100vh; }
+    @media (max-width: 880px) { .layout { grid-template-columns: 1fr; } .nav { display: none; } }
+    .nav { position: sticky; top: 0; height: 100vh; overflow-y: auto; background: var(--surf); border-right: 1px solid var(--border); padding: 1.75rem 1rem; }
+    .nav-logo { font-size: 1.1rem; font-weight: 800; color: var(--yellow); margin-bottom: 1.5rem; }
+    .nav-logo span { color: var(--text); }
+    .nav-group { margin-bottom: 1.4rem; }
+    .nav-group-label { font-size: .67rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: .4rem; }
+    .nav-link { display: block; padding: .3rem .6rem; border-radius: 6px; font-size: .83rem; color: var(--muted); text-decoration: none; transition: background .12s, color .12s; }
+    .nav-link:hover { background: var(--tag); color: var(--text); }
+    .nav-link.accent { color: var(--yellow); }
+    .nav-link.back { color: var(--blue); font-size: .8rem; }
+    main { max-width: 940px; margin: 0 auto; padding: 3rem 2rem 6rem; }
+    @media (max-width: 600px) { main { padding: 2rem 1rem 4rem; } }
+    .hero { border-bottom: 1px solid var(--border); margin-bottom: 3rem; padding-bottom: 2.5rem; }
+    .eyebrow { display: inline-block; font-size: .73rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--yellow); background: rgba(227,179,65,.07); border: 1px solid rgba(227,179,65,.25); border-radius: 20px; padding: .22rem .75rem; margin-bottom: .9rem; }
+    .hero h1 { font-size: clamp(1.7rem,4vw,2.5rem); font-weight: 800; line-height: 1.15; letter-spacing: -.4px; margin-bottom: .9rem; }
+    .hero h1 em { font-style: normal; color: var(--yellow); }
+    .hero p { color: var(--muted); font-size: 1rem; max-width: 720px; line-height: 1.75; }
+    .badges { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: 1.2rem; }
+    .badge { font-size: .76rem; font-weight: 600; padding: .25rem .75rem; border-radius: 20px; border: 1px solid; }
+    .b-y  { color: var(--yellow);  border-color: rgba(227,179,65,.4);  background: rgba(227,179,65,.06); }
+    .b-g  { color: var(--green);   border-color: rgba(86,211,100,.4);   background: rgba(86,211,100,.06); }
+    .b-r  { color: var(--red);     border-color: rgba(255,123,114,.4);  background: rgba(255,123,114,.06); }
+    .b-b  { color: var(--blue);    border-color: rgba(121,192,255,.4);  background: rgba(121,192,255,.06); }
+    section { margin-bottom: 3.2rem; scroll-margin-top: 1rem; }
+    .sec-title { display: flex; align-items: center; gap: .6rem; font-size: 1.15rem; font-weight: 700; margin-bottom: 1.2rem; padding-bottom: .55rem; border-bottom: 1px solid var(--border); }
+    .sec-icon { width: 30px; height: 30px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: .95rem; flex-shrink: 0; }
+    .ic-y { background: rgba(227,179,65,.1); } .ic-g { background: rgba(86,211,100,.1); }
+    .ic-r { background: rgba(255,123,114,.1); } .ic-b { background: rgba(121,192,255,.1); }
+    .ic-o { background: rgba(247,129,102,.1); }
+    .sub-title { font-size: .92rem; font-weight: 700; margin: 1.5rem 0 .6rem; display: flex; align-items: center; gap: .45rem; color: var(--text); }
+    .sub-title::before { content: ''; display: inline-block; width: 3px; height: 14px; background: var(--yellow); border-radius: 2px; }
+    .tbl { width: 100%; border-collapse: collapse; font-size: .84rem; background: var(--surf); border: 1px solid var(--border); border-radius: var(--r); overflow: hidden; }
+    .tbl th { background: var(--surf2); padding: .6rem .85rem; text-align: left; font-size: .7rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+    .tbl td { padding: .6rem .85rem; border-bottom: 1px solid var(--border); vertical-align: top; line-height: 1.55; }
+    .tbl tr:last-child td { border-bottom: none; }
+    .tbl tr:hover td { background: var(--surf2); }
+    .tbl-wrap { overflow-x: auto; margin-bottom: 1rem; }
+    .callout { border-radius: var(--r); padding: .85rem 1.1rem; margin-top: .9rem; font-size: .86rem; display: flex; gap: .65rem; line-height: 1.65; }
+    .callout-icon { flex-shrink: 0; font-size: 1rem; margin-top: 2px; }
+    .callout p { color: var(--muted); } .callout strong { color: var(--text); display: block; margin-bottom: .15rem; }
+    .c-info { background: rgba(121,192,255,.06); border: 1px solid rgba(121,192,255,.22); }
+    .c-warn { background: rgba(227,179,65,.06);  border: 1px solid rgba(227,179,65,.22); }
+    .c-ok   { background: rgba(86,211,100,.06);  border: 1px solid rgba(86,211,100,.22); }
+    .c-danger { background: rgba(247,129,102,.06); border: 1px solid rgba(247,129,102,.22); }
+    .gap-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px,1fr)); gap: .75rem; }
+    .gap-card { background: var(--surf); border: 1px solid var(--border); border-radius: var(--r); padding: 1rem 1.15rem; border-left: 3px solid; }
+    .gap-card.p0 { border-left-color: var(--red); }
+    .gap-card.p1 { border-left-color: var(--yellow); }
+    .gap-card.p2 { border-left-color: var(--blue); }
+    .gap-card.p3 { border-left-color: var(--muted); }
+    .gap-card h4 { font-size: .85rem; font-weight: 700; margin-bottom: .25rem; display: flex; align-items: center; gap: .4rem; }
+    .gap-card .id-tag { font-size: .65rem; font-weight: 700; color: var(--muted); background: var(--tag); border: 1px solid var(--border); border-radius: 3px; padding: .08rem .4rem; font-family: 'Cascadia Code',monospace; }
+    .gap-card p { font-size: .8rem; color: var(--muted); line-height: 1.5; }
+    .gap-card .evidence { font-size: .74rem; color: var(--muted2); margin-top: .35rem; font-style: italic; }
+    .priority-badge { display: inline-flex; align-items: center; font-size: .68rem; font-weight: 700; padding: .1rem .5rem; border-radius: 4px; border: 1px solid; }
+    .pb-p0 { color: var(--red);    border-color: rgba(255,123,114,.35); background: rgba(255,123,114,.08); }
+    .pb-p1 { color: var(--yellow); border-color: rgba(227,179,65,.35);  background: rgba(227,179,65,.08); }
+    .pb-p2 { color: var(--blue);   border-color: rgba(121,192,255,.35); background: rgba(121,192,255,.08); }
+    .pb-p3 { color: var(--muted);  border-color: rgba(139,148,158,.35); background: rgba(139,148,158,.06); }
+    code { font-family: 'Cascadia Code','Fira Code','Consolas',monospace; font-size: .78rem; background: var(--tag); border: 1px solid var(--border); border-radius: 3px; padding: .04rem .38rem; color: var(--blue); }
+    .dep-graph { background: var(--surf); border: 1px solid var(--border); border-radius: var(--r); padding: 1.2rem 1.5rem; font-family: 'Cascadia Code','Fira Code',monospace; font-size: .8rem; line-height: 1.8; overflow-x: auto; }
+    .dg-node { color: var(--yellow); font-weight: 700; }
+    .dg-dep  { color: var(--muted); }
+    .dg-done { color: var(--green); }
+    .dg-arrow { color: var(--border); }
+    footer { margin-top: 4rem; padding-top: 1.25rem; border-top: 1px solid var(--border); font-size: .78rem; color: var(--muted); }
+  </style>
+</head>
+<body>
+<div class="layout">
+
+  <nav class="nav">
+    <div class="nav-logo">rejki<span>-backend</span></div>
+    <div class="nav-group">
+      <div class="nav-group-label">Navigasi</div>
+      <a class="nav-link back" href="../index.html">← Architecture Overview</a>
+      <a class="nav-link back" href="../implementation-plan-phase-1.5.html">← Phase 1.5 Plan</a>
+      <a class="nav-link back" href="../brainstorm/user-service-phase2.html">← Brainstorm Phase 2</a>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-label">Isi Dokumen</div>
+      <a class="nav-link" href="#ringkasan">Ringkasan Eksekutif</a>
+      <a class="nav-link" href="#state">State Saat Ini</a>
+      <a class="nav-link" href="#gap">Katalog Gap (22 item)</a>
+      <a class="nav-link" href="#korelasi">Korelasi & Ketergantungan</a>
+      <a class="nav-link" href="#prioritas">Matriks Prioritas</a>
+      <a class="nav-link" href="#rekomendasi">Rekomendasi Urutan</a>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-label">Dokumen Terkait</div>
+      <a class="nav-link accent" href="../implementation-plan-phase-3.html">Implementation Plan Phase 3</a>
+      <a class="nav-link accent" href="../../openspec/changes/ws-testing-coverage/proposal.md">ws-testing-coverage</a>
+      <a class="nav-link" href="../security-baseline.html">Security Baseline</a>
+      <a class="nav-link" href="../prd/rejki-prd.md">PRD Rejki</a>
+    </div>
+  </nav>
+
+  <main>
+
+    <div class="hero">
+      <div class="eyebrow">Brainstorm &mdash; 17 Juni 2026</div>
+      <h1>Phase 3 &mdash; <em>Analisis Mendalam</em></h1>
+      <p>Brainstorming komprehensif kebutuhan Phase 3 (Hardening) berdasarkan verifikasi kode aktual, dokumentasi, spesifikasi OpenSpec, dan Acceptance Criteria CLAUDE.md. Dokumen ini adalah hasil penelusuran tiga sumber kebenaran: kode di <code>rust-services/</code>, dokumen di <code>docs/</code>, dan spesifikasi di <code>openspec/</code>.</p>
+      <div class="badges">
+        <span class="badge b-y">Phase 3</span>
+        <span class="badge b-g">22 Gap Teridentifikasi</span>
+        <span class="badge b-r">6 Kategori</span>
+        <span class="badge b-b">1 Active Change</span>
+      </div>
+    </div>
+
+    <!-- ═══════════════ RINGKASAN ═══════════════ -->
+    <section id="ringkasan">
+      <h2 class="sec-title"><span class="sec-icon ic-y">📋</span>Ringkasan Eksekutif</h2>
+
+      <p style="color:var(--muted);font-size:.89rem;margin-bottom:1.2rem;line-height:1.7;">
+        Phase 2 (Core Services) telah selesai 100% dengan <strong>0 active changes</strong> dan
+        <strong>20 archived changes</strong>. Semua fitur bisnis inti — 4 vertikal iklan, chat,
+        notifikasi, KYC, moderasi, RBAC dasar — sudah terimplementasi. Namun sistem <strong>belum
+        production-hardened</strong>. Phase 3 bertujuan membuat apa yang sudah ada menjadi aman,
+        terukur, terpantau, dan siap produksi.
+      </p>
+
+      <p style="color:var(--muted);font-size:.89rem;line-height:1.7;">
+        Penelusuran kode mengidentifikasi <strong>22 gap nyata</strong> di 6 kategori:
+        Security Hardening (6), Observability & Monitoring (4), Data Integrity & Schema (3),
+        Fitur Kurang (5), CEO Analytics Layer (4), dan CI/CD Polish (3). Dari 22 gap,
+        <strong>3 P0 Critical</strong> harus diselesaikan sebelum production deployment,
+        <strong>8 P1 High</strong> sebelum production launch penuh, dan
+        <strong>11 P2-P3</strong> dapat dikerjakan bertahap.
+      </p>
+
+      <div class="callout c-ok">
+        <span class="callout-icon">✅</span>
+        <div><strong>Phase 2 — Zero Active Changes</strong>
+        <p>20 OpenSpec changes archived. Semua code review findings resolved (42/42). Checklist index.html 10/10 Phase 2 items verified. Satu-satunya active change adalah <code>ws-testing-coverage</code> (Phase 3, 60% selesai).</p></div>
+      </div>
+    </section>
+
+    <!-- ═══════════════ STATE SAAT INI ═══════════════ -->
+    <section id="state">
+      <h2 class="sec-title"><span class="sec-icon ic-b">🔍</span>State Saat Ini — Tiga Sumber Kebenaran</h2>
+
+      <div class="sub-title">Phase Completion Status (diverifikasi 2026-06-17)</div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Phase</th><th>Status</th><th>Bukti</th><th>Active Changes</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><strong>Phase 1 — Foundation</strong></td>
+              <td>✅ 100%</td>
+              <td>13/13 checklist items ✓. Cargo workspace 20 member. JWT RS256. OTP SHA-256. 8 service skeleton. rejki-app wiring.</td>
+              <td>0</td>
+            </tr>
+            <tr>
+              <td><strong>Phase 1.5 — Standardization</strong></td>
+              <td>✅ 100%</td>
+              <td>14 standar wajib. 9 wave (W0-W9). 19 task selesai. ApiResponse&lt;T&gt;, IDOR→404, warn_slow!, request_id, prefix /api/v1/.</td>
+              <td>0</td>
+            </tr>
+            <tr>
+              <td><strong>Phase 2 — Core Services</strong></td>
+              <td>✅ 100%</td>
+              <td>10/10 roadmap items ✓. 20 OpenSpec changes archived. 42/42 code review findings resolved.</td>
+              <td><strong>0</strong></td>
+            </tr>
+            <tr>
+              <td><strong>Phase 3 — Hardening</strong></td>
+              <td>⚡ In Progress</td>
+              <td>1 active change (ws-testing-coverage). 2 checklist items Partial. 1 Deferred. 22 gap nyata.</td>
+              <td>1</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sub-title">Metrik Saat Ini</div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Metrik</th><th>Nilai</th><th>Target Phase 3</th></tr></thead>
+          <tbody>
+            <tr><td>Coverage overall</td><td>17.90%</td><td>≥ 85% (Acceptance Criteria)</td></tr>
+            <tr><td>Unit test auth-service</td><td>65 PASS</td><td>≥ 80% application layer</td></tr>
+            <tr><td>Unit test user-service</td><td>37 PASS</td><td>≥ 80% application layer</td></tr>
+            <tr><td>Unit test 10 other services</td><td>0 PASS</td><td>≥ 80% application layer each</td></tr>
+            <tr><td>Integration test files</td><td>5 files (CI-ready)</td><td>Per-service integration tests</td></tr>
+            <tr><td>Rate limiting coverage</td><td>auth-service only</td><td>Semua endpoint publik</td></tr>
+            <tr><td>RBAC roles</td><td>2 (user, admin)</td><td>6 (user, admin, moderator, super_admin, support, executive)</td></tr>
+            <tr><td>Iklan region reference</td><td>Free-text <code>lokasi</code></td><td><code>region_id</code> FK ke region service</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ═══════════════ KATALOG GAP ═══════════════ -->
+    <section id="gap">
+      <h2 class="sec-title"><span class="sec-icon ic-r">⚠️</span>Katalog Gap — 22 Kebutuhan Nyata</h2>
+
+      <!-- A. Security Hardening -->
+      <div class="sub-title">A. 🔐 Security Hardening (6 gap)</div>
+      <div class="gap-grid">
+        <div class="gap-card p0">
+          <h4><span class="id-tag">A1</span> Rate limiting endpoint bisnis <span class="priority-badge pb-p0">P0</span></h4>
+          <p>Hanya auth-service yang punya rate limiter (Redis Lua atomik). 4 iklan, user, chat, report, corporate-comms — tidak ada proteksi DoS/brute-force sama sekali.</p>
+          <p class="evidence">Evidence: OtpRateLimiter di auth-service/infrastructure/rate_limit.rs. Tidak ada tower-governor di Cargo.toml manapun. Tidak ada RateLimiter trait di service lain.</p>
+        </div>
+        <div class="gap-card p1">
+          <h4><span class="id-tag">A2</span> Multi-tier RBAC <span class="priority-badge pb-p1">P1</span></h4>
+          <p>Hanya enum Role { user, admin }. PRD menyebut butuh super_admin, moderator, support, executive. Middleware require_admin belum support multi-role.</p>
+          <p class="evidence">Evidence: auth-service/domain/entity.rs — pub use auth_service_client::Role. Search graph 0 results untuk super_admin/moderator/support/executive.</p>
+        </div>
+        <div class="gap-card p1">
+          <h4><span class="id-tag">A3</span> audit_log table <span class="priority-badge pb-p1">P1</span></h4>
+          <p>Security baseline §Phase 3 mensyaratkan tabel append-only untuk login/logout/refresh/failed. Tidak ada migrasi, tidak ada repository, tidak ada trigger.</p>
+          <p class="evidence">Evidence: search_graph "audit_log" → 0 results. Hanya disebut di security-baseline.html §Phase 3 dan test cleanup helper sebagai "TODO".</p>
+        </div>
+        <div class="gap-card p2">
+          <h4><span class="id-tag">A4</span> CORS production policy <span class="priority-badge pb-p2">P2</span></h4>
+          <p>allow_origin(Any) hardcoded di rejki-app/main.rs. Security baseline mensyaratkan whitelist origin eksplisit untuk production.</p>
+          <p class="evidence">Evidence: rejki-app/src/main.rs — CorsLayer::new().allow_origin(Any).</p>
+        </div>
+        <div class="gap-card p2">
+          <h4><span class="id-tag">A5</span> Enkripsi at rest (phone, rekening) <span class="priority-badge pb-p2">P2</span></h4>
+          <p>NIK sudah dienkripsi AES-256-GCM via common/crypto. Phone masih plaintext. Rekening bank belum ada field tapi disebut di security baseline.</p>
+          <p class="evidence">Evidence: auth-service/domain/entity.rs — phone: Option&lt;String&gt; (ciphertext dari DB). Belum ada decrypt wrapper di service layer.</p>
+        </div>
+        <div class="gap-card p3">
+          <h4><span class="id-tag">A6</span> Dependency audit (cargo audit/deny) <span class="priority-badge pb-p3">P3</span></h4>
+          <p>CI pipeline belum punya job cargo audit (CVE check) atau cargo deny (license compliance). Disebut di security-baseline.html §Phase 3.</p>
+          <p class="evidence">Evidence: .github/workflows/ci.yml — tidak ada job audit/deny.</p>
+        </div>
+      </div>
+
+      <!-- B. Observability -->
+      <div class="sub-title">B. 📊 Observability & Testing (4 gap)</div>
+      <div class="gap-grid">
+        <div class="gap-card p0">
+          <h4><span class="id-tag">B1</span> Coverage ≥ 85% <span class="priority-badge pb-p0">P0</span></h4>
+          <p>Baseline 17.90%. Acceptance Criteria CLAUDE.md §2 mandatory. ws-testing-coverage 60% selesai: CI fix ✓, auth unit test 65 ✓, user unit test 37 ✓. Tinggal roll-out ke 10 service + integration test gap.</p>
+          <p class="evidence">Evidence: cargo llvm-cov report 2026-06-17: 13573 total lines, 11144 uncovered. Auth-service 65/65 PASS, user-service 37/37 PASS. 10 other services 0%.</p>
+        </div>
+        <div class="gap-card p2">
+          <h4><span class="id-tag">B2</span> Integration test di service crate <span class="priority-badge pb-p2">P2</span></h4>
+          <p>52 integration test di rejki-app/tests/ (monolith). Tapi 0 integration test di 12 *-service crate. Service crate butuh test sendiri untuk isolasi extraction-ready.</p>
+          <p class="evidence">Evidence: Hanya rejki-app yang punya folder tests/. Semua service crate lain tidak punya tests/ atau test file integration.</p>
+        </div>
+        <div class="gap-card p3">
+          <h4><span class="id-tag">B3</span> Metrics endpoint (Prometheus) <span class="priority-badge pb-p3">P3</span></h4>
+          <p>GET /health sudah ada. Tapi belum ada GET /metrics (Prometheus format). Observability production butuh metrics untuk alerting.</p>
+          <p class="evidence">Evidence: Tidak ada prometheus crate di workspace. Tidak ada /metrics handler.</p>
+        </div>
+        <div class="gap-card p3">
+          <h4><span class="id-tag">B4</span> Log aggregation <span class="priority-badge pb-p3">P3</span></h4>
+          <p>Structured JSON logging sudah ada. Tapi tanpa ELK/Loki/Grafana agent, log hanya bisa dibaca via Docker logs. Tidak ada log shipping.</p>
+          <p class="evidence">Evidence: tracing-subscriber JSON format production. Tidak ada vector/fluentbit config di docker-compose.</p>
+        </div>
+      </div>
+
+      <!-- C. Data Integrity -->
+      <div class="sub-title">C. 🏗️ Data Integrity & Schema (3 gap)</div>
+      <div class="gap-grid">
+        <div class="gap-card p0">
+          <h4><span class="id-tag">C1</span> region_id FK di 4 iklan entities <span class="priority-badge pb-p0">P0</span></h4>
+          <p>Semua 4 entity pakai lokasi: Option&lt;String&gt; free-text. Region service sudah menyediakan reference data 4-level (province→kabupaten→kecamatan→kelurahan) tapi tidak digunakan. Ini memblokir analytics geografis dan pencarian berbasis lokasi yang akurat.</p>
+          <p class="evidence">Evidence: IklanPekerjaan.lokasi: Option&lt;String&gt;, IklanPekerja.lokasi: Option&lt;String&gt;, IklanBarangBekas.lokasi: Option&lt;String&gt;, IklanPelatihan.lokasi: Option&lt;String&gt;. Tidak ada region_id di entity manapun.</p>
+        </div>
+        <div class="gap-card p2">
+          <h4><span class="id-tag">C2</span> Validasi region_id di user profiles <span class="priority-badge pb-p2">P2</span></h4>
+          <p>user_svc.profiles sudah punya province_id, regency_id, district_id, village_id. Tapi validasi referensial masih di application layer. Bisa diperkuat dengan trigger/check constraint atau validasi chain (parent_id consistency).</p>
+          <p class="evidence">Evidence: user-service/src/application/service.rs — validasi region dilakukan manual di service layer, bukan DB constraint.</p>
+        </div>
+        <div class="gap-card p3">
+          <h4><span class="id-tag">C3</span> Scheduled hard-delete expired data <span class="priority-badge pb-p3">P3</span></h4>
+          <p>Soft delete sudah diterapkan di semua entity (deleted_at). Tapi tidak ada scheduled job untuk hard-delete data > N hari (PDP compliance — retensi).</p>
+          <p class="evidence">Evidence: Semua query sudah AND deleted_at IS NULL. Tidak ada scheduled task/job untuk purge data lama.</p>
+        </div>
+      </div>
+
+      <!-- D. Fitur Kurang -->
+      <div class="sub-title">D. 🔄 Fitur yang Masih Kurang (5 gap)</div>
+      <div class="gap-grid">
+        <div class="gap-card p1">
+          <h4><span class="id-tag">D1</span> PATCH iklan (update) <span class="priority-badge pb-p1">P1</span></h4>
+          <p>API standard mendokumentasikan PATCH untuk partial update. Semua 4 iklan service punya create/list/get/delete tapi tidak ada update. User tidak bisa edit iklan yang sudah diposting.</p>
+          <p class="evidence">Evidence: iklan-*-service/interface/handlers.rs — tidak ada fn update_iklan. Domain repository tidak punya method update.</p>
+        </div>
+        <div class="gap-card p1">
+          <h4><span class="id-tag">D2</span> Password reset flow <span class="priority-badge pb-p1">P1</span></h4>
+          <p>OtpPurpose::ResetPassword sudah ada di enum. Tapi tidak ada handler POST /auth/reset-password atau POST /auth/confirm-reset-password. Flow OTP untuk reset sudah terdefinisi tapi belum terimplementasi.</p>
+          <p class="evidence">Evidence: auth-service/domain/entity.rs — OtpPurpose::ResetPassword. Tidak ada handler reset_password di handlers.rs.</p>
+        </div>
+        <div class="gap-card p2">
+          <h4><span class="id-tag">D3</span> Device token management <span class="priority-badge pb-p2">P2</span></h4>
+          <p>FCM push notification sudah berfungsi (Redis Streams → Bun consumer). Tapi endpoint register/unregister device token (POST/DELETE /notif/device-tokens) perlu diverifikasi — mungkin partial.</p>
+          <p class="evidence">Evidence: Perlu verifikasi kode di notification-service/interface/handlers.rs untuk endpoint device-token.</p>
+        </div>
+        <div class="gap-card p3">
+          <h4><span class="id-tag">D4</span> Idempotency-Key implementation <span class="priority-badge pb-p3">P3</span></h4>
+          <p>API standard mendokumentasikan header Idempotency-Key untuk POST kritis. Tidak ada tabel idempotency_keys atau logic handler. Saat ini hanya uniqueness constraint DB yang mencegah double submit (partial protection).</p>
+          <p class="evidence">Evidence: api-standard.html §Idempotency menyebut Idempotency-Key header. Search graph 0 results untuk idempotency. Tidak ada tabel idempotency_keys.</p>
+        </div>
+        <div class="gap-card p3">
+          <h4><span class="id-tag">D5</span> argon2 password hashing <span class="priority-badge pb-p3">P3</span></h4>
+          <p>Saat ini bcrypt (cost 12). Security baseline menyebut argon2 sebagai upgrade opsional Phase 3. Bukan prioritas — bcrypt sudah cukup aman untuk skala saat ini.</p>
+          <p class="evidence">Evidence: security-baseline.html §Password Hashing: "Dengan argon2 sebagai upgrade opsional di Phase 3."</p>
+        </div>
+      </div>
+
+      <!-- E. CEO Analytics -->
+      <div class="sub-title">E. 📈 CEO Analytics Layer (4 gap)</div>
+      <div class="gap-grid">
+        <div class="gap-card p2">
+          <h4><span class="id-tag">E1</span> Endpoint /insights/* <span class="priority-badge pb-p2">P2</span></h4>
+          <p>Tidak ada service atau handler untuk agregasi statistik. PRD CEO Mobile membutuhkan endpoint read-only untuk dashboard eksekutif. Bergantung pada gap C1 (region_id).</p>
+          <p class="evidence">Evidence: Search graph "insights" → 0 results. Tidak ada analytics service atau endpoint agregasi di rejki-app.</p>
+        </div>
+        <div class="gap-card p2">
+          <h4><span class="id-tag">E2</span> Metrik pertumbuhan pengguna <span class="priority-badge pb-p2">P2</span></h4>
+          <p>Data mentah ada di auth.users (created_at, status). Tidak ada query agregasi, materialized view, atau endpoint yang menyajikan metrik registrasi/user aktif.</p>
+          <p class="evidence">Evidence: prd-ceo.md §4.1 — semua metrik ditandai 📋 Rencana.</p>
+        </div>
+        <div class="gap-card p2">
+          <h4><span class="id-tag">E3</span> Metrik konten per vertikal <span class="priority-badge pb-p2">P2</span></h4>
+          <p>Data mentah ada di 4 entity iklan. Tidak ada view/materialized view untuk agregasi jumlah iklan aktif, iklan baru, rasio barang terjual.</p>
+          <p class="evidence">Evidence: prd-ceo.md §4.2 — semua metrik konten 📋 Rencana.</p>
+        </div>
+        <div class="gap-card p2">
+          <h4><span class="id-tag">E4</span> Metrik geografis <span class="priority-badge pb-p2">P2</span></h4>
+          <p>Tidak bisa akurat karena lokasi masih free-text. Bergantung pada gap C1 (region_id FK). Setelah C1 selesai, metrik sebaran per wilayah bisa dihitung.</p>
+          <p class="evidence">Evidence: prd-ceo.md §4.3 — catatan "lokasi saat ini bertipe teks bebas (opsional). Untuk analitik wilayah yang andal, disarankan normalisasi wilayah/kota."</p>
+        </div>
+      </div>
+
+      <!-- F. CI/CD Polish -->
+      <div class="sub-title">F. 🚀 CI/CD & Infrastructure Polish (3 gap)</div>
+      <div class="gap-grid">
+        <div class="gap-card p3">
+          <h4><span class="id-tag">F1</span> Database backup cron <span class="priority-badge pb-p3">P3</span></h4>
+          <p>Disebut di checklist index.html sebagai "Deferred". Tidak ada scheduled backup job di docker-compose atau cron VPS.</p>
+          <p class="evidence">Evidence: index.html checklist — "PostgreSQL managed DB + backup cron — Deferred".</p>
+        </div>
+        <div class="gap-card p3">
+          <h4><span class="id-tag">F2</span> Virus scan file upload <span class="priority-badge pb-p3">P3</span></h4>
+          <p>Disebut di security-baseline.html §Phase 3 — ClamAV atau cloud antivirus untuk file upload. Belum diimplementasi.</p>
+          <p class="evidence">Evidence: security-baseline.html §File Upload: "Virus scan (Phase 3) — ClamAV atau layanan cloud antivirus."</p>
+        </div>
+        <div class="gap-card p3">
+          <h4><span class="id-tag">F3</span> Webhook standard <span class="priority-badge pb-p3">P3</span></h4>
+          <p>Disebut di api-standard.html §Scope sebagai "Phase 3". Belum ada spesifikasi atau implementasi signature/retry/payload untuk outgoing webhook.</p>
+          <p class="evidence">Evidence: api-standard.html §Scope — "Webhook Standard: Phase 3".</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════════ KORELASI ═══════════════ -->
+    <section id="korelasi">
+      <h2 class="sec-title"><span class="sec-icon ic-o">🔗</span>Korelasi & Ketergantungan Antar Gap</h2>
+
+      <p style="color:var(--muted);font-size:.87rem;margin-bottom:1rem;">Diagram ketergantungan: arah panah = "memblokir". Tanpa gap sumber, gap tujuan tidak bisa dimulai atau hasilnya tidak optimal.</p>
+
+      <div class="dep-graph">
+<span class="dg-done">Phase 2 Clean (0 active)</span><br>
+<span class="dg-arrow">└─→</span> <span class="dg-node">ws-testing-coverage</span> <span class="dg-dep">(60% done — active)</span><br>
+<span class="dg-arrow">    ├─→</span> <span class="dg-node">B1</span> <span class="dg-dep">Coverage 85%</span><br>
+<span class="dg-arrow">    │   ├─→</span> <span class="dg-node">B2</span> <span class="dg-dep">Integration test service crate</span><br>
+<span class="dg-arrow">    │   └─→</span> <span class="dg-dep">(blocks: semua gap hilir — setiap perubahan Phase 3 wajib lulus coverage gate)</span><br>
+<span class="dg-arrow">    │</span><br>
+<span class="dg-arrow">├─→</span> <span class="dg-node">A1</span> <span class="dg-dep">Rate limiting bisnis</span><br>
+<span class="dg-arrow">│   └─→</span> <span class="dg-dep">(required for: production deployment)</span><br>
+<span class="dg-arrow">│</span><br>
+<span class="dg-arrow">├─→</span> <span class="dg-node">C1</span> <span class="dg-dep">region_id FK di iklan</span><br>
+<span class="dg-arrow">│   ├─→</span> <span class="dg-node">E4</span> <span class="dg-dep">Metrik geografis CEO</span><br>
+<span class="dg-arrow">│   ├─→</span> <span class="dg-node">E1</span> <span class="dg-dep">Endpoint /insights/*</span><br>
+<span class="dg-arrow">│   └─→</span> <span class="dg-dep">(enables: pencarian iklan berbasis radius, filter wilayah akurat)</span><br>
+<span class="dg-arrow">│</span><br>
+<span class="dg-arrow">├─→</span> <span class="dg-node">A2</span> <span class="dg-dep">Multi-tier RBAC</span><br>
+<span class="dg-arrow">│   ├─→</span> <span class="dg-dep">Dashboard production (moderator vs super_admin)</span><br>
+<span class="dg-arrow">│   └─→</span> <span class="dg-dep">CEO Mobile access control (role executive)</span><br>
+<span class="dg-arrow">│</span><br>
+<span class="dg-arrow">└─→</span> <span class="dg-node">A3</span> <span class="dg-dep">audit_log table</span><br>
+<span class="dg-arrow">    ├─→</span> <span class="dg-dep">Kepatuhan PDP (data retention + access tracking)</span><br>
+<span class="dg-arrow">    └─→</span> <span class="dg-dep">Investigasi insiden keamanan</span><br>
+<br>
+<span class="dg-dep">Independent (bisa paralel):</span><br>
+<span class="dg-arrow">├─→</span> <span class="dg-node">D1</span> <span class="dg-dep">PATCH iklan</span><br>
+<span class="dg-arrow">├─→</span> <span class="dg-node">D2</span> <span class="dg-dep">Password reset</span><br>
+<span class="dg-arrow">├─→</span> <span class="dg-node">A4</span> <span class="dg-dep">CORS policy</span><br>
+<span class="dg-arrow">├─→</span> <span class="dg-node">A6</span> <span class="dg-dep">cargo audit/deny</span><br>
+<span class="dg-arrow">└─→</span> <span class="dg-node">F1-F3</span> <span class="dg-dep">Infra polish</span>
+      </div>
+
+      <div class="callout c-warn" style="margin-top:1rem;">
+        <span class="callout-icon">⚠️</span>
+        <div><strong>Bottleneck utama: B1 (Coverage 85%) + C1 (region_id)</strong>
+        <p>B1 memblokir semua perubahan hilir karena setiap PR Phase 3 wajib lulus coverage gate. C1 memblokir analytics geografis (E1-E4) karena tidak mungkin menghitung metrik wilayah dari free-text yang tidak terstruktur. Kedua gap ini harus diprioritaskan di Wave 3A.</p></div>
+      </div>
+    </section>
+
+    <!-- ═══════════════ MATRIKS PRIORITAS ═══════════════ -->
+    <section id="prioritas">
+      <h2 class="sec-title"><span class="sec-icon ic-r">🎯</span>Matriks Prioritas</h2>
+
+      <p style="color:var(--muted);font-size:.87rem;margin-bottom:1rem;">Diurut berdasarkan <strong>dampak produksi</strong> × <strong>ketergantungan</strong>. P0 = tidak bisa production tanpa ini. P1 = wajib sebelum production launch penuh. P2 = penting tapi tidak block. P3 = nice-to-have.</p>
+
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Pri</th><th>ID</th><th>Gap</th><th>Kategori</th><th>Dampak Jika Tidak Ada</th><th>Estimasi</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><span class="priority-badge pb-p0">P0</span></td>
+              <td>A1</td>
+              <td>Rate limiting endpoint bisnis</td>
+              <td>Security</td>
+              <td>Semua endpoint bisnis rentan DoS/brute-force. Tidak bisa production.</td>
+              <td>3-5 hari</td>
+            </tr>
+            <tr>
+              <td><span class="priority-badge pb-p0">P0</span></td>
+              <td>C1</td>
+              <td>region_id FK di 4 iklan entities</td>
+              <td>Data Integrity</td>
+              <td>Memblokir analytics geografis, pencarian berbasis lokasi, CEO dashboard.</td>
+              <td>5-7 hari</td>
+            </tr>
+            <tr>
+              <td><span class="priority-badge pb-p0">P0</span></td>
+              <td>B1</td>
+              <td>Coverage ≥ 85% (roll-out + gate)</td>
+              <td>Testing</td>
+              <td>AC CLAUDE.md mandatory. Tanpa coverage gate, setiap perubahan Phase 3 menambah utang testing. Tidak bisa measure kualitas.</td>
+              <td>10-15 hari</td>
+            </tr>
+            <tr>
+              <td><span class="priority-badge pb-p1">P1</span></td>
+              <td>A3</td>
+              <td>audit_log table</td>
+              <td>Security</td>
+              <td>Kepatuhan PDP tidak terpenuhi. Tidak bisa investigasi insiden.</td>
+              <td>2-3 hari</td>
+            </tr>
+            <tr>
+              <td><span class="priority-badge pb-p1">P1</span></td>
+              <td>A2</td>
+              <td>Multi-tier RBAC</td>
+              <td>Security</td>
+              <td>Dashboard tidak bisa membedakan moderator vs super_admin. CEO tidak bisa akses analytics.</td>
+              <td>3-4 hari</td>
+            </tr>
+            <tr>
+              <td><span class="priority-badge pb-p1">P1</span></td>
+              <td>D1</td>
+              <td>PATCH iklan (update)</td>
+              <td>Fitur</td>
+              <td>User tidak bisa edit iklan yang sudah diposting. Basic CRUD incomplete.</td>
+              <td>3-4 hari</td>
+            </tr>
+            <tr>
+              <td><span class="priority-badge pb-p1">P1</span></td>
+              <td>D2</td>
+              <td>Password reset flow</td>
+              <td>Fitur</td>
+              <td>User tidak bisa reset password. Support overhead tinggi.</td>
+              <td>2-3 hari</td>
+            </tr>
+            <tr>
+              <td><span class="priority-badge pb-p2">P2</span></td>
+              <td>A4</td>
+              <td>CORS production policy</td>
+              <td>Security</td>
+              <td>Origin wildcard di production = risk browser-based attack.</td>
+              <td>0.5 hari</td>
+            </tr>
+            <tr>
+              <td><span class="priority-badge pb-p2">P2</span></td>
+              <td>A5</td>
+              <td>Enkripsi phone + rekening bank</td>
+              <td>Security</td>
+              <td>Data sensitif terekspos jika DB breach. Partial — NIK sudah dienkripsi.</td>
+              <td>2-3 hari</td>
+            </tr>
+            <tr>
+              <td><span class="priority-badge pb-p2">P2</span></td>
+              <td>B2</td>
+              <td>Integration test di service crate</td>
+              <td>Testing</td>
+              <td>Extraction readiness berkurang. Test hanya di monolith level.</td>
+              <td>5-7 hari</td>
+            </tr>
+            <tr>
+              <td><span class="priority-badge pb-p2">P2</span></td>
+              <td>E1</td>
+              <td>Endpoint /insights/*</td>
+              <td>CEO Analytics</td>
+              <td>CEO Mobile tidak bisa menampilkan data. Bergantung pada C1.</td>
+              <td>5-7 hari</td>
+            </tr>
+            <tr>
+              <td><span class="priority-badge pb-p2">P2</span></td>
+              <td>E2</td>
+              <td>Metrik pertumbuhan pengguna</td>
+              <td>CEO Analytics</td>
+              <td>Insights pengguna tidak tersedia.</td>
+              <td>2-3 hari</td>
+            </tr>
+            <tr>
+              <td><span class="priority-badge pb-p2">P2</span></td>
+              <td>E3</td>
+              <td>Metrik konten per vertikal</td>
+              <td>CEO Analytics</td>
+              <td>Insights konten tidak tersedia.</td>
+              <td>2-3 hari</td>
+            </tr>
+            <tr>
+              <td><span class="priority-badge pb-p2">P2</span></td>
+              <td>E4</td>
+              <td>Metrik geografis</td>
+              <td>CEO Analytics</td>
+              <td>Tidak akurat tanpa region_id. Bergantung pada C1.</td>
+              <td>(termasuk di C1)</td>
+            </tr>
+            <tr>
+              <td><span class="priority-badge pb-p2">P2</span></td>
+              <td>C2</td>
+              <td>Validasi region_id di user profiles</td>
+              <td>Data Integrity</td>
+              <td>Integritas referensial region lemah di application layer saja.</td>
+              <td>1-2 hari</td>
+            </tr>
+            <tr>
+              <td><span class="priority-badge pb-p3">P3</span></td>
+              <td>D3</td>
+              <td>Device token management</td>
+              <td>Fitur</td>
+              <td>Mungkin sudah partial. Perlu verifikasi.</td>
+              <td>1-2 hari</td>
+            </tr>
+            <tr>
+              <td><span class="priority-badge pb-p3">P3</span></td>
+              <td>D4</td>
+              <td>Idempotency-Key implementation</td>
+              <td>Fitur</td>
+              <td>Double-submit protection belum sempurna. Uniqueness constraint sudah partial.</td>
+              <td>2-3 hari</td>
+            </tr>
+            <tr>
+              <td><span class="priority-badge pb-p3">P3</span></td>
+              <td>A6</td>
+              <td>cargo audit + cargo deny di CI</td>
+              <td>CI/CD</td>
+              <td>CVE tidak terdeteksi otomatis. Low effort untuk ditambahkan.</td>
+              <td>0.5 hari</td>
+            </tr>
+            <tr>
+              <td><span class="priority-badge pb-p3">P3</span></td>
+              <td>D5</td>
+              <td>argon2 password hashing</td>
+              <td>Security</td>
+              <td>bcrypt sudah cukup aman. argon2 adalah upgrade incremental.</td>
+              <td>1-2 hari</td>
+            </tr>
+            <tr>
+              <td><span class="priority-badge pb-p3">P3</span></td>
+              <td>B3</td>
+              <td>Metrics endpoint (Prometheus)</td>
+              <td>Observability</td>
+              <td>Alerting tidak bisa otomatis. Health check sudah ada.</td>
+              <td>1-2 hari</td>
+            </tr>
+            <tr>
+              <td><span class="priority-badge pb-p3">P3</span></td>
+              <td>B4</td>
+              <td>Log aggregation</td>
+              <td>Observability</td>
+              <td>Log masih terpisah per container. Bisa dibaca via Docker logs.</td>
+              <td>2-3 hari</td>
+            </tr>
+            <tr>
+              <td><span class="priority-badge pb-p3">P3</span></td>
+              <td>F1-F3</td>
+              <td>Backup cron + virus scan + webhook</td>
+              <td>Infra</td>
+              <td>Infra polish. Tidak memengaruhi fungsionalitas aplikasi.</td>
+              <td>3-5 hari</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ═══════════════ REKOMENDASI URUTAN ═══════════════ -->
+    <section id="rekomendasi">
+      <h2 class="sec-title"><span class="sec-icon ic-g">📐</span>Rekomendasi Urutan Implementasi</h2>
+
+      <p style="color:var(--muted);font-size:.87rem;margin-bottom:1rem;">Fase implementasi disusun untuk menghindari bottleneck dan deadlock. Setiap wave bisa dikerjakan paralel jika independent. Detail lengkap lihat <a href="../implementation-plan-phase-3.html" style="color:var(--yellow);">Implementation Plan Phase 3</a>.</p>
+
+      <div class="sub-title">Wave 3A: Security Core & Foundation (P0 — Minggu 1-3)</div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Urutan</th><th>ID</th><th>Task</th><th>Depends On</th><th>OpenSpec Change</th></tr></thead>
+          <tbody>
+            <tr><td>1</td><td>B1</td><td>Lanjutkan ws-testing-coverage (Sections 4+6) — integration test gap + roll-out unit test ke 10 service</td><td>—</td><td><code>ws-testing-coverage</code> (existing)</td></tr>
+            <tr><td>2</td><td>A1</td><td>Rate limiting ke semua endpoint bisnis — tower-governor atau Redis Lua, mulai dari POST iklan, kirim notif, lapor</td><td>—</td><td><code>ws-rate-limiting-bisnis</code> (new)</td></tr>
+            <tr><td>3</td><td>C1</td><td>region_id FK migration di 4 iklan entities — kolom baru + index, handler filter query via region_id, backfill opsional</td><td>—</td><td><code>ws-region-id-iklan</code> (new)</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sub-title">Wave 3B: Compliance & Access Control (P1 — Minggu 3-5)</div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Urutan</th><th>ID</th><th>Task</th><th>Depends On</th><th>OpenSpec Change</th></tr></thead>
+          <tbody>
+            <tr><td>4</td><td>A3</td><td>audit_log table — migration, PgAuditLogRepository, trigger di auth events (login/logout/refresh/failed)</td><td>—</td><td><code>ws-audit-log</code> (new)</td></tr>
+            <tr><td>5</td><td>A2</td><td>Multi-tier RBAC — extend enum Role (6 value), require_role() middleware, migrasi role</td><td>—</td><td><code>ws-multi-tier-rbac</code> (new)</td></tr>
+            <tr><td>6</td><td>D1</td><td>PATCH iklan — update handler di 4 iklan service, ownership check di SQL, validasi field editable</td><td>A1 (rate limit pada endpoint baru)</td><td><code>ws-patch-iklan</code> (new)</td></tr>
+            <tr><td>7</td><td>D2</td><td>Password reset flow — handler POST /auth/reset-password, POST /auth/confirm-reset, OTP-based</td><td>A3 (audit_log ready)</td><td><code>ws-password-reset</code> (new)</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sub-title">Wave 3C: Production Polish (P2 — Minggu 5-7)</div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Urutan</th><th>ID</th><th>Task</th><th>Depends On</th><th>OpenSpec Change</th></tr></thead>
+          <tbody>
+            <tr><td>8</td><td>A4</td><td>CORS production policy — whitelist origin dari env var, fallback ke Any untuk development</td><td>—</td><td><code>ws-cors-production</code> (new)</td></tr>
+            <tr><td>9</td><td>A5</td><td>Enkripsi phone + future rekening bank — pakai common/crypto AES-256-GCM, migrate existing plaintext phone</td><td>—</td><td><code>ws-encryption-at-rest</code> (new)</td></tr>
+            <tr><td>10</td><td>B2</td><td>Integration test di 12 service crate — pindahkan test rejki-app yang relevan + tambah per-service integration test</td><td>B1 (unit test roll-out done)</td><td><code>ws-testing-coverage</code> (extend)</td></tr>
+            <tr><td>11</td><td>C2</td><td>Validasi chain region_id di user profiles — trigger/check constraint atau validasi parent_id consistency</td><td>C1 (region_id exist)</td><td><code>ws-region-validation</code> (new)</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sub-title">Wave 3D: Analytics & Infra Polish (P3 — Minggu 7+)</div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Urutan</th><th>ID</th><th>Task</th><th>Depends On</th><th>OpenSpec Change</th></tr></thead>
+          <tbody>
+            <tr><td>12</td><td>E1-E4</td><td>CEO analytics endpoints — /api/v1/insights/*, materialized view, RBAC-gated (executive role)</td><td>C1 (region_id), A2 (RBAC)</td><td><code>ws-ceo-analytics</code> (new)</td></tr>
+            <tr><td>13</td><td>A6</td><td>cargo audit + cargo deny di CI pipeline</td><td>—</td><td>Tambahan ke ci.yml langsung</td></tr>
+            <tr><td>14</td><td>D3-D5</td><td>Device token verification + Idempotency-Key + argon2</td><td>—</td><td><code>ws-p3-nice-to-haves</code> (new)</td></tr>
+            <tr><td>15</td><td>F1-F3</td><td>Backup cron + virus scan + webhook + metrics endpoint</td><td>—</td><td><code>ws-infra-polish</code> (new)</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout c-info" style="margin-top:1rem;">
+        <span class="callout-icon">📐</span>
+        <div><strong>Total estimasi: 8-12 minggu untuk seluruh Phase 3</strong>
+        <p>Wave 3A (2-3 minggu) = production minimum viable. Setelah Wave 3A selesai, sistem sudah bisa dideploy production dengan rate limit, coverage gate, dan region integrity. Wave 3B-3D bisa dikerjakan bertahap setelah production.</p></div>
+      </div>
+    </section>
+
+    <footer>
+      <p>Rejki Backend — Brainstorm: Phase 3 Hardening Analysis · 17 Juni 2026<br>
+      <strong>Status 18 Juni 2026:</strong> W3A-01 ✅ Done · W3A-02 ✅ Done · Next: W3A-03 (region_id FK)</p>
+      <p style="margin-top:.3rem;">Sumber: kode di rust-services/ · dokumen di docs/ · spesifikasi di openspec/ · CLAUDE.md</p>
+    </footer>
+
+  </main>
+</div>
+</body>
+</html>

@@ -61,7 +61,7 @@ async fn main() {
     tracing::info!("report-service (standalone) listening on :{port}");
     axum::serve(
         listener,
-        report_service::router(pool, auth_client, None, None),
+        report_service::router(pool, auth_client, None, None, None),
     )
     .await
     .unwrap();

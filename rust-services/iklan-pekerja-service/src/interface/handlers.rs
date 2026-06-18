@@ -39,11 +39,14 @@ pub async fn create(
     Extension(claims): Extension<AuthClaims>,
     ValidatedJson(body): ValidatedJson<CreateIklanPekerjaInput>,
 ) -> Result<Response, AppError> {
-    let item = s
-        .svc
-        .create(claims.user_id, body)
-        .await
-        .map_err(AppError::Internal)?;
+    let item = s.svc.create(claims.user_id, body).await.map_err(|e| {
+        let msg = e.to_string();
+        if msg.contains("terlalu banyak permintaan") {
+            AppError::RateLimited(msg)
+        } else {
+            AppError::Internal(e)
+        }
+    })?;
     let id = item.id;
     Ok(created_response(
         ApiResponse::ok(item),

@@ -60,7 +60,14 @@ pub async fn create_report(
             evidence_key,
         )
         .await
-        .map_err(AppError::Internal)?;
+        .map_err(|e| {
+            let msg = e.to_string();
+            if msg.contains("terlalu banyak permintaan") {
+                AppError::RateLimited(msg)
+            } else {
+                AppError::Internal(e)
+            }
+        })?;
 
     let id = report.id;
     Ok(created_response(

@@ -232,6 +232,8 @@
       <a class="nav-link accent" href="health-check.html">🏥 Phase 1.5 — Health Check</a>
       <a class="nav-link accent" href="api-versioning.html">🔢 Phase 1.5 — API Versioning</a>
       <a class="nav-link accent" href="authorization-pattern.html">🔐 Phase 1.5 — Authorization</a>
+      <a class="nav-link accent" href="implementation-plan-phase-3.html" style="color:var(--yellow);">🛡️ Phase 3 — Implementation Plan</a>
+      <a class="nav-link accent" href="brainstorm/phase-3-hardening-analysis.html" style="color:var(--yellow);">🧠 Phase 3 — Brainstorm</a>
       <a class="nav-link" href="#roadmap">Roadmap</a>
       <a class="nav-link" href="#checklist">Master Checklist</a>
     </div>
@@ -771,7 +773,8 @@
           <div class="rm-body">
             <div class="rm-phase">Phase 2 — Core Services</div>
             <div class="rm-title">user-service · notification-service · chat-service</div>
-            <div class="rm-desc">user-service CRUD profil lengkap · notification-service Rust jadi publisher Redis Stream + REST API in-app · bun-notification-service consumer FCM HTTP v1 + DB write · chat-service (WebSocket + cursor pagination) · buat <code>UserClient</code>, <code>NotificationClient</code>, <code>ChatClient</code> trait.</div>
+            <div class="rm-desc">user-service CRUD profil lengkap · notification-service Rust jadi publisher Redis Stream + REST API in-app + device token management · bun-notification-service consumer FCM HTTP v1 + DB write · chat-service (WebSocket + cursor pagination bidirectional + broadcast) · <code>UserClient</code>, <code>NotificationClient</code>, <code>ChatClient</code> trait.</div>
+            <div class="rm-done">✓ Selesai</div>
             <div class="rm-pills">
               <span class="rm-pill">user-service</span>
               <span class="rm-pill">notification-service</span>
@@ -785,7 +788,8 @@
           <div class="rm-body">
             <div class="rm-phase">Phase 2 — Core Services</div>
             <div class="rm-title">iklan-* services (4 service)</div>
-            <div class="rm-desc">iklan-pekerjaan · iklan-pekerja (GIN index keahlian) · iklan-barang-bekas (mark_sold, foto_urls) · iklan-pelatihan (tanggal_mulai/selesai) · integrasi NotificationClient untuk notifikasi event iklan.</div>
+            <div class="rm-desc">iklan-pekerjaan · iklan-pekerja (GIN index keahlian) · iklan-barang-bekas (gratis/donasi model) · iklan-pelatihan (7-status lifecycle + enrollment + badge) · integrasi NotificationClient untuk notifikasi event iklan. Moderation + suspend + CSV export di semua 4 vertikal.</div>
+            <div class="rm-done">✓ Selesai</div>
             <div class="rm-pills">
               <span class="rm-pill">iklan-pekerjaan</span>
               <span class="rm-pill">iklan-pekerja</span>
@@ -1017,66 +1021,118 @@
             <tr class="cl-2">
               <td>user-service CRUD profil + user-service-client</td>
               <td style="text-align:center;">2</td>
-              <td><span class="cl-status-todo">Pending</span></td>
+              <td><span class="cl-status-done">✓ Selesai</span></td>
             </tr>
             <tr class="cl-2">
-              <td>notification-service Rust: ubah peran jadi publisher Redis Stream (<code>XADD</code>) + REST API in-app + device token register/delete · bun-notification-service: consumer XREADGROUP + FCM dispatch + DB write</td>
+              <td><strong>+ RBAC admin</strong> — role column, admin login, require_admin middleware</td>
               <td style="text-align:center;">2</td>
-              <td><span class="cl-status-todo">Pending</span></td>
+              <td><span class="cl-status-done">✓ Selesai</span></td>
             </tr>
             <tr class="cl-2">
-              <td>chat-service (WebSocket + cursor pagination) + chat-service-client</td>
+              <td><strong>+ region-service</strong> — data wilayah 4-level, cascading API, RegionClient</td>
               <td style="text-align:center;">2</td>
-              <td><span class="cl-status-todo">Pending</span></td>
+              <td><span class="cl-status-done">✓ Selesai</span></td>
+            </tr>
+            <tr class="cl-2">
+              <td>notification-service Rust: publisher Redis Stream (<code>XADD</code>) + REST API in-app + device token register/delete · bun-notification-service: consumer XREADGROUP + FCM dispatch + DB write</td>
+              <td style="text-align:center;">2</td>
+              <td><span class="cl-status-done">✓ Selesai</span></td>
+            </tr>
+            <tr class="cl-2">
+              <td>chat-service (WebSocket + cursor pagination bidirectional + broadcast) + chat-service-client</td>
+              <td style="text-align:center;">2</td>
+              <td><span class="cl-status-done">✓ Selesai</span></td>
+            </tr>
+            <tr class="cl-2">
+              <td><strong>+ corporate-comms</strong> — artikel, soft-delete, foto, broadcast notifikasi</td>
+              <td style="text-align:center;">2</td>
+              <td><span class="cl-status-done">✓ Selesai</span></td>
+            </tr>
+            <tr class="cl-2">
+              <td><strong>+ content-reports</strong> — aduan, review, CSV export</td>
+              <td style="text-align:center;">2</td>
+              <td><span class="cl-status-done">✓ Selesai</span></td>
             </tr>
             <tr class="cl-2">
               <td>iklan-pekerjaan / iklan-pekerja / iklan-barang-bekas / iklan-pelatihan — implementasi lengkap</td>
               <td style="text-align:center;">2</td>
-              <td><span class="cl-status-todo">Pending</span></td>
+              <td><span class="cl-status-done">✓ Selesai</span></td>
+            </tr>
+            <tr class="cl-2">
+              <td><strong>+ pelatihan enrollment + badge</strong> — 7-status lifecycle, enrollment, sertifikat</td>
+              <td style="text-align:center;">2</td>
+              <td><span class="cl-status-done">✓ Selesai</span></td>
+            </tr>
+            <tr class="cl-2">
+              <td><strong>+ rejki-web-dashboard</strong> — Vue.js SPA + 11 page view + reusable components</td>
+              <td style="text-align:center;">2</td>
+              <td><span class="cl-status-done">✓ Selesai</span></td>
             </tr>
 
             <!-- ── Phase 3 Hardening ── -->
             <tr class="cl-3">
-              <td>Rate limiting (tower-governor) + OTP brute-force protection</td>
+              <td>Rate limiting (tower-governor) + OTP brute-force protection — <em>partial: sudah ada di auth-service (Lua script atomik Redis), perlu diperluas ke endpoint bisnis</em></td>
               <td style="text-align:center;">3</td>
-              <td><span class="cl-status-todo">Pending</span></td>
+              <td><span class="cl-status-done" style="background:rgba(227,179,65,.15);color:var(--yellow);border-color:rgba(227,179,65,.3);">⚡ Partial</span></td>
             </tr>
             <tr class="cl-3">
-              <td>Structured logging JSON + Request ID per request</td>
-              <td style="text-align:center;">3</td>
-              <td><span class="cl-status-todo">Pending</span></td>
+              <td>Structured logging JSON + Request ID per request — <em>selesai di Phase 1.5 (common/tracing-setup, request_id_layer UUID v7, logging-standard)</em></td>
+              <td style="text-align:center;">1.5</td>
+              <td><span class="cl-status-done">✓ Selesai</span></td>
             </tr>
             <tr class="cl-3">
-              <td>Integration test dengan DB real (schema <code>rejki_test</code>)</td>
+              <td>Integration test dengan DB real (schema <code>rejki_test</code>) — <em>partial: 52 test di rejki-app/tests/, CI pakai Postgres container, 0 test di 12 *-service crate</em></td>
               <td style="text-align:center;">3</td>
-              <td><span class="cl-status-todo">Pending</span></td>
+              <td><span class="cl-status-done" style="background:rgba(227,179,65,.15);color:var(--yellow);border-color:rgba(227,179,65,.3);">⚡ Partial</span></td>
             </tr>
 
-            <!-- ── Phase 3 CI/CD ── -->
-            <tr class="cl-4">
-              <td>Multi-stage Dockerfile per service (image &lt;30MB)</td>
-              <td style="text-align:center;">3</td>
-              <td><span class="cl-status-todo">Pending</span></td>
+            <!-- ── Phase 3 CI/CD — completed via Phase 1.5 ── -->
+            <tr class="cl-2">
+              <td>Multi-stage Dockerfile per service (image &lt;30MB) — <em>selesai di Phase 1.5 (infrastructure-setup, rust-services/Dockerfile + bun-notification-service/Dockerfile)</em></td>
+              <td style="text-align:center;">1.5</td>
+              <td><span class="cl-status-done">✓ Selesai</span></td>
             </tr>
-            <tr class="cl-4">
-              <td>GitHub Actions: fmt → clippy → test → build → push image</td>
-              <td style="text-align:center;">3</td>
-              <td><span class="cl-status-todo">Pending</span></td>
+            <tr class="cl-2">
+              <td>GitHub Actions: fmt → clippy → test → build → push image — <em>selesai di Phase 1.5 (ci.yml + deploy.yml + deploy-dev.yml, integration test dg Postgres container)</em></td>
+              <td style="text-align:center;">1.5</td>
+              <td><span class="cl-status-done">✓ Selesai</span></td>
             </tr>
-            <tr class="cl-4">
-              <td>nginx.dev.conf + nginx.prod.conf lengkap (WebSocket proxy, rate limit)</td>
-              <td style="text-align:center;">3</td>
-              <td><span class="cl-status-todo">Pending</span></td>
+            <tr class="cl-2">
+              <td>nginx.dev.conf + nginx.prod.conf lengkap (WebSocket proxy, rate limit) — <em>selesai di Phase 1.5 (rate-limit 3 zona, JSON log, security headers, custom 429/502)</em></td>
+              <td style="text-align:center;">1.5</td>
+              <td><span class="cl-status-done">✓ Selesai</span></td>
             </tr>
-            <tr class="cl-4">
-              <td>Cloudflare Tunnel: TUNNEL_TOKEN di secrets + zero-trust config</td>
-              <td style="text-align:center;">3</td>
-              <td><span class="cl-status-todo">Pending</span></td>
+            <tr class="cl-2">
+              <td>Cloudflare Tunnel: TUNNEL_TOKEN di secrets + zero-trust config — <em>selesai di Phase 1.5 (vps-deployment, docker-compose profil cloudflare-tunnel)</em></td>
+              <td style="text-align:center;">1.5</td>
+              <td><span class="cl-status-done">✓ Selesai</span></td>
             </tr>
             <tr class="cl-5">
-              <td>PostgreSQL managed DB (bukan dalam Swarm) + backup cron</td>
+              <td>PostgreSQL managed DB (bukan dalam Swarm) + backup cron — <em>infra: single-VPS setup sudah didokumentasikan; managed DB + backup cron deferred ke Wave 3D-15</em></td>
               <td style="text-align:center;">3</td>
-              <td><span class="cl-status-todo">Pending</span></td>
+              <td><span class="cl-status-todo">Deferred</span></td>
+            </tr>
+
+            <!-- ── Phase 3 Hardening — active tasks ── -->
+            <tr class="cl-3">
+              <td><strong>ws-testing-coverage</strong> — CI fix ✅, unit test 9 services 236 PASS ✅, 52 integration tests PASS ✅, coverage 17.90%→49.09% ✅, CI gate 49% hard ✅ <br><small><a href="../../openspec/changes/ws-testing-coverage/tasks.md" style="color:var(--yellow);">tasks.md</a> · <a href="implementation-plan-phase-3.html#w3a" style="color:var(--yellow);">W3A-01</a></small></td>
+              <td style="text-align:center;">3</td>
+              <td><span class="cl-status-done">✅ Done</span></td>
+            </tr>
+            <tr class="cl-3">
+              <td><strong>ws-rate-limiting-bisnis</strong> — common/rate-limit crate ✅, 8 services full wiring ✅, global middleware ✅, 238 unit + 52 integration PASS <br><small><a href="../../openspec/changes/ws-rate-limiting-bisnis/tasks.md" style="color:var(--green);">tasks.md</a> · <a href="implementation-plan-phase-3.html#w3a" style="color:var(--green);">W3A-02 · P0</a></small></td>
+              <td style="text-align:center;">3</td>
+              <td><span class="cl-status-done">✅ Done</span></td>
+            </tr>
+            <tr class="cl-3">
+              <td><strong>ws-region-id-iklan</strong> — normalisasi <code>lokasi</code> free-text → <code>region_id</code> FK di 4 iklan entities <br><small><a href="implementation-plan-phase-3.html#w3a" style="color:var(--yellow);">W3A-03 · P0</a></small></td>
+              <td style="text-align:center;">3</td>
+              <td><span class="cl-status-todo">📋 Pending</span></td>
+            </tr>
+            <tr class="cl-3">
+              <td><strong>Phase 3 plan</strong> — brainstorm + implementation plan (15 task, 4 wave, 8-12 minggu) <br><small><a href="brainstorm/phase-3-hardening-analysis.html" style="color:var(--yellow);">brainstorm</a> · <a href="implementation-plan-phase-3.html" style="color:var(--yellow);">implementation plan</a></small></td>
+              <td style="text-align:center;">3</td>
+              <td><span class="cl-status-done">✓ 17 Juni 2026</span></td>
             </tr>
           </tbody>
         </table>
@@ -1084,7 +1140,7 @@
     </section>
 
     <footer>
-      <p>Rejki Backend Architecture Document · Terakhir diperbarui: 9 Juni 2026 · Phase 1 selesai ✓</p>
+      <p>Rejki Backend Architecture Document · Terakhir diperbarui: 18 Juni 2026 · Phase 2 selesai ✓ · Phase 3 in progress (W3A-01 ✅, W3A-02 ✅, next: W3A-03)</p>
       <p style="margin-top:.3rem;">Stack: Rust · Axum 0.8 · sqlx 0.9 · PostgreSQL · Modular Monolith → Extraction-Ready</p>
     </footer>
 

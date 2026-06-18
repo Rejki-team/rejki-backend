@@ -4,16 +4,16 @@
 |---|---|
 | **Produk** | Rejki — Platform Marketplace Multi-Vertikal |
 | **Dokumen** | Product Requirements Document (Payung) |
-**Versi** | 0.2 — Draft |
-| **Tanggal** | 2026-06-14 |
-| **Status** | Draft untuk ditinjau |
+**Versi** | 1.0 — Final |
+| **Tanggal** | 2026-06-16 |
+| **Status** | Final — Phase 2 Complete |
 | **Pemilik** | _(belum ditentukan)_ |
 
 > **Catatan akurasi.** Dokumen ini disusun dari dua sumber yang ada di repositori: (1) dokumentasi teknis di `docs/*.html` dan (2) kode sumber di `rust-services/`. Hal yang **tidak tertulis di sumber** (persona, metrik bisnis, KPI, fitur admin & eksekutif) ditandai secara eksplisit sebagai **_(inferensi)_**, **_(USULAN)_**, atau **_(TBD)_**. Tidak ada angka atau target yang dikarang. Asumsi implementasi didokumentasikan di [brainstorm/user-service-phase2.html § Asumsi](../brainstorm/user-service-phase2.html#asumsi).
 
 > **Pembaruan 2026-06-11:** Proposal `extend-auth-service-onboarding` (OpenSpec) selesai diimplementasi dan terverifikasi (build hijau online+offline, 4 unit test + 10 integration test pass, `.sqlx` cache di-generate). Detail asumsi implementasi (parameter OTP, backend kripto, env key, binary standalone) dicatat di dokumen brainstorming dan perlu ditinjau sebelum naik ke produksi.
 
-> **Pembaruan 2026-06-14:** Pemilik produk memberikan **User Story lengkap & otoritatif** untuk **Rejki Web Dashboard** (admin). [prd-dashboard.md](prd-dashboard.md) dinaikkan ke **v0.2** (spesifikasi nyata per menu/halaman, bukan lagi placeholder), dan kebutuhan backend baru dipetakan menjadi proposal OpenSpec terpisah: `add-admin-rbac` (fondasi RBAC + login admin email/password), `extend-iklan-moderation` (moderasi 4 vertikal: status, suspend per-iklan, search/sort, CSV, foto), `add-pelatihan-enrollment-badge` (7 status pelatihan, konfirmasi peserta + bukti transfer, badge/sertifikat), `add-content-reports` (Pengelolaan Dukungan/aduan), `add-corporate-comms` (artikel + broadcast), dan `add-rejki-web-dashboard` (spesifikasi SPA Vue). Keputusan kunci: **satu role `admin` extensible** ke tier, **login admin email+password tanpa OTP** (akun di-inject DBA).
+> **Pembaruan 2026-06-16:** Phase 2 (Core Services) dinyatakan **SELESAI**. Semua 10 item roadmap Phase 2 terverifikasi: user-service CRUD profil + KYC, notification-service publisher + consumer + device token management, chat-service WebSocket + cursor bidirectional + broadcast, 4 iklan services lengkap dengan moderation/suspend/CSV, enrollment/badge, corporate comms, content reports, RBAC admin, region service, web dashboard. 2 pass code review + fix (14 temuan) dan gap analysis + close (5 gap) selesai. 13 OpenSpec changes archived. Roadmap `docs/index.html` dan semua dokumen pendukung telah diperbarui.
 
 ---
 
@@ -38,7 +38,7 @@ Ekosistem Rejki terdiri dari **satu backend bersama** (`rejki-backend`) yang mel
 2. **Rejki Web Dashboard** — untuk admin yang memoderasi konten dan mengelola platform.
 3. **Rejki CEO Mobile** — untuk eksekutif yang memantau statistik bisnis sebagai acuan *canvassing*.
 
-Backend dibangun sebagai **modular monolith** Rust yang siap diekstrak menjadi *microservice* tanpa mengubah *business logic*. Per **2026-06-09**, fondasi (Phase 1) dan standardisasi (Phase 1.5) telah selesai 100%, dengan handler fungsional untuk kedelapan domain.
+Backend dibangun sebagai **modular monolith** Rust yang siap diekstrak menjadi *microservice* tanpa mengubah *business logic*. Per **2026-06-16**, fondasi (Phase 1), standardisasi (Phase 1.5), dan Core Services (Phase 2) telah selesai 100%, dengan 16 OpenSpec changes yang terverifikasi dan 13 di antaranya sudah di-archive.
 
 ---
 
@@ -77,7 +77,7 @@ Aktivitas ekonomi mikro di Indonesia tersebar di banyak kanal terpisah — lowon
 | Aplikasi | Pengguna | Teknologi klien | Fungsi inti | Status backend |
 |---|---|---|---|---|
 | **Rejki Mobile** | Pengguna umum (role user biasa) | **Flutter** (Dart) | Pasang/cari iklan (4 vertikal), chat, notifikasi, profil | ✅ Sebagian besar sudah ada |
-| **Rejki Web Dashboard** | Admin | **Vue.js + TypeScript + Tailwind CSS** (repo `rejki-web/`) | Verifikasi KYC, moderasi 4 iklan, siklus pelatihan (verifikasi/konfirmasi/badge), aduan, corporate comms, suspend, CSV | 🔧 Backend sebagian — **6 gap** (audit 2026-06-15) ditutup 3 change baru; UI `add-rejki-web-dashboard` belum dibuat. Lihat [dashboard-gap-analysis.md](../dashboard-gap-analysis.md) |
+| **Rejki Web Dashboard** | Admin | **Vue.js + TypeScript + Tailwind CSS** (repo `rejki-web/`) | Verifikasi KYC, moderasi 4 iklan, siklus pelatihan (verifikasi/konfirmasi/badge), aduan, corporate comms, suspend, CSV | ✅ Backend selesai — 16 OpenSpec changes terverifikasi; UI `add-rejki-web-dashboard` selesai (spesifikasi SPA Vue.js + 11 page view). Lihat [dashboard-gap-analysis.md](../dashboard-gap-analysis.md) |
 | **Rejki CEO Mobile** | Eksekutif / CEO | **Flutter** (Dart) | Statistik bisnis, sebaran geografis, tren — acuan canvassing | 📋 Rencana (belum ada) |
 
 Ketiganya berbagi satu backend (`rejki-backend`) dan satu basis data PostgreSQL (schema terisolasi per domain).
@@ -190,13 +190,13 @@ Detail lengkap: [index.html](../index.html) dan [infrastructure-setup.html](../i
 |---|---|---|
 | **Phase 1 — Foundation** | Workspace, common crates, auth-service, skeleton 8 domain | ✅ Selesai |
 | **Phase 1.5 — Standardization** | 14 standar wajib (W0–W9): API, security, logging, WebSocket, notifikasi, infra, CI/CD, DB, testing, config, health, versioning, authorization | ✅ Selesai (2026-06-09) |
-| **Phase 2 — Core Services** | Pendalaman fitur per domain (search/filter, update, media, pagination lanjutan) | 📋 Rencana |
-| **Phase 3 — Hardening** | Rate limiting, proteksi brute-force OTP, observability produksi | 📋 Rencana |
+| **Phase 2 — Core Services** | user-service CRUD profil + KYC, notification-service publisher + consumer + device token, chat-service WebSocket + cursor bidirectional + broadcast, 4 iklan services lengkap dengan moderation/badge/enrollment, RBAC admin, region service, corporate comms, content reports, web dashboard | ✅ Selesai (2026-06-16) |
+| **Phase 3 — Hardening** | Rate limiting (tower-governor), structured logging JSON, integration test penuh, production-grade observability | 📋 Rencana |
 | **Phase 4 — Extraction** | Ekstraksi domain ke microservice (bila diperlukan) | 📋 Rencana |
 
-### Kebutuhan backend baru untuk Dashboard & CEO _(Status per 2026-06-15)_
+### Kebutuhan backend baru untuk Dashboard & CEO _(Status per 2026-06-16)_
 
-Untuk **Dashboard**, sebagian besar backend telah diimplementasikan per change OpenSpec; **3 change baru (#11–#13)** menutup gap hasil audit 2026-06-15:
+Untuk **Dashboard**, backend telah selesai diimplementasikan. Seluruh change OpenSpec dashboard (16 changes) terverifikasi, dan gap audit 2026-06-15 telah ditutup:
 
 | # | Change | Status | Review |
 |---|--------|--------|--------|
@@ -209,10 +209,10 @@ Untuk **Dashboard**, sebagian besar backend telah diimplementasikan per change O
 | 7 | **`add-content-reports`** — domain report/aduan + report-service + report-service-client | ✅ Selesai | — |
 | 8 | **`add-storage-service-spec`** — dokumentasi formal kontrak StorageClient + 8 kategori | ✅ Selesai | [review](../code-review/add-storage-service-spec-review.md) |
 | 9 | **`extend-iklan-moderation`** — state moderasi + suspend per-iklan + search/sort + CSV export | ✅ Selesai | — |
-| 10 | **`add-rejki-web-dashboard`** — SPA dashboard (UI/UX) | 📋 Rencana (web) | — |
-| 11 | **`add-user-admin-management`** — listing KYC admin, baca dokumen teraudit, auto-purge saat reject | 🔴 Baru (gap audit 2026-06-15) | — |
-| 12 | **`extend-user-suspension-bulk-purge`** — bulk suspend pengguna + purge dokumen saat permanen | 🔴 Baru (gap audit 2026-06-15) | — |
-| 13 | **`extend-barang-bekas-gratis-model`** — model gratis/donasi (jenis/jumlah/lokasi pengambilan/Sudah Diambil) | 🔴 Baru (gap audit 2026-06-15) | — |
+| 10 | **`add-rejki-web-dashboard`** — SPA dashboard (UI/UX) | ✅ Selesai | — |
+| 11 | **`add-user-admin-management`** — listing KYC admin, baca dokumen teraudit, auto-purge saat reject | ✅ Selesai | [review](../code-review/add-user-admin-management-review.md) |
+| 12 | **`extend-user-suspension-bulk-purge`** — bulk suspend pengguna (`POST /auth/admin/users/suspend`) + purge dokumen saat permanen + notif email+in-app | ✅ Selesai | [review](../code-review/extend-user-suspension-bulk-purge-review.md) |
+| 13 | **`extend-barang-bekas-gratis-model`** — model gratis/donasi (jenis/jumlah/lokasi pengambilan/Sudah Diambil) | ✅ Selesai | [review](../code-review/extend-barang-bekas-gratis-model-review.md) |
 
 > **Audit gap 2026-06-15.** Penelusuran kode ulang menemukan 6 gap backend yang sebelumnya keliru ditandai selesai; ditutup oleh change #11–#13. Detail & bukti baris kode: [dashboard-gap-analysis.md](../dashboard-gap-analysis.md).
 

@@ -7,7 +7,7 @@ async fn main() {
     }
     common_tracing::init_tracing();
 
-    let db_url = std::env::var("AUTH_DATABASE_URL").expect("AUTH_DATABASE_URL not set");
+    let db_url = std::env::var("DATABASE_URL").expect("DATABASE_URL not set");
     let pool = sqlx::PgPool::connect(&db_url)
         .await
         .expect("DB connect failed");
@@ -18,7 +18,7 @@ async fn main() {
         .expect("Migration failed");
 
     let app = auth_service::router(pool);
-    let port = std::env::var("AUTH_PORT").unwrap_or_else(|_| "3001".into());
+    let port = std::env::var("APP_PORT").unwrap_or_else(|_| "3001".into());
     let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{port}"))
         .await
         .unwrap();

@@ -23,8 +23,9 @@ pub struct CreateBarangBekasParams<'a> {
     pub seller_id: Uuid,
     pub judul: &'a str,
     pub deskripsi: &'a str,
-    pub harga: i64,
-    pub kondisi: &'a str,
+    pub jenis_barang: &'a str,
+    pub jumlah: i32,
+    pub lokasi_pengambilan: &'a str,
     pub lokasi: Option<&'a str>,
     pub foto_urls: &'a [String],
 }
@@ -37,7 +38,9 @@ pub trait IklanBarangBekasRepository: Send + Sync {
         &self,
         params: CreateBarangBekasParams<'_>,
     ) -> Result<IklanBarangBekas, anyhow::Error>;
-    async fn mark_sold(&self, id: Uuid, seller_id: Uuid) -> Result<bool, anyhow::Error>;
+    /// Tandai barang sebagai "sudah diambil". Hanya pemilik (seller_id).
+    /// Kembalikan true bila berhasil, false bila bukan pemilik/iklan tidak ditemukan.
+    async fn mark_taken(&self, id: Uuid, seller_id: Uuid) -> Result<bool, anyhow::Error>;
     async fn delete(&self, id: Uuid, seller_id: Uuid) -> Result<bool, anyhow::Error>;
     async fn exists(&self, id: Uuid) -> Result<bool, anyhow::Error>;
 

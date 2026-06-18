@@ -82,6 +82,7 @@ impl AccountStatus {
             (Active, SuspendedTemp) => true,
             (Active, SuspendedPermanent) => true,
             (SuspendedTemp, Active) => true,
+            (SuspendedTemp, SuspendedPermanent) => true,
             (a, b) if *a == b => true, // idempoten
             _ => false,
         }

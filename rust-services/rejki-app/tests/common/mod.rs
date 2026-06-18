@@ -6,7 +6,8 @@ use sqlx::PgPool;
 
 pub mod fixtures;
 
-pub use fixtures::seed_user;
+#[allow(unused_imports)]
+pub use fixtures::{seed_admin, seed_kyc_submission, seed_user};
 
 /// Test app — build router yang sama dengan main.rs tapi pakai pool test.
 pub async fn build_test_app(pool: PgPool) -> Router {
@@ -34,15 +35,39 @@ pub async fn build_test_app(pool: PgPool) -> Router {
     use axum::routing::get;
     use serde_json::json;
 
+    // Shared clients — dibangun sekali agar test mencerminkan komposisi main.rs.
+    let region_client: Arc<dyn region_service::RegionClient> = Arc::new(
+        region_service::RegionInProcessClient::new(Arc::new(region_service::RegionService::new(
+            Arc::new(region_service::PgRegionRepository::new(pool.clone())),
+        ))),
+    );
+    let storage_client: Arc<dyn storage_service::StorageClient> =
+        Arc::new(storage_service::StorageInProcessClient::new().await);
+
+    // UserClient in-process — wajib agar jalur purge dokumen saat suspend permanen
+    // (extend-user-suspension-bulk-purge D4) ter-cover di integration test.
+    let user_client: Arc<dyn user_service_client::UserClient> = {
+        let user_repo = Arc::new(user_service::PgUserRepository::new(pool.clone()));
+        let user_svc = Arc::new(user_service::UserService::new(
+            user_repo,
+            auth_client.clone(),
+            region_client.clone(),
+            Some(storage_client.clone()),
+            None,
+        ));
+        Arc::new(user_service::UserInProcessClient::new(user_svc))
+    };
+
     let api_v1 = Router::new()
         .nest(
             "/auth",
-            auth_service::router_with_deps(
+            auth_service::router_with_deps_ex(
                 jwt.clone(),
                 auth_repo.clone(),
                 auth_client.clone(),
                 None,
-                None,
+                Some(storage_client.clone()),
+                Some(user_client.clone()),
             ),
         )
         .nest(
@@ -50,38 +75,34 @@ pub async fn build_test_app(pool: PgPool) -> Router {
             user_service::router(
                 pool.clone(),
                 auth_client.clone(),
-                Arc::new(region_service::RegionInProcessClient::new(Arc::new(
-                    region_service::RegionService::new(Arc::new(
-                        region_service::PgRegionRepository::new(pool.clone()),
-                    )),
-                ))),
-                Arc::new(storage_service::StorageInProcessClient::new().await),
+                region_client.clone(),
+                storage_client.clone(),
                 None,
             ),
         )
         .nest(
             "/chat",
-            chat_service::router(pool.clone(), auth_client.clone()),
+            chat_service::router(pool.clone(), auth_client.clone(), None),
         )
         .nest(
             "/notif",
-            notification_service::router(pool.clone(), auth_client.clone()),
+            notification_service::router(pool.clone(), auth_client.clone(), None),
         )
         .nest(
             "/pekerjaan",
-            iklan_pekerjaan_service::router(pool.clone(), auth_client.clone()),
+            iklan_pekerjaan_service::router(pool.clone(), auth_client.clone(), None, None, None),
         )
         .nest(
             "/pekerja",
-            iklan_pekerja_service::router(pool.clone(), auth_client.clone()),
+            iklan_pekerja_service::router(pool.clone(), auth_client.clone(), None, None, None),
         )
         .nest(
             "/barang",
-            iklan_barang_bekas_service::router(pool.clone(), auth_client.clone()),
+            iklan_barang_bekas_service::router(pool.clone(), auth_client.clone(), None, None, None),
         )
         .nest(
             "/pelatihan",
-            iklan_pelatihan_service::router(pool.clone(), auth_client.clone()),
+            iklan_pelatihan_service::router(pool.clone(), auth_client.clone(), None, None, None),
         );
 
     Router::new()

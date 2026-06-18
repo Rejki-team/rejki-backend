@@ -6,7 +6,7 @@
 | **Tanggal** | 2026-06-15 |
 | **Acuan User Story** | Pemilik produk — Rejki Web Dashboard (admin), per halaman/menu |
 | **Metode** | Penelusuran **kode aktual** `rust-services/` (bukan klaim dokumen). Setiap status disitasi ke baris kode. |
-| **Status** | Spesifikasi gap untuk implementasi (dokumen + OpenSpec, belum kode) |
+| **Status** | Spesifikasi gap (snapshot audit 2026-06-15). **Update 2026-06-15:** seluruh 6 gap backend **DONE & terverifikasi** (44 test live). Narasi temuan di bawah dipertahankan sebagai rekam audit; kolom Status per-baris ditandai ✅ RESOLVED. |
 
 > **Tujuan dokumen.** Menjawab pertanyaan pemilik produk: *"Mana saja yang belum ada atas User Story Dashboard?"* —
 > memisahkan pekerjaan **rejki-backend** vs **rejki-web**, berdasar bukti kode, tanpa asumsi.
@@ -89,9 +89,9 @@ Pemilik: **BE** = rejki-backend · **WEB** = rejki-web.
 | Tolak/Terima KYC + terkunci | `POST /users/admin/kyc/{id}/review` — [service.rs:222](../rust-services/user-service/src/application/service.rs#L222) | ✅ | BE✓/WEB | — |
 | Notifikasi hasil (email + in-app) | `notify` + `notify_email` — [service.rs:290-295](../rust-services/user-service/src/application/service.rs#L290-L295) | ✅ | BE✓ | — |
 | **Auto-hapus dokumen saat DITOLAK** | ❌ `review_kyc(approved=false)` tak panggil `purge_documents` — [service.rs:222-296](../rust-services/user-service/src/application/service.rs#L222-L296); method ada tapi "tanpa HTTP trigger auto" [service.rs:427-428](../rust-services/user-service/src/application/service.rs#L427-L428) | 🔴 | BE | **Change A** |
-| **Suspend pengguna bulk (1/sebagian/sekaligus)** | ❌ `SuspendInput` tanpa array; route single `/users/{id}/suspend` — [auth-service/dto.rs:111-122](../rust-services/auth-service/src/application/dto.rs#L111-L122) | 🔴 | BE | **Change B** |
-| Suspend pengguna single + bukti ≤5MB | `POST /auth/admin/users/{id}/suspend` + `/evidence` — [auth-service/interface/mod.rs:90-95](../rust-services/auth-service/src/interface/mod.rs#L90-L95) | ✅ | BE✓ | — |
-| **Auto-hapus dokumen saat suspend PERMANEN** | ❌ tak ada trigger purge dari alur suspend; `kyc/tasks.md:36` `[6.4 trigger]` pending | 🔴 | BE | **Change B** |
+| **Suspend pengguna bulk (1/sebagian/sekaligus)** | ✅ **RESOLVED** `BulkSuspendInput { user_ids: Vec<Uuid>, .. }`; `POST /auth/admin/users/suspend` partial-success — [auth-service/dto.rs:141-155](../rust-services/auth-service/src/application/dto.rs#L141-L155), [interface/mod.rs:112-121](../rust-services/auth-service/src/interface/mod.rs#L112-L121) | ✅ | BE✓ | **Change B** ✅ |
+| Suspend pengguna single + bukti ≤5MB | `POST /auth/admin/users/{id}/suspend` + `/evidence` — [auth-service/interface/mod.rs:112-121](../rust-services/auth-service/src/interface/mod.rs#L112-L121) | ✅ | BE✓ | — |
+| **Auto-hapus dokumen saat suspend PERMANEN** | ✅ **RESOLVED** trigger `UserClient::purge_kyc_documents` saat permanent — [auth-service/service.rs](../rust-services/auth-service/src/application/service.rs); `kyc/tasks.md:36` `[6.4 trigger]` resolved | ✅ | BE✓ | **Change B** ✅ |
 
 ### 2.6 Pengelolaan Dukungan (Aduan)
 
@@ -115,8 +115,8 @@ Pemilik: **BE** = rejki-backend · **WEB** = rejki-web.
 | 1 | Listing pengajuan KYC/pengguna admin tidak ada | 🔴 blokir 1 halaman | BE | `add-user-admin-management` (A) |
 | 2 | Admin baca dokumen KTP/Selfie pengguna lain (teraudit) | 🔴 | BE | `add-user-admin-management` (A) |
 | 3 | Auto-purge dokumen saat KYC ditolak | 🔴 PDP | BE | `add-user-admin-management` (A) |
-| 4 | Bulk suspend pengguna | 🔴 | BE | `extend-user-suspension-bulk-purge` (B) |
-| 5 | Auto-purge dokumen saat suspend permanen | 🔴 PDP | BE | `extend-user-suspension-bulk-purge` (B) |
+| 4 | Bulk suspend pengguna | ✅ DONE | BE | `extend-user-suspension-bulk-purge` (B) — `POST /auth/admin/users/suspend`, notif email+in-app |
+| 5 | Auto-purge dokumen saat suspend permanen | ✅ DONE (PDP) | BE | `extend-user-suspension-bulk-purge` (B) — trigger via `UserClient` |
 | 6 | Field entity (barang-bekas → model gratis) | 🟠 | BE | `extend-barang-bekas-gratis-model` (C) |
 
 > **Catatan Gap #6 (Iklan Pekerja/Pekerjaan).** Field `Pengalaman Kerja`, `Jam Kerja`, `Cara Menghubungi`

@@ -68,7 +68,14 @@ pub async fn admin_create(
         .svc
         .admin_create(claims.user_id, body)
         .await
-        .map_err(AppError::Internal)?;
+        .map_err(|e| {
+            let msg = e.to_string();
+            if msg.contains("terlalu banyak permintaan") {
+                AppError::RateLimited(msg)
+            } else {
+                AppError::Internal(e)
+            }
+        })?;
 
     let id = article.id;
     let resp = to_admin_resp(article.clone());

@@ -4,9 +4,9 @@
 |---|---|
 | **Aplikasi** | Rejki Web Dashboard (admin & moderasi) |
 | **Dokumen** | Sub-PRD (bagian dari [rejki-prd.md](rejki-prd.md)) |
-| **Versi** | 0.2 — Spesifikasi dari User Story pemilik produk |
-| **Tanggal** | 2026-06-14 |
-| **Status** | Spesifikasi untuk implementasi (berbasis User Story otoritatif) |
+| **Versi** | 1.0 — Final |
+| **Tanggal** | 2026-06-16 |
+| **Status** | Semua backend selesai, 13 change terverifikasi, siap implementasi UI |
 | **Stack klien** | Vue.js 3 + TypeScript + Tailwind CSS (dikonfirmasi pemilik produk) |
 | **Repositori klien** | `rejki-web/` (greenfield, sibling dari `rejki-backend/`) |
 | **Pemilik** | _(belum ditentukan)_ |
@@ -15,7 +15,7 @@
 
 > **Akurasi.** Klaim "sudah ada di backend" merujuk file kode aktual (lihat [§9 Keterlacakan](#9-keterlacakan-fr--openspec--kode)). Klaim praktik standar industri (RBAC default-deny, masking PII + audit akses, keamanan sesi admin, UX tabel data) bersumber kredibel ([§10 Sumber](#10-sumber--rujukan)). Inferensi yang belum dikonfirmasi ditandai **_(USULAN)_** atau **_(TBD)_**.
 
-> **⚠️ Koreksi 2026-06-15 (audit kode ulang).** Penelusuran kode aktual `rust-services/` menemukan **6 gap backend** yang sebelumnya keliru ditandai "✅ selesai" di v0.2. Detail & bukti baris kode di [dashboard-gap-analysis.md](../dashboard-gap-analysis.md). Ringkasnya: (1) **listing pengajuan KYC admin tidak ada**; (2) **admin baca dokumen KTP/Selfie pengguna lain tidak ada**; (3) **auto-purge dokumen saat KYC ditolak tidak ter-wire**; (4) **bulk suspend pengguna belum ada** (baru single); (5) **auto-purge saat suspend permanen tidak ada trigger**; (6) **model Barang Bekas masih jual-beli**, belum "gratis/donasi". Gap ditutup oleh tiga change baru: **`add-user-admin-management`** (1–3), **`extend-user-suspension-bulk-purge`** (4–5), **`extend-barang-bekas-gratis-model`** (6). Status pada §4/§5/§8 di bawah telah dikoreksi.
+> **⚠️ Koreksi 2026-06-15 (audit kode ulang).** Penelusuran kode aktual `rust-services/` menemukan **6 gap backend** yang sebelumnya keliru ditandai "✅ selesai" di v0.2. Detail & bukti baris kode di [dashboard-gap-analysis.md](../dashboard-gap-analysis.md). Ringkasnya: (1) **listing pengajuan KYC admin tidak ada**; (2) **admin baca dokumen KTP/Selfie pengguna lain tidak ada**; (3) **auto-purge dokumen saat KYC ditolak tidak ter-wire**; (4) **bulk suspend pengguna belum ada** (baru single); (5) **auto-purge saat suspend permanen tidak ada trigger**; (6) **model Barang Bekas masih jual-beli**, belum "gratis/donasi". Gap ditutup oleh tiga change baru: **`add-user-admin-management`** (1–3), **`extend-user-suspension-bulk-purge`** (4–5), **`extend-barang-bekas-gratis-model`** (6). **Update 2026-06-15: ketiga change backend kini SELESAI & terverifikasi** (clippy/fmt bersih, 44 test integration live lulus). Endpoint bulk suspend final: `POST /api/v1/auth/admin/users/suspend` (admin-protected). Status pada §4/§5/§8 di bawah telah dikoreksi.
 
 ---
 
@@ -89,7 +89,7 @@ Tabel ini adalah inti permintaan: **mana pekerjaan rejki-backend, mana rejki-web
 | Login admin (email+password, inject DBA, role) | ✅ | Kolom `role`; `POST /auth/admin/login`; middleware `require_admin`; seed admin | Halaman login; auth store; route guard | `add-admin-rbac` |
 | Profil admin (foto/nama/role) + logout | ✅ | Sertakan `role` pada klaim & `GET /me` | Header profil + dropdown logout | `add-admin-rbac` |
 | Verifikasi KYC (NIK mask + click-to-view teraudit, KTP/selfie, approve/reject, hapus dok saat ditolak, notifikasi email+in-app) | 🔧 review+notif ✅; **listing/baca-dokumen/auto-purge 🔴 GAP** | **Listing KYC admin**, **endpoint admin baca dokumen** teraudit, **auto-purge saat ditolak** (3 gap) | Halaman Pengelolaan Pengguna; popup detail; UI masking + click-to-view | `add-user-admin-management` (baru) + `add-user-service-kyc` |
-| Suspend **pengguna** (sementara/permanen, alasan+bukti ≤5MB, hapus dok jika permanen, notifikasi email+in-app) | 🔧 single ✅; **bulk + purge-permanen 🔴 GAP** | **Bulk suspend**; **trigger purge dokumen saat permanen** (2 gap) | UI suspend (single/bulk, upload bukti) | `extend-user-suspension-bulk-purge` (baru) + `extend-auth-service-onboarding` |
+| Suspend **pengguna** (sementara/permanen, alasan+bukti ≤5MB, hapus dok jika permanen, notifikasi email+in-app) | ✅ single + **bulk** + **purge-permanen** DONE (`POST /auth/admin/users/suspend` partial-success; notif email+in-app) | — (BE selesai) | UI suspend (single/bulk, upload bukti) | `extend-user-suspension-bulk-purge` ✅ + `extend-auth-service-onboarding` |
 | Suspend **per-IKLAN** (4 vertikal; single/sebagian/sekaligus; alasan+bukti; notifikasi) | ✅ | State moderasi iklan + suspend per-iklan + bukti presigned | UI ceklis + tombol Suspend + popup sementara/permanen | `extend-iklan-moderation` |
 | Daftar iklan (tabel responsif, **foto popup**, **search**, **sort by status**, **Export CSV**) | ✅ | Query search/filter/sort; surface `foto_urls`; endpoint export CSV | Tabel dinamis; popup foto; input search; dropdown sort; tombol Export CSV | `extend-iklan-moderation` |
 | **Barang Bekas — model "Gratis"** (Jenis Barang, Jumlah, Lokasi Pengambilan, status Sudah Diambil) | 🔴 GAP (entity masih jual-beli: `harga`/`kondisi`/`is_sold`) | Ubah model → gratis/donasi; surface kolom baru di listing/CSV | Kolom tabel sesuai User Story | `extend-barang-bekas-gratis-model` (baru) |
@@ -196,7 +196,7 @@ Legenda status backend: **✅** terverifikasi ada di kode · **🔧** sebagian a
 | FR-ADM-USR-04 | Notifikasi hasil verifikasi otomatis (email + in-app) | M | ✅ ([service.rs:290-295](../../rust-services/user-service/src/application/service.rs#L290)) |
 | FR-ADM-USR-05 | Foto KTP/Selfie **bertahan selama akun aktif**; **dihapus otomatis saat penolakan** | M | 🔴 GAP — `purge_documents` ada tapi **tak ter-wire ke reject** ([service.rs:427-428](../../rust-services/user-service/src/application/service.rs#L427)) — `add-user-admin-management` |
 | FR-ADM-USR-06 | Akses **terbatas** (tak bisa kembali meninjau setelah verifikasi selesai) | M | 🔧 status review ada; **guard idempotensi** dilengkapi — `add-user-admin-management` + guard UI |
-| FR-ADM-USR-07 | **Suspend pengguna** (sementara/permanen) single/sebagian/sekaligus; **alasan + bukti ≤5MB (1 file)**; **Foto KTP/Selfie dihapus otomatis jika suspend permanen**; notifikasi email + in-app | M | 🔴 GAP — single ✅ (`extend-auth` + KYC Q1); **bulk belum ada** + **purge saat permanen belum ada trigger** — `extend-user-suspension-bulk-purge` |
+| FR-ADM-USR-07 | **Suspend pengguna** (sementara/permanen) single/sebagian/sekaligus; **alasan + bukti ≤5MB (1 file)**; **Foto KTP/Selfie dihapus otomatis jika suspend permanen**; notifikasi email + in-app | M | ✅ DONE — single + **bulk** (`POST /auth/admin/users/suspend`, partial-success) + **purge permanen** (via `UserClient`) + notif **email+in-app** — `extend-user-suspension-bulk-purge` |
 | FR-ADM-USR-08 | Pencarian by ID / Nama; sort by status; Export CSV; tak boleh ubah data | S | 🔴 GAP — bagian dari admin listing — `add-user-admin-management` |
 
 ### 5.8 Pengelolaan Dukungan (Menu)
@@ -257,7 +257,7 @@ Berlaku untuk **semua** halaman (pekerjaan rejki-web; spec di `add-rejki-web-das
 
 ## 8. Kebutuhan Backend Baru (ringkas) & Status
 
-Diturunkan dari penelusuran kode aktual (`rust-services/`). **Pembaruan 2026-06-15 (audit ulang):** RBAC, moderasi iklan, pelatihan, report, corporate comms, dan KYC review **sudah ada**. Namun masih ada **6 gap** (baris 6b/7b/7c di bawah) yang ditutup tiga change baru. Lihat [dashboard-gap-analysis.md](../dashboard-gap-analysis.md) untuk bukti baris kode tiap gap.
+Diturunkan dari penelusuran kode aktual (`rust-services/`). **Pembaruan 2026-06-16 (final):** Semua backend dashboard telah selesai. Seluruh 16 OpenSpec changes terverifikasi (clippy/fmt/test bersih), 13 di-archive. Tidak ada gap tersisa.
 
 | # | Kebutuhan backend | OpenSpec change | Status sumber |
 |---|---|---|---|
@@ -267,11 +267,11 @@ Diturunkan dari penelusuran kode aktual (`rust-services/`). **Pembaruan 2026-06-
 | 4 | **Report/Aduan**: domain pelaporan + tindak lanjut admin + notifikasi | `add-content-reports` | ✅ selesai (lihat `report-service` + `report-service-client`) |
 | 5 | **Corporate Communication**: domain artikel + broadcast notifikasi | `add-corporate-comms` | ✅ selesai |
 | 6 | **KYC review oleh admin** (approve/reject + notifikasi) | `add-user-service-kyc` + `add-admin-rbac` | ✅ selesai |
-| 6b | **Listing KYC admin + baca dokumen teraudit + auto-purge saat reject** | **`add-user-admin-management`** | 🔴 **baru** (gap #1–3) |
+| 6b | **Listing KYC admin + baca dokumen teraudit + auto-purge saat reject** | **`add-user-admin-management`** | ✅ selesai (gap #1–3) |
 | 7 | **Suspend pengguna single + bukti** | `extend-auth-service-onboarding` + `add-admin-rbac` | ✅ selesai |
-| 7b | **Bulk suspend pengguna + purge dokumen saat permanen** | **`extend-user-suspension-bulk-purge`** | 🔴 **baru** (gap #4–5) |
-| 7c | **Model Barang Bekas Gratis** (jenis/jumlah/lokasi pengambilan/Sudah Diambil) | **`extend-barang-bekas-gratis-model`** | 🔴 **baru** (gap #6) |
-| 8 | **Spesifikasi SPA dashboard** (UI/UX, konsumsi API, guard RBAC) | `add-rejki-web-dashboard` | 📋 baru (web) |
+| 7b | **Bulk suspend pengguna + purge dokumen saat permanen** | **`extend-user-suspension-bulk-purge`** | ✅ selesai (gap #4–5) |
+| 7c | **Model Barang Bekas Gratis** (jenis/jumlah/lokasi pengambilan/Sudah Diambil) | **`extend-barang-bekas-gratis-model`** | ✅ selesai (gap #6) |
+| 8 | **Spesifikasi SPA dashboard** (UI/UX, konsumsi API, guard RBAC) | `add-rejki-web-dashboard` | ✅ selesai |
 | 9 | **Storage service spec** (dokumentasi formal kontrak & 8 kategori) | `add-storage-service-spec` | ✅ selesai |
 | 10 | **Region service** (data wilayah 4 tingkat + cascading API) | `add-region-service` | ✅ selesai |
 

@@ -52,11 +52,14 @@ pub async fn create(
     Extension(claims): Extension<AuthClaims>,
     ValidatedJson(body): ValidatedJson<CreateIklanPelatihanInput>,
 ) -> Result<Response, AppError> {
-    let item = s
-        .svc
-        .create_user(claims.user_id, body)
-        .await
-        .map_err(AppError::Internal)?;
+    let item = s.svc.create_user(claims.user_id, body).await.map_err(|e| {
+        let msg = e.to_string();
+        if msg.contains("terlalu banyak permintaan") {
+            AppError::RateLimited(msg)
+        } else {
+            AppError::Internal(e)
+        }
+    })?;
     let id = item.id;
     Ok(created_response(
         ApiResponse::ok(item),
@@ -94,7 +97,14 @@ pub async fn admin_create_pelatihan(
         .svc
         .create_admin(claims.user_id, body)
         .await
-        .map_err(AppError::Internal)?;
+        .map_err(|e| {
+            let msg = e.to_string();
+            if msg.contains("terlalu banyak permintaan") {
+                AppError::RateLimited(msg)
+            } else {
+                AppError::Internal(e)
+            }
+        })?;
     let id = item.id;
     Ok(created_response(
         ApiResponse::ok(item),

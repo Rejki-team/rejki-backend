@@ -15,6 +15,7 @@ path = "src/main.rs"
 common-errors  = { workspace = true }
 common-tracing = { workspace = true }
 common-auth-mw = { workspace = true }
+common-rate-limit = { workspace = true }
 notification-service-client = { path = "../notification-service-client" }
 user-service-client         = { path = "../user-service-client" }
 auth-service-client         = { path = "../auth-service-client" }

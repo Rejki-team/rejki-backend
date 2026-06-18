@@ -10,7 +10,8 @@ use serde::Serialize;
 use uuid::Uuid;
 
 use notification_service_client::{
-    EmailMessage, NotificationClient, NotificationClientError, NotificationPayload,
+    DeviceToken, DeviceTokenInput, EmailMessage, NotificationClient, NotificationClientError,
+    NotificationPayload,
 };
 
 const STREAM: &str = "notifications_stream";
@@ -109,5 +110,23 @@ impl NotificationClient for NotificationPublisher {
         };
         let s = serde_json::to_string(&event).map_err(|_| NotificationClientError::Unavailable)?;
         self.xadd(s).await
+    }
+
+    async fn register_device_token(
+        &self,
+        _user_id: Uuid,
+        _input: DeviceTokenInput,
+    ) -> Result<DeviceToken, NotificationClientError> {
+        // Device token registration happens via REST API, not Redis Stream.
+        Err(NotificationClientError::Unavailable)
+    }
+
+    async fn unregister_device_token(
+        &self,
+        _user_id: Uuid,
+        _token: &str,
+    ) -> Result<(), NotificationClientError> {
+        // Device token deletion happens via REST API, not Redis Stream.
+        Err(NotificationClientError::Unavailable)
     }
 }
