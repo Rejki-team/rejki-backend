@@ -16,6 +16,7 @@ pub struct IklanBarangBekasResponse {
     pub jumlah: i32,
     pub lokasi_pengambilan: String,
     pub lokasi: Option<String>,
+    pub region_id: Option<String>,
     pub foto_urls: Vec<String>,
     pub availability_status: AvailabilityStatus,
     pub moderation_status: ModerationStatus,
@@ -33,6 +34,7 @@ pub struct AdminIklanBarangBekasResponse {
     pub jumlah: i32,
     pub lokasi_pengambilan: String,
     pub lokasi: Option<String>,
+    pub region_id: Option<String>,
     pub foto_urls: Vec<String>,
     pub availability_status: AvailabilityStatus,
     pub moderation_status: ModerationStatus,
@@ -57,6 +59,7 @@ pub struct CreateIklanBarangBekasInput {
     #[validate(length(min = 1))]
     pub lokasi_pengambilan: String,
     pub lokasi: Option<String>,
+    pub region_id: Option<String>,
     pub foto_urls: Option<Vec<String>>,
 }
 

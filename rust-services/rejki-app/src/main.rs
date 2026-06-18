@@ -152,6 +152,7 @@ async fn main() {
                 Some(storage_client.clone()),
                 notifier.clone(),
                 rate_limiter.clone(),
+                Some(region_client.clone()),
             ),
         )
         .nest(
@@ -162,6 +163,7 @@ async fn main() {
                 Some(storage_client.clone()),
                 notifier.clone(),
                 rate_limiter.clone(),
+                Some(region_client.clone()),
             ),
         )
         .nest(
@@ -172,6 +174,7 @@ async fn main() {
                 Some(storage_client.clone()),
                 notifier.clone(),
                 rate_limiter.clone(),
+                Some(region_client.clone()),
             ),
         )
         .nest(
@@ -182,6 +185,7 @@ async fn main() {
                 Some(storage_client.clone()),
                 notifier.clone(),
                 rate_limiter.clone(),
+                Some(region_client.clone()),
             ),
         )
         .nest(

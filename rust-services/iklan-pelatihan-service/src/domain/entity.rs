@@ -158,6 +158,7 @@ pub struct IklanPelatihan {
     pub penyelenggara: String,
     pub deskripsi: String,
     pub lokasi: Option<String>,
+    pub region_id: Option<String>,
     pub harga: Option<i64>,
     pub tanggal_mulai: Option<DateTime<Utc>>,
     pub tanggal_selesai: Option<DateTime<Utc>>,

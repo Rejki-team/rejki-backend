@@ -28,6 +28,7 @@ pub struct CreatePekerjaanParams<'a> {
     pub deskripsi: &'a str,
     pub tipe: &'a str,
     pub lokasi: Option<&'a str>,
+    pub region_id: Option<&'a str>,
     pub gaji_min: Option<i64>,
     pub gaji_max: Option<i64>,
 }

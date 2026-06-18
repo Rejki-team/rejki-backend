@@ -90,19 +90,47 @@ pub async fn build_test_app(pool: PgPool) -> Router {
         )
         .nest(
             "/pekerjaan",
-            iklan_pekerjaan_service::router(pool.clone(), auth_client.clone(), None, None, None),
+            iklan_pekerjaan_service::router(
+                pool.clone(),
+                auth_client.clone(),
+                None,
+                None,
+                None,
+                None,
+            ),
         )
         .nest(
             "/pekerja",
-            iklan_pekerja_service::router(pool.clone(), auth_client.clone(), None, None, None),
+            iklan_pekerja_service::router(
+                pool.clone(),
+                auth_client.clone(),
+                None,
+                None,
+                None,
+                None,
+            ),
         )
         .nest(
             "/barang",
-            iklan_barang_bekas_service::router(pool.clone(), auth_client.clone(), None, None, None),
+            iklan_barang_bekas_service::router(
+                pool.clone(),
+                auth_client.clone(),
+                None,
+                None,
+                None,
+                None,
+            ),
         )
         .nest(
             "/pelatihan",
-            iklan_pelatihan_service::router(pool.clone(), auth_client.clone(), None, None, None),
+            iklan_pelatihan_service::router(
+                pool.clone(),
+                auth_client.clone(),
+                None,
+                None,
+                None,
+                None,
+            ),
         );
 
     Router::new()

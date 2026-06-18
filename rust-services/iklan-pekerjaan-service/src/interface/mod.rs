@@ -9,6 +9,7 @@ use axum::{
 use common_auth_mw::{require_active_account, require_admin, require_auth};
 use common_rate_limit::RateLimiter;
 use notification_service_client::NotificationClient;
+use region_service_client::RegionClient;
 use sqlx::PgPool;
 use std::sync::Arc;
 use storage_service_client::StorageClient;
@@ -27,11 +28,15 @@ pub fn router(
     storage: Option<Arc<dyn StorageClient>>,
     notifier: Option<Arc<dyn NotificationClient>>,
     rate_limiter: Option<Arc<dyn RateLimiter>>,
+    region_client: Option<Arc<dyn RegionClient>>,
 ) -> Router {
     let svc = {
         let mut b = IklanPekerjaanService::new(Arc::new(PgIklanPekerjaanRepository::new(pool)));
         if let Some(rl) = rate_limiter {
             b = b.with_rate_limiter(rl);
+        }
+        if let Some(rc) = region_client {
+            b = b.with_region_client(rc);
         }
         b
     };

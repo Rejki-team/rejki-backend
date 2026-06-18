@@ -9,6 +9,7 @@ use super::dto::{
     AdminLoginInput, ChangePasswordInput, LoginInput, RefreshInput, RegisterInput, ResendOtpInput,
     ResetPasswordInput, TokenPair, VerifyOtpInput,
 };
+use crate::domain::audit_log::{AuditContext, AuditEvent, AuditLogRepository};
 use crate::domain::entity::{AccountStatus, OtpPurpose};
 use crate::domain::rate_limit::RateLimiter;
 use crate::domain::repository::AuthRepository;
@@ -94,6 +95,9 @@ pub struct AuthService<R: AuthRepository> {
     /// Kontrak pengiriman notifikasi (email OTP). In-process di monolith;
     /// di-inject dari Composition Root. Opsional agar standalone/test tetap jalan.
     notifier: Option<Arc<dyn NotificationClient>>,
+    /// Audit log — catat setiap event auth ke tabel `auth.audit_log`.
+    /// Opsional (fail-open): jika None atau gagal INSERT, operasi utama tetap jalan.
+    audit_log: Option<Arc<dyn AuditLogRepository>>,
 }
 
 impl<R: AuthRepository> AuthService<R> {
@@ -109,6 +113,7 @@ impl<R: AuthRepository> AuthService<R> {
             refresh_ttl,
             rate_limiter,
             notifier: None,
+            audit_log: None,
         }
     }
 
@@ -117,6 +122,28 @@ impl<R: AuthRepository> AuthService<R> {
     pub fn with_notifier(mut self, notifier: Arc<dyn NotificationClient>) -> Self {
         self.notifier = Some(notifier);
         self
+    }
+
+    /// Inject AuditLogRepository (dipanggil dari Composition Root). Builder agar
+    /// `new()` lama tetap kompatibel untuk standalone/test.
+    /// Fail-open: bila tidak di-inject, event auth tidak dicatat (no-op).
+    pub fn with_audit_log(mut self, audit_log: Arc<dyn AuditLogRepository>) -> Self {
+        self.audit_log = Some(audit_log);
+        self
+    }
+
+    /// Helper: log event audit (fail-open — kegagalan audit tidak menggagalkan operasi utama).
+    async fn log_audit_event(
+        &self,
+        user_id: Option<Uuid>,
+        event: AuditEvent,
+        context: AuditContext,
+    ) {
+        if let Some(audit) = &self.audit_log {
+            if let Err(e) = audit.log(user_id, event, context).await {
+                tracing::warn!(error = %e, "gagal mencatat audit log");
+            }
+        }
     }
 
     /// Rate limit check untuk endpoint login (anti brute-force).
@@ -168,7 +195,11 @@ impl<R: AuthRepository> AuthService<R> {
         }
     }
 
-    pub async fn register(&self, input: RegisterInput) -> Result<(), anyhow::Error> {
+    pub async fn register(
+        &self,
+        input: RegisterInput,
+        ctx: AuditContext,
+    ) -> Result<(), anyhow::Error> {
         // Catatan: persetujuan T&C & kekuatan password sudah divalidasi di DTO (ValidatedJson → 422).
 
         // Anti-enumeration: jika email sudah ada, jangan bocorkan. Untuk akun yang masih
@@ -188,6 +219,14 @@ impl<R: AuthRepository> AuthService<R> {
                     .await?;
                 self.dispatch_otp_email(&input.email, OtpPurpose::Register.as_str(), &otp)
                     .await;
+                self.log_audit_event(
+                    Some(existing.id),
+                    AuditEvent::OtpSent {
+                        purpose: "register".into(),
+                    },
+                    ctx,
+                )
+                .await;
             }
             return Ok(());
         }
@@ -226,6 +265,15 @@ impl<R: AuthRepository> AuthService<R> {
 
         self.dispatch_otp_email(&input.email, OtpPurpose::Register.as_str(), &otp)
             .await;
+
+        self.log_audit_event(
+            Some(user.id),
+            AuditEvent::OtpSent {
+                purpose: "register".into(),
+            },
+            ctx,
+        )
+        .await;
 
         Ok(())
     }
@@ -314,7 +362,11 @@ impl<R: AuthRepository> AuthService<R> {
         }
     }
 
-    pub async fn login(&self, input: LoginInput) -> Result<TokenPair, ServiceError> {
+    pub async fn login(
+        &self,
+        input: LoginInput,
+        ctx: AuditContext,
+    ) -> Result<TokenPair, ServiceError> {
         // Rate limit anti brute-force — gagal tanpa membocorkan keberadaan akun.
         self.check_login_rate_limit("login", &input.email).await?;
 
@@ -335,6 +387,14 @@ impl<R: AuthRepository> AuthService<R> {
                 email_hash = %sha256_hex(&input.email),
                 "login failed: invalid credentials"
             );
+            self.log_audit_event(
+                None,
+                AuditEvent::LoginFailed {
+                    reason: "wrong password".into(),
+                },
+                ctx,
+            )
+            .await;
             return Err(ServiceError::Unauthorized(
                 "email atau password salah".into(),
             ));
@@ -348,6 +408,14 @@ impl<R: AuthRepository> AuthService<R> {
                     email_hash = %sha256_hex(&input.email),
                     "login failed: account not verified"
                 );
+                self.log_audit_event(
+                    Some(user.id),
+                    AuditEvent::LoginFailed {
+                        reason: "account not verified".into(),
+                    },
+                    ctx,
+                )
+                .await;
                 return Err(ServiceError::Unauthorized(
                     "email atau password salah".into(),
                 ));
@@ -357,6 +425,14 @@ impl<R: AuthRepository> AuthService<R> {
                     email_hash = %sha256_hex(&input.email),
                     "login failed: account suspended permanently"
                 );
+                self.log_audit_event(
+                    Some(user.id),
+                    AuditEvent::LoginFailed {
+                        reason: "account suspended permanently".into(),
+                    },
+                    ctx,
+                )
+                .await;
                 return Err(ServiceError::Unauthorized(
                     "email atau password salah".into(),
                 ));
@@ -374,6 +450,14 @@ impl<R: AuthRepository> AuthService<R> {
                             email_hash = %sha256_hex(&input.email),
                             "login failed: account suspended temporarily"
                         );
+                        self.log_audit_event(
+                            Some(user.id),
+                            AuditEvent::LoginFailed {
+                                reason: "account suspended temporarily".into(),
+                            },
+                            ctx,
+                        )
+                        .await;
                         return Err(ServiceError::Unauthorized(
                             "email atau password salah".into(),
                         ));
@@ -389,6 +473,8 @@ impl<R: AuthRepository> AuthService<R> {
             email_hash = %sha256_hex(&user.email),
             "login berhasil"
         );
+        self.log_audit_event(Some(user.id), AuditEvent::LoginSuccess, ctx)
+            .await;
 
         self.issue_tokens(&user, effective_status)
             .await
@@ -403,7 +489,11 @@ impl<R: AuthRepository> AuthService<R> {
     /// SuspendedTemp auto-recovery: jika masa suspensi sementara admin sudah expired,
     /// status dikembalikan ke Active (simetris dengan login reguler).
     /// Ref: openspec/changes/add-admin-rbac D3.
-    pub async fn admin_login(&self, input: AdminLoginInput) -> Result<TokenPair, ServiceError> {
+    pub async fn admin_login(
+        &self,
+        input: AdminLoginInput,
+        ctx: AuditContext,
+    ) -> Result<TokenPair, ServiceError> {
         // Rate limit anti brute-force — gagal tanpa membocorkan keberadaan akun.
         self.check_login_rate_limit("admin_login", &input.email)
             .await?;
@@ -431,6 +521,19 @@ impl<R: AuthRepository> AuthService<R> {
                 email_hash = %sha256_hex(&input.email),
                 "admin login failed: invalid credentials or not admin"
             );
+            let reason = if !password_ok {
+                "wrong password"
+            } else {
+                "not admin"
+            };
+            self.log_audit_event(
+                user_opt.as_ref().map(|u| u.id),
+                AuditEvent::AdminLoginFailed {
+                    reason: reason.into(),
+                },
+                ctx,
+            )
+            .await;
             return Err(ServiceError::Unauthorized(
                 "email atau password salah".into(),
             ));
@@ -453,6 +556,14 @@ impl<R: AuthRepository> AuthService<R> {
                             email_hash = %sha256_hex(&input.email),
                             "admin login failed: account suspended"
                         );
+                        self.log_audit_event(
+                            Some(user.id),
+                            AuditEvent::AdminLoginFailed {
+                                reason: "account suspended".into(),
+                            },
+                            ctx,
+                        )
+                        .await;
                         return Err(ServiceError::Unauthorized(
                             "email atau password salah".into(),
                         ));
@@ -464,6 +575,14 @@ impl<R: AuthRepository> AuthService<R> {
                     email_hash = %sha256_hex(&input.email),
                     "admin login failed: account not active"
                 );
+                self.log_audit_event(
+                    Some(user.id),
+                    AuditEvent::AdminLoginFailed {
+                        reason: "account not active".into(),
+                    },
+                    ctx,
+                )
+                .await;
                 return Err(ServiceError::Unauthorized(
                     "email atau password salah".into(),
                 ));
@@ -476,6 +595,8 @@ impl<R: AuthRepository> AuthService<R> {
             email_hash = %sha256_hex(&user.email),
             "admin login berhasil"
         );
+        self.log_audit_event(Some(user.id), AuditEvent::AdminLoginSuccess, ctx)
+            .await;
 
         self.issue_tokens(&user, effective_status)
             .await
@@ -509,7 +630,11 @@ impl<R: AuthRepository> AuthService<R> {
         })
     }
 
-    pub async fn refresh(&self, input: RefreshInput) -> Result<TokenPair, anyhow::Error> {
+    pub async fn refresh(
+        &self,
+        input: RefreshInput,
+        ctx: AuditContext,
+    ) -> Result<TokenPair, anyhow::Error> {
         let token_hash = sha256_hex(&input.refresh_token);
 
         // DELETE-first atomic: hapus token DAN dapatkan user_id dalam satu operasi.
@@ -534,15 +659,39 @@ impl<R: AuthRepository> AuthService<R> {
             .await?
             .ok_or_else(|| anyhow!("user tidak ditemukan"))?;
 
-        self.issue_tokens(&user, user.status).await
+        let tokens = self.issue_tokens(&user, user.status).await?;
+
+        self.log_audit_event(Some(user_id), AuditEvent::TokenRefresh, ctx)
+            .await;
+
+        Ok(tokens)
     }
 
-    pub async fn logout(&self, refresh_token: &str) -> Result<(), anyhow::Error> {
+    pub async fn logout(
+        &self,
+        refresh_token: &str,
+        ctx: AuditContext,
+    ) -> Result<(), anyhow::Error> {
         let token_hash = sha256_hex(refresh_token);
-        self.repo.revoke_refresh_token(&token_hash).await
+
+        // Cari user_id sebelum revoke untuk audit log.
+        let user_id = self.repo.find_user_by_refresh_token(&token_hash).await?;
+
+        self.repo.revoke_refresh_token(&token_hash).await?;
+
+        if let Some(uid) = user_id {
+            self.log_audit_event(Some(uid), AuditEvent::Logout, ctx)
+                .await;
+        }
+
+        Ok(())
     }
 
-    pub async fn resend_otp(&self, input: ResendOtpInput) -> Result<(), ServiceError> {
+    pub async fn resend_otp(
+        &self,
+        input: ResendOtpInput,
+        ctx: AuditContext,
+    ) -> Result<(), ServiceError> {
         let key = format!("otp_req:{}:{}", &input.purpose, &input.email);
         if !self.rate_limiter.allow_raw(&key, 3, 15 * 60).await {
             return Err(ServiceError::RateLimited(
@@ -567,12 +716,25 @@ impl<R: AuthRepository> AuthService<R> {
         self.dispatch_otp_email(&input.email, &input.purpose, &otp)
             .await;
 
+        self.log_audit_event(
+            Some(user.id),
+            AuditEvent::OtpSent {
+                purpose: input.purpose.clone(),
+            },
+            ctx,
+        )
+        .await;
+
         Ok(())
     }
 
     /// US-05: minta reset password. SELALU balas Ok (anti-enumeration) — bila email
     /// terdaftar, kirim OTP `reset_password`; bila tidak, tidak melakukan apa-apa.
-    pub async fn forgot_password(&self, email: &str) -> Result<(), anyhow::Error> {
+    pub async fn forgot_password(
+        &self,
+        email: &str,
+        ctx: AuditContext,
+    ) -> Result<(), anyhow::Error> {
         // Rate-limit per email demi anti-spam (tetap balas Ok agar anti-enumeration).
         let key = format!("otp_req:{}:{}", OtpPurpose::ResetPassword.as_str(), email);
         if !self.rate_limiter.allow_raw(&key, 3, 15 * 60).await {
@@ -592,6 +754,15 @@ impl<R: AuthRepository> AuthService<R> {
                 .await?;
             self.dispatch_otp_email(email, OtpPurpose::ResetPassword.as_str(), &otp)
                 .await;
+
+            self.log_audit_event(
+                Some(user.id),
+                AuditEvent::OtpSent {
+                    purpose: "reset_password".into(),
+                },
+                ctx.clone(),
+            )
+            .await;
         }
         Ok(())
     }
@@ -599,7 +770,11 @@ impl<R: AuthRepository> AuthService<R> {
     /// US-05: set password baru dengan OTP `reset_password`. Cabut SEMUA refresh token
     /// dalam transaction atomik — consume OTP + revoke token + update password dalam
     /// satu unit atomik. Mencegah OTP terlanjur dikonsumsi walau password update gagal.
-    pub async fn reset_password(&self, input: ResetPasswordInput) -> Result<(), anyhow::Error> {
+    pub async fn reset_password(
+        &self,
+        input: ResetPasswordInput,
+        ctx: AuditContext,
+    ) -> Result<(), anyhow::Error> {
         let user = self
             .repo
             .find_by_email(&input.email)
@@ -636,6 +811,8 @@ impl<R: AuthRepository> AuthService<R> {
             user_id = %user.id,
             "password reset successful"
         );
+        self.log_audit_event(Some(user.id), AuditEvent::PasswordReset, ctx)
+            .await;
         Ok(())
     }
 
@@ -646,6 +823,7 @@ impl<R: AuthRepository> AuthService<R> {
         &self,
         user_id: Uuid,
         input: ChangePasswordInput,
+        ctx: AuditContext,
     ) -> Result<(), anyhow::Error> {
         let otp_hash = sha256_hex(&input.otp);
         let new_hash = hash(&input.new_password, DEFAULT_COST).context("gagal hash password")?;
@@ -676,11 +854,17 @@ impl<R: AuthRepository> AuthService<R> {
             user_id = %user_id,
             "password change successful"
         );
+        self.log_audit_event(Some(user_id), AuditEvent::PasswordChanged, ctx)
+            .await;
         Ok(())
     }
 
     /// Minta OTP `change_password` untuk user terautentikasi (dikirim ke email terdaftar).
-    pub async fn request_change_password_otp(&self, user_id: Uuid) -> Result<(), ServiceError> {
+    pub async fn request_change_password_otp(
+        &self,
+        user_id: Uuid,
+        ctx: AuditContext,
+    ) -> Result<(), ServiceError> {
         let key = format!(
             "otp_req:{}:{}",
             OtpPurpose::ChangePassword.as_str(),
@@ -710,6 +894,16 @@ impl<R: AuthRepository> AuthService<R> {
             .await?;
         self.dispatch_otp_email(&user.email, OtpPurpose::ChangePassword.as_str(), &otp)
             .await;
+
+        self.log_audit_event(
+            Some(user.id),
+            AuditEvent::OtpSent {
+                purpose: "change_password".into(),
+            },
+            ctx,
+        )
+        .await;
+
         Ok(())
     }
 
@@ -719,6 +913,7 @@ impl<R: AuthRepository> AuthService<R> {
     pub async fn suspend_account(
         &self,
         params: SuspendAccountParams<'_>,
+        ctx: AuditContext,
     ) -> Result<(), anyhow::Error> {
         let email = self
             .suspend_one(
@@ -736,6 +931,17 @@ impl<R: AuthRepository> AuthService<R> {
             self.notify_suspended(n, params.user_id, &email, params.permanent, params.reason)
                 .await;
         }
+
+        self.log_audit_event(
+            Some(params.user_id),
+            AuditEvent::AccountSuspended {
+                admin_id: params.admin_id,
+                reason: params.reason.to_owned(),
+                permanent: params.permanent,
+            },
+            ctx,
+        )
+        .await;
 
         Ok(())
     }
@@ -857,8 +1063,10 @@ impl<R: AuthRepository> AuthService<R> {
     pub async fn suspend_accounts_bulk(
         &self,
         params: BulkSuspendParams<'_>,
+        ctx: AuditContext,
     ) -> Result<Vec<crate::application::dto::BulkSuspendResultItem>, anyhow::Error> {
         let mut results = Vec::with_capacity(params.user_ids.len());
+        let mut success_count: usize = 0;
 
         for &user_id in params.user_ids {
             match self
@@ -873,6 +1081,8 @@ impl<R: AuthRepository> AuthService<R> {
                 .await
             {
                 Ok(email) => {
+                    success_count += 1;
+
                     // Purge dokumen saat suspend permanen (D4) — best-effort + logged.
                     if params.permanent {
                         if let Some(uc) = params.user_client {
@@ -906,6 +1116,20 @@ impl<R: AuthRepository> AuthService<R> {
                     });
                 }
             }
+        }
+
+        // Audit: catat ringkasan bulk suspend (jika setidaknya 1 sukses).
+        if success_count > 0 {
+            self.log_audit_event(
+                None,
+                AuditEvent::AccountSuspendedBulk {
+                    admin_id: params.admin_id,
+                    count: success_count,
+                    permanent: params.permanent,
+                },
+                ctx,
+            )
+            .await;
         }
 
         Ok(results)
@@ -1213,6 +1437,14 @@ mod tests {
         }
     }
 
+    fn empty_audit_ctx() -> AuditContext {
+        AuditContext {
+            ip_address: None,
+            user_agent: None,
+            request_id: None,
+        }
+    }
+
     fn test_auth_service() -> AuthService<MockAuthRepository> {
         AuthService {
             repo: Arc::new(MockAuthRepository::new()),
@@ -1220,6 +1452,7 @@ mod tests {
             refresh_ttl: 2_592_000,
             rate_limiter: Arc::new(MockRateLimiter),
             notifier: None,
+            audit_log: None,
         }
     }
 
@@ -1244,10 +1477,13 @@ mod tests {
             updated_at: chrono::Utc::now(),
         });
         let result = svc
-            .login(LoginInput {
-                email: "test@rejki.id".into(),
-                password: "Strong1!".into(),
-            })
+            .login(
+                LoginInput {
+                    email: "test@rejki.id".into(),
+                    password: "Strong1!".into(),
+                },
+                empty_audit_ctx(),
+            )
             .await;
         assert!(result.is_ok(), "Login harus sukses: {:?}", result.err());
         let tokens = result.unwrap();
@@ -1271,10 +1507,13 @@ mod tests {
             updated_at: chrono::Utc::now(),
         });
         let result = svc
-            .login(LoginInput {
-                email: "test@rejki.id".into(),
-                password: "WrongPass1!".into(),
-            })
+            .login(
+                LoginInput {
+                    email: "test@rejki.id".into(),
+                    password: "WrongPass1!".into(),
+                },
+                empty_audit_ctx(),
+            )
             .await;
         assert!(result.is_err());
     }
@@ -1295,10 +1534,13 @@ mod tests {
             updated_at: chrono::Utc::now(),
         });
         let result = svc
-            .login(LoginInput {
-                email: "pending@rejki.id".into(),
-                password: "Strong1!".into(),
-            })
+            .login(
+                LoginInput {
+                    email: "pending@rejki.id".into(),
+                    password: "Strong1!".into(),
+                },
+                empty_audit_ctx(),
+            )
             .await;
         assert!(result.is_err());
     }
@@ -1319,10 +1561,13 @@ mod tests {
             updated_at: chrono::Utc::now(),
         });
         let result = svc
-            .login(LoginInput {
-                email: "banned@rejki.id".into(),
-                password: "Strong1!".into(),
-            })
+            .login(
+                LoginInput {
+                    email: "banned@rejki.id".into(),
+                    password: "Strong1!".into(),
+                },
+                empty_audit_ctx(),
+            )
             .await;
         assert!(result.is_err());
     }
@@ -1356,9 +1601,12 @@ mod tests {
             .unwrap();
 
         let result = svc
-            .refresh(RefreshInput {
-                refresh_token: token,
-            })
+            .refresh(
+                RefreshInput {
+                    refresh_token: token,
+                },
+                empty_audit_ctx(),
+            )
             .await;
         assert!(result.is_ok(), "Refresh harus sukses: {:?}", result.err());
     }
@@ -1367,9 +1615,12 @@ mod tests {
     async fn refresh_fails_with_invalid_token() {
         let svc = test_auth_service();
         let result = svc
-            .refresh(RefreshInput {
-                refresh_token: "invalid_token".into(),
-            })
+            .refresh(
+                RefreshInput {
+                    refresh_token: "invalid_token".into(),
+                },
+                empty_audit_ctx(),
+            )
             .await;
         assert!(result.is_err());
     }
@@ -1387,7 +1638,7 @@ mod tests {
             )
             .await
             .unwrap();
-        assert!(svc.logout(&token).await.is_ok());
+        assert!(svc.logout(&token, empty_audit_ctx()).await.is_ok());
     }
 
     #[tokio::test]
@@ -1407,15 +1658,18 @@ mod tests {
         };
         svc.repo.insert_user(user.clone());
         let result = svc
-            .suspend_account(SuspendAccountParams {
-                user_id: user.id,
-                permanent: true,
-                reason: "test",
-                expires_at: None,
-                admin_id: Uuid::now_v7(),
-                evidence_object_key: Some("evidence_key"),
-                notifier: None,
-            })
+            .suspend_account(
+                SuspendAccountParams {
+                    user_id: user.id,
+                    permanent: true,
+                    reason: "test",
+                    expires_at: None,
+                    admin_id: Uuid::now_v7(),
+                    evidence_object_key: Some("evidence_key"),
+                    notifier: None,
+                },
+                empty_audit_ctx(),
+            )
             .await;
         assert!(
             result.is_err(),
@@ -1440,15 +1694,18 @@ mod tests {
         };
         svc.repo.insert_user(user.clone());
         let result = svc
-            .suspend_account(SuspendAccountParams {
-                user_id: user.id,
-                permanent: true,
-                reason: "TOS violation",
-                expires_at: None,
-                admin_id: Uuid::now_v7(),
-                evidence_object_key: Some("evidence_key"),
-                notifier: None,
-            })
+            .suspend_account(
+                SuspendAccountParams {
+                    user_id: user.id,
+                    permanent: true,
+                    reason: "TOS violation",
+                    expires_at: None,
+                    admin_id: Uuid::now_v7(),
+                    evidence_object_key: Some("evidence_key"),
+                    notifier: None,
+                },
+                empty_audit_ctx(),
+            )
             .await;
         assert!(
             result.is_ok(),
@@ -1587,7 +1844,7 @@ mod tests {
             tos_accepted: true,
             tos_version: Some("v1".into()),
         };
-        let result = svc.register(input).await;
+        let result = svc.register(input, empty_audit_ctx()).await;
         assert!(result.is_ok(), "Register harus sukses: {:?}", result.err());
         // User must exist after registration
         let user = svc.repo.find_by_email("new@rejki.id").await.unwrap();
@@ -1617,7 +1874,7 @@ mod tests {
             tos_version: Some("v1".into()),
         };
         // Anti-enumeration: returns Ok even though user exists (no leak)
-        let result = svc.register(input).await;
+        let result = svc.register(input, empty_audit_ctx()).await;
         assert!(result.is_ok());
     }
 
@@ -1644,7 +1901,7 @@ mod tests {
             tos_version: Some("v1".into()),
         };
         // Anti-enumeration: returns Ok silently (no information leak)
-        let result = svc.register(input).await;
+        let result = svc.register(input, empty_audit_ctx()).await;
         assert!(result.is_ok());
     }
 
@@ -1667,10 +1924,13 @@ mod tests {
             updated_at: chrono::Utc::now(),
         });
         let result = svc
-            .admin_login(AdminLoginInput {
-                email: "admin@rejki.id".into(),
-                password: "Admin1!".into(),
-            })
+            .admin_login(
+                AdminLoginInput {
+                    email: "admin@rejki.id".into(),
+                    password: "Admin1!".into(),
+                },
+                empty_audit_ctx(),
+            )
             .await;
         assert!(
             result.is_ok(),
@@ -1698,10 +1958,13 @@ mod tests {
             updated_at: chrono::Utc::now(),
         });
         let result = svc
-            .admin_login(AdminLoginInput {
-                email: "user@rejki.id".into(),
-                password: "Strong1!".into(),
-            })
+            .admin_login(
+                AdminLoginInput {
+                    email: "user@rejki.id".into(),
+                    password: "Strong1!".into(),
+                },
+                empty_audit_ctx(),
+            )
             .await;
         assert!(result.is_err(), "User non-admin tidak boleh login admin");
         match result.unwrap_err() {
@@ -1726,10 +1989,13 @@ mod tests {
             updated_at: chrono::Utc::now(),
         });
         let result = svc
-            .admin_login(AdminLoginInput {
-                email: "admin@rejki.id".into(),
-                password: "WrongPass1!".into(),
-            })
+            .admin_login(
+                AdminLoginInput {
+                    email: "admin@rejki.id".into(),
+                    password: "WrongPass1!".into(),
+                },
+                empty_audit_ctx(),
+            )
             .await;
         assert!(result.is_err());
     }
@@ -1739,10 +2005,13 @@ mod tests {
         let svc = test_auth_service();
         // Timing-safe: bcrypt verify against dummy hash, then fail
         let result = svc
-            .admin_login(AdminLoginInput {
-                email: "ghost@rejki.id".into(),
-                password: "Whatever1!".into(),
-            })
+            .admin_login(
+                AdminLoginInput {
+                    email: "ghost@rejki.id".into(),
+                    password: "Whatever1!".into(),
+                },
+                empty_audit_ctx(),
+            )
             .await;
         assert!(
             result.is_err(),
@@ -1843,6 +2112,7 @@ mod tests {
             refresh_ttl: 2_592_000,
             rate_limiter: Arc::new(DenyingRateLimiter),
             notifier: None,
+            audit_log: None,
         }
     }
 
@@ -1874,10 +2144,13 @@ mod tests {
             updated_at: chrono::Utc::now(),
         });
         let result = svc
-            .login(LoginInput {
-                email: "ratelimited@rejki.id".into(),
-                password: "Strong1!".into(),
-            })
+            .login(
+                LoginInput {
+                    email: "ratelimited@rejki.id".into(),
+                    password: "Strong1!".into(),
+                },
+                empty_audit_ctx(),
+            )
             .await;
         assert!(result.is_err());
         // Must be RateLimited, not Unauthorized
@@ -1927,10 +2200,13 @@ mod tests {
             .unwrap();
 
         let result = svc
-            .resend_otp(ResendOtpInput {
-                email: "resend@rejki.id".into(),
-                purpose: "register".into(),
-            })
+            .resend_otp(
+                ResendOtpInput {
+                    email: "resend@rejki.id".into(),
+                    purpose: "register".into(),
+                },
+                empty_audit_ctx(),
+            )
             .await;
         assert!(result.is_ok(), "Resend harus sukses: {:?}", result.err());
         // Attempts MUST NOT be reset (fix-phase2 C2)

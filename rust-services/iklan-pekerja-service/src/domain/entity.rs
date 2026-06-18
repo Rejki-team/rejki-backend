@@ -44,6 +44,7 @@ pub struct IklanPekerja {
     pub keahlian: Vec<String>,
     pub deskripsi: String,
     pub lokasi: Option<String>,
+    pub region_id: Option<String>,
     pub tarif_min: Option<i64>,
     pub tarif_max: Option<i64>,
     pub foto_urls: Vec<String>,

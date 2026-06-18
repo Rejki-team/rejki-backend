@@ -8,6 +8,7 @@ use super::dto::{
 use crate::domain::repository::{AdminListParams, CreatePekerjaParams, IklanPekerjaRepository};
 use common_rate_limit::RateLimiter;
 use notification_service_client::NotificationClient;
+use region_service_client::RegionClient;
 use storage_service_client::StorageClient;
 
 const DEFAULT_LIMIT: i64 = 20;
@@ -19,6 +20,7 @@ pub mod storage_category {
 pub struct IklanPekerjaService<R: IklanPekerjaRepository> {
     repo: Arc<R>,
     rate_limiter: Option<Arc<dyn RateLimiter>>,
+    region_client: Option<Arc<dyn RegionClient>>,
 }
 
 impl<R: IklanPekerjaRepository> IklanPekerjaService<R> {
@@ -26,10 +28,16 @@ impl<R: IklanPekerjaRepository> IklanPekerjaService<R> {
         Self {
             repo,
             rate_limiter: None,
+            region_client: None,
         }
     }
     pub fn with_rate_limiter(mut self, rl: Arc<dyn RateLimiter>) -> Self {
         self.rate_limiter = Some(rl);
+        self
+    }
+
+    pub fn with_region_client(mut self, rc: Arc<dyn RegionClient>) -> Self {
+        self.region_client = Some(rc);
         self
     }
 
@@ -73,6 +81,21 @@ impl<R: IklanPekerjaRepository> IklanPekerjaService<R> {
             ));
         }
         let deskripsi = ammonia::clean_text(&input.deskripsi);
+        // Validasi region_id jika diisi.
+        if let (Some(rc), Some(ref rid)) = (&self.region_client, &input.region_id) {
+            if !rid.is_empty() {
+                match rc.get_region(rid).await {
+                    Err(region_service_client::RegionClientError::NotFound) => {
+                        return Err(anyhow::anyhow!("region_id tidak ditemukan"));
+                    }
+                    Err(_) => {
+                        tracing::warn!(region_id = %rid, "region-service unavailable saat validasi create");
+                    }
+                    Ok(_) => {}
+                }
+            }
+        }
+
         Ok(to_response(
             self.repo
                 .create(CreatePekerjaParams {
@@ -81,6 +104,7 @@ impl<R: IklanPekerjaRepository> IklanPekerjaService<R> {
                     keahlian: &input.keahlian,
                     deskripsi: &deskripsi,
                     lokasi: input.lokasi.as_deref(),
+                    region_id: input.region_id.as_deref(),
                     tarif_min: input.tarif_min,
                     tarif_max: input.tarif_max,
                 })
@@ -241,6 +265,7 @@ fn to_response(e: crate::domain::entity::IklanPekerja) -> IklanPekerjaResponse {
         keahlian: e.keahlian,
         deskripsi: e.deskripsi,
         lokasi: e.lokasi,
+        region_id: e.region_id,
         tarif_min: e.tarif_min,
         tarif_max: e.tarif_max,
         foto_urls: e.foto_urls,
@@ -258,6 +283,7 @@ fn to_admin_response(e: crate::domain::entity::IklanPekerja) -> AdminIklanPekerj
         keahlian: e.keahlian,
         deskripsi: e.deskripsi,
         lokasi: e.lokasi,
+        region_id: e.region_id,
         tarif_min: e.tarif_min,
         tarif_max: e.tarif_max,
         foto_urls: e.foto_urls,
