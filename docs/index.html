@@ -1135,6 +1135,16 @@
               <td><span class="cl-status-done">✅ Done</span></td>
             </tr>
             <tr class="cl-3">
+              <td><strong>ws-multi-tier-rbac</strong> — 6 role hierarchy (SuperAdmin 100, AdminIklan/AdminUser 80, Moderator 60, UserVerified 40, User 20) ✅, require_role(min_rank) middleware ✅, InsufficientRole error ✅, 8 router update ✅, migration alter CHECK ✅ <br><small><a href="../../openspec/changes/ws-multi-tier-rbac/tasks.md" style="color:var(--blue);">tasks.md</a> · <a href="implementation-plan-phase-3.html#w3b" style="color:var(--blue);">W3B-05 · P1 · 19 Jun 2026</a></small></td>
+              <td style="text-align:center;">3</td>
+              <td><span class="cl-status-done">✅ Done</span></td>
+            </tr>
+            <tr class="cl-3">
+              <td><strong>ws-patch-iklan</strong> — PATCH endpoint 4 iklan service + lifecycle guard ✅, is_active toggle ✅, IDOR 404 ✅, rate limit 30 req/min ✅ <br><small><a href="../../openspec/changes/ws-patch-iklan/tasks.md" style="color:var(--purple);">tasks.md</a> · <a href="implementation-plan-phase-3.html#w3b" style="color:var(--purple);">W3B-06 · P1 · 19 Jun 2026</a></small></td>
+              <td style="text-align:center;">3</td>
+              <td><span class="cl-status-done">✅ Done</span></td>
+            </tr>
+            <tr class="cl-3">
               <td><strong>Phase 3 plan</strong> — brainstorm + implementation plan (15 task, 4 wave, 8-12 minggu) <br><small><a href="brainstorm/phase-3-hardening-analysis.html" style="color:var(--yellow);">brainstorm</a> · <a href="implementation-plan-phase-3.html" style="color:var(--yellow);">implementation plan</a></small></td>
               <td style="text-align:center;">3</td>
               <td><span class="cl-status-done">✓ 17 Juni 2026</span></td>
@@ -1145,7 +1155,7 @@
     </section>
 
     <footer>
-      <p>Rejki Backend Architecture Document · Terakhir diperbarui: 19 Juni 2026 · Phase 2 selesai ✓ · Wave 3A COMPLETE ✓ · W3B-04 ✅ · W3B-05 ✅ · W3B-06 ✅ · Next: W3B-07</p>
+      <p>Rejki Backend Architecture Document · Terakhir diperbarui: 19 Juni 2026 · Phase 2 selesai ✓ · Wave 3A COMPLETE ✓ · Wave 3B 3/4 ✅ (audit-log · RBAC · PATCH iklan) · Next: W3B-07</p>
       <p style="margin-top:.3rem;">Stack: Rust · Axum 0.8 · sqlx 0.9 · PostgreSQL · Modular Monolith → Extraction-Ready</p>
     </footer>
 

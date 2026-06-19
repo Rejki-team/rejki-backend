@@ -221,10 +221,10 @@
           <p>Hanya auth-service yang punya rate limiter (Redis Lua atomik). 4 iklan, user, chat, report, corporate-comms — tidak ada proteksi DoS/brute-force sama sekali.</p>
           <p class="evidence">Evidence: OtpRateLimiter di auth-service/infrastructure/rate_limit.rs. Tidak ada tower-governor di Cargo.toml manapun. Tidak ada RateLimiter trait di service lain.</p>
         </div>
-        <div class="gap-card p1">
-          <h4><span class="id-tag">A2</span> Multi-tier RBAC <span class="priority-badge pb-p1">P1</span></h4>
-          <p>Hanya enum Role { user, admin }. PRD menyebut butuh super_admin, moderator, support, executive. Middleware require_admin belum support multi-role.</p>
-          <p class="evidence">Evidence: auth-service/domain/entity.rs — pub use auth_service_client::Role. Search graph 0 results untuk super_admin/moderator/support/executive.</p>
+        <div class="gap-card done">
+          <h4><span class="id-tag">A2</span> Multi-tier RBAC <span class="priority-badge pb-done">✅ DONE</span></h4>
+          <p>✅ W3B-05 selesai 19 Jun 2026. 6 role hierarchy (SuperAdmin 100, AdminIklan/AdminUser 80, Moderator 60, UserVerified 40, User 20), <code>require_role(min_rank)</code> middleware ganti <code>require_admin</code>, <code>AppError::InsufficientRole</code> (403 INSUFFICIENT_ROLE), migration alter CHECK constraint + backfill admin→super_admin, 8 router update, admin_login guard >= 80. <a href="../../openspec/changes/ws-multi-tier-rbac/tasks.md" style="color:var(--green);">tasks.md</a></p>
+          <p class="evidence">Evidence: auth-service-client/src/lib.rs — 6 variant Role + rank(). common/auth-middleware/lib.rs — require_role(). fmt ✅ clippy zero ✅ check ✅ test 67/67 ✅ sqlx prepare ✅</p>
         </div>
         <div class="gap-card done">
           <h4><span class="id-tag">A3</span> audit_log table <span class="priority-badge pb-done">✅ DONE</span></h4>
@@ -296,10 +296,10 @@
       <!-- D. Fitur Kurang -->
       <div class="sub-title">D. 🔄 Fitur yang Masih Kurang (5 gap)</div>
       <div class="gap-grid">
-        <div class="gap-card p1">
-          <h4><span class="id-tag">D1</span> PATCH iklan (update) <span class="priority-badge pb-p1">P1</span></h4>
-          <p>API standard mendokumentasikan PATCH untuk partial update. Semua 4 iklan service punya create/list/get/delete tapi tidak ada update. User tidak bisa edit iklan yang sudah diposting.</p>
-          <p class="evidence">Evidence: iklan-*-service/interface/handlers.rs — tidak ada fn update_iklan. Domain repository tidak punya method update.</p>
+        <div class="gap-card done">
+          <h4><span class="id-tag">D1</span> PATCH iklan (update) <span class="priority-badge pb-done">✅ DONE</span></h4>
+          <p>✅ W3B-06 selesai 19 Jun 2026. PATCH endpoint di 4 iklan service + lifecycle guard (barang: availability, pelatihan: status, pekerja/pekerjaan: moderation) + is_active toggle + IDOR 404 + rate limit 30 req/min + sanitasi + region validation. <a href="../../openspec/changes/ws-patch-iklan/tasks.md" style="color:var(--green);">tasks.md</a></p>
+          <p class="evidence">Evidence: 4 service — Update*Input DTO (all Option), Repository COALESCE SQL, Service update() method, Handler PATCH /{id}, Route di protected router. fmt ✅ clippy zero ✅ check ✅ test 4 iklan ✅ sqlx prepare ✅</p>
         </div>
         <div class="gap-card p1">
           <h4><span class="id-tag">D2</span> Password reset flow <span class="priority-badge pb-p1">P1</span></h4>
@@ -628,8 +628,8 @@
           <thead><tr><th>Urutan</th><th>ID</th><th>Task</th><th>Depends On</th><th>OpenSpec Change</th></tr></thead>
           <tbody>
             <tr><td>4</td><td>A3</td><td>✅ audit_log table — migration, PgAuditLogRepository, trigger di auth events (login/logout/refresh/failed) — <strong>DONE 19 Jun 2026</strong></td><td>—</td><td><code>ws-audit-log</code> (active)</td></tr>
-            <tr><td>5</td><td>A2</td><td>Multi-tier RBAC — extend enum Role (6 value), require_role() middleware, migrasi role</td><td>—</td><td><code>ws-multi-tier-rbac</code> (new)</td></tr>
-            <tr><td>6</td><td>D1</td><td>PATCH iklan — update handler di 4 iklan service, ownership check di SQL, validasi field editable</td><td>A1 (rate limit pada endpoint baru)</td><td><code>ws-patch-iklan</code> (new)</td></tr>
+            <tr><td>5</td><td>A2</td><td>✅ Multi-tier RBAC — 6 role hierarchy, require_role() middleware, migration alter CHECK — <strong>DONE 19 Jun 2026</strong></td><td>—</td><td><code>ws-multi-tier-rbac</code> (active)</td></tr>
+            <tr><td>6</td><td>D1</td><td>✅ PATCH iklan — 4 iklan service, lifecycle guard, is_active toggle, IDOR 404 — <strong>DONE 19 Jun 2026</strong></td><td>A1 (rate limit pada endpoint baru)</td><td><code>ws-patch-iklan</code> (active)</td></tr>
             <tr><td>7</td><td>D2</td><td>Password reset flow — handler POST /auth/reset-password, POST /auth/confirm-reset, OTP-based</td><td>A3 (audit_log ready)</td><td><code>ws-password-reset</code> (new)</td></tr>
           </tbody>
         </table>
@@ -670,7 +670,7 @@
 
     <footer>
       <p>Rejki Backend — Brainstorm: Phase 3 Hardening Analysis · 17 Juni 2026<br>
-      <strong>Status 18 Juni 2026:</strong> W3A-01 ✅ Archived (247 unit tests) · W3A-02 ✅ Archived · Next: W3A-03 (region_id FK)</p>
+      <strong>Status 19 Juni 2026:</strong> W3A-01 ✅ Archived · W3A-02 ✅ Archived · W3A-03 ✅ Archived · W3B-04 ✅ Done (audit_log) · W3B-05 ✅ Done (RBAC) · W3B-06 ✅ Done (PATCH iklan) · Next: W3B-07 (password reset)</p>
       <p style="margin-top:.3rem;">Sumber: kode di rust-services/ · dokumen di docs/ · spesifikasi di openspec/ · CLAUDE.md</p>
     </footer>
 
