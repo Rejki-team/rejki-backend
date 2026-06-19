@@ -11,6 +11,10 @@ path = "src/lib.rs"
 name = "user-service"
 path = "src/main.rs"
 
+[[bin]]
+name = "backfill-encrypt-phone"
+path = "src/bin/backfill_encrypt_phone.rs"
+
 [dependencies]
 common-errors  = { workspace = true }
 common-tracing = { workspace = true }
@@ -30,6 +34,7 @@ serde_json  = { workspace = true }
 uuid        = { workspace = true }
 chrono      = { workspace = true }
 tracing     = { workspace = true }
+tracing-subscriber = { workspace = true }
 tower-http  = { workspace = true }
 thiserror   = { workspace = true }
 validator   = { workspace = true }
