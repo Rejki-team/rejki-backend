@@ -861,13 +861,13 @@ location /api/v1/auth/ {
 
     <!-- PHASE 3: CORS -->
     <section id="cors">
-      <h2 class="sec-title"><span class="sec-icon ic-y">🌐</span>CORS Production Policy (Phase 3)</h2>
+      <h2 class="sec-title"><span class="sec-icon ic-y">🌐</span>CORS Production Policy (Phase 3) — ✅ DONE (W3C-08)</h2>
 
       <div class="two-col">
         <div>
-          <div class="col-label">Development (sekarang — longgar)</div>
+          <div class="col-label">Development — longgar (Any)</div>
           <div class="code">
-            <pre><span class="cc">// rejki-app/src/main.rs</span>
+            <pre><span class="cc">// rejki-app/src/main.rs (APP_ENV=development)</span>
 <span class="ct">CorsLayer</span>::<span class="cfn">new</span>()
   .<span class="cfn">allow_origin</span>(<span class="ct">Any</span>)
   .<span class="cfn">allow_methods</span>(<span class="ct">Any</span>)
@@ -875,16 +875,20 @@ location /api/v1/auth/ {
           </div>
         </div>
         <div>
-          <div class="col-label">Production (Phase 3 — ketat)</div>
+          <div class="col-label">Production — whitelist dari env var</div>
           <div class="code">
-            <pre><span class="cc">// Hanya domain resmi</span>
+            <pre><span class="cc">// rejki-app/src/main.rs (APP_ENV=production)</span>
+<span class="cc">// CORS_ALLOWED_ORIGINS=https://rejki.id,https://app.rejki.id</span>
+<span class="ck">let</span> origins: <span class="ct">Vec&lt;_&gt;</span> = cfg.cors_allowed_origins
+  .<span class="cfn">iter</span>()
+  .<span class="cfn">map</span>(|o| o.<span class="cfn">parse</span>().<span class="cfn">expect</span>(<span class="cs">"invalid origin"</span>))
+  .<span class="cfn">collect</span>();
+
 <span class="ct">CorsLayer</span>::<span class="cfn">new</span>()
-  .<span class="cfn">allow_origin</span>([
-    <span class="cs">"https://rejki.id"</span>.<span class="cfn">parse</span>()?,
-    <span class="cs">"https://app.rejki.id"</span>.<span class="cfn">parse</span>()?,
-  ])
+  .<span class="cfn">allow_origin</span>(origins)
   .<span class="cfn">allow_credentials</span>(<span class="ck">true</span>)
-  .<span class="cfn">allow_headers</span>([AUTHORIZATION, CONTENT_TYPE])</pre>
+  .<span class="cfn">allow_methods</span>([<span class="ct">GET</span>, <span class="ct">POST</span>, <span class="ct">PATCH</span>, <span class="ct">DELETE</span>, <span class="ct">OPTIONS</span>])
+  .<span class="cfn">allow_headers</span>([<span class="ct">AUTHORIZATION</span>, <span class="ct">CONTENT_TYPE</span>, <span class="ct">ACCEPT</span>])</pre>
           </div>
         </div>
       </div>
@@ -1077,7 +1081,7 @@ location /api/v1/auth/ {
     </section>
 
     <footer>
-      <p>Rejki Backend — Security Baseline · 19 Juni 2026 · Phase 1.5 + W3B-04/05/06</p>
+      <p>Rejki Backend — Security Baseline · 20 Juni 2026 · Phase 1.5 + W3B-04/05/06/07 + W3C-08</p>
       <p style="margin-top:.3rem;">Referensi: OWASP Top 10 2021 · OWASP ASVS Level 2 · PDP Indonesia</p>
     </footer>
 

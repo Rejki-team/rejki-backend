@@ -231,10 +231,10 @@
           <p>✅ W3B-04 selesai 19 Jun 2026. Migration <code>auth.audit_log</code> (append-only), <code>PgAuditLogRepository</code>, 11 <code>AuditEvent</code> variant, inject ke 10 auth events (login, admin_login, logout, refresh, OTP sent, password changed/reset, suspend/bulk), <code>AuditContext</code> FromRequestParts extractor, fail-open. <a href="../../openspec/changes/ws-audit-log/tasks.md" style="color:var(--green);">tasks.md</a></p>
           <p class="evidence">Evidence: 67 auth unit tests PASS, 247 total + 50 integration PASS. Migration applied to dev & test DB.</p>
         </div>
-        <div class="gap-card p2">
-          <h4><span class="id-tag">A4</span> CORS production policy <span class="priority-badge pb-p2">P2</span></h4>
-          <p>allow_origin(Any) hardcoded di rejki-app/main.rs. Security baseline mensyaratkan whitelist origin eksplisit untuk production.</p>
-          <p class="evidence">Evidence: rejki-app/src/main.rs — CorsLayer::new().allow_origin(Any).</p>
+        <div class="gap-card done">
+          <h4><span class="id-tag">A4</span> CORS production policy <span class="priority-badge pb-done">✅ W3C-08 selesai 20 Jun 2026</span></h4>
+          <p>✅ <code>CORS_ALLOWED_ORIGINS</code> env var (default: <code>rejki.id,app.rejki.id</code>). Conditional CorsLayer: development=Any, production=whitelist + allow_credentials(true). Methods terbatas: GET/POST/PATCH/DELETE/OPTIONS. Fail-fast parsing di AppConfig startup.</p>
+          <p class="evidence">Implementation: common/config/src/lib.rs + rejki-app/src/main.rs — CorsLayer conditional is_production().</p>
         </div>
         <div class="gap-card p2">
           <h4><span class="id-tag">A5</span> Enkripsi at rest (phone, rekening) <span class="priority-badge pb-p2">P2</span></h4>
@@ -301,10 +301,10 @@
           <p>✅ 4 iklan service (pekerjaan, pekerja, barang-bekas, pelatihan) sudah punya <code>PATCH /{id}</code> handler. Partial update via COALESCE SQL. Lifecycle guard per service. <code>is_active</code> toggle. IDOR 404. Rate limited. Swagger DTO mirror di rejki-app.</p>
           <p class="evidence">Implementation: iklan-*-service/src/{application/dto.rs, domain/repository.rs, infrastructure/pg_repository.rs, application/service.rs, interface/handlers.rs, interface/mod.rs} — semua punya update() method.</p>
         </div>
-        <div class="gap-card p1">
-          <h4><span class="id-tag">D2</span> Password reset flow <span class="priority-badge pb-p1">P1</span></h4>
-          <p>OtpPurpose::ResetPassword sudah ada di enum. Tapi tidak ada handler POST /auth/reset-password atau POST /auth/confirm-reset-password. Flow OTP untuk reset sudah terdefinisi tapi belum terimplementasi.</p>
-          <p class="evidence">Evidence: auth-service/domain/entity.rs — OtpPurpose::ResetPassword. Tidak ada handler reset_password di handlers.rs.</p>
+        <div class="gap-card done">
+          <h4><span class="id-tag">D2</span> Password reset flow <span class="priority-badge pb-done">✅ W3B-07 selesai 19 Jun 2026</span></h4>
+          <p>✅ Forgot-password + reset-password + change-password (OTP-based). Anti-enumeration, rate limit 3 req/15m, atomik transaction consume OTP + update password + revoke tokens, audit event via W3B-04. Semua endpoint sudah terimplementasi sejak change <code>extend-auth-service-onboarding</code>.</p>
+          <p class="evidence">Implementation: auth-service/src/{domain/entity.rs, application/dto.rs, application/service.rs, infrastructure/pg_repository.rs, interface/handlers.rs, interface/mod.rs} — OtpPurpose::ResetPassword, forgot_password(), reset_password(), change_password(), consume_otp_and_update_password_transactional().</p>
         </div>
         <div class="gap-card p2">
           <h4><span class="id-tag">D3</span> Device token management <span class="priority-badge pb-p2">P2</span></h4>
@@ -630,7 +630,7 @@
             <tr><td>4</td><td>A3</td><td>✅ audit_log table — migration, PgAuditLogRepository, trigger di auth events (login/logout/refresh/failed) — <strong>DONE 19 Jun 2026</strong></td><td>—</td><td><code>ws-audit-log</code> (active)</td></tr>
             <tr><td>5</td><td>A2</td><td>✅ Multi-tier RBAC — 6 role hierarchy, require_role() middleware, migration alter CHECK — <strong>DONE 19 Jun 2026</strong></td><td>—</td><td><code>ws-multi-tier-rbac</code> (active)</td></tr>
             <tr><td>6</td><td>D1</td><td>PATCH iklan — update handler di 4 iklan service, ownership check di SQL, validasi field editable</td><td>A1 (rate limit pada endpoint baru)</td><td><code>ws-patch-iklan</code> (new)</td></tr>
-            <tr><td>7</td><td>D2</td><td>Password reset flow — handler POST /auth/reset-password, POST /auth/confirm-reset, OTP-based</td><td>A3 (audit_log ready)</td><td><code>ws-password-reset</code> (new)</td></tr>
+            <tr><td>7</td><td>D2</td><td>✅ Password reset flow — forgot-password + reset-password + change-password (OTP-based), anti-enumeration, atomik transaction, rate limit 3 req/15m, audit event — <strong>DONE 19 Jun 2026</strong></td><td>A3 (audit_log ready)</td><td><code>ws-password-reset</code> (archived)</td></tr>
           </tbody>
         </table>
       </div>
@@ -640,7 +640,7 @@
         <table class="tbl">
           <thead><tr><th>Urutan</th><th>ID</th><th>Task</th><th>Depends On</th><th>OpenSpec Change</th></tr></thead>
           <tbody>
-            <tr><td>8</td><td>A4</td><td>CORS production policy — whitelist origin dari env var, fallback ke Any untuk development</td><td>—</td><td><code>ws-cors-production</code> (new)</td></tr>
+            <tr><td>8</td><td>A4</td><td>✅ CORS production policy — whitelist origin dari env var, fallback ke Any untuk development, allow_credentials production-only — <strong>DONE 20 Jun 2026</strong></td><td>—</td><td><code>ws-cors-production</code> (archived)</td></tr>
             <tr><td>9</td><td>A5</td><td>Enkripsi phone + future rekening bank — pakai common/crypto AES-256-GCM, migrate existing plaintext phone</td><td>—</td><td><code>ws-encryption-at-rest</code> (new)</td></tr>
             <tr><td>10</td><td>B2</td><td>Integration test di 12 service crate — pindahkan test rejki-app yang relevan + tambah per-service integration test</td><td>B1 (unit test roll-out done)</td><td><code>ws-testing-coverage</code> (extend)</td></tr>
             <tr><td>11</td><td>C2</td><td>Validasi chain region_id di user profiles — trigger/check constraint atau validasi parent_id consistency</td><td>C1 (region_id exist)</td><td><code>ws-region-validation</code> (new)</td></tr>

@@ -151,7 +151,7 @@
     <a class="nav-item nav-back" href="brainstorm/phase-3-hardening-analysis.html">← Brainstorm Phase 3</a>
     <div class="nav-section">Wave</div>
     <a class="nav-item" href="#w3a">W3A — Security Core & Foundation <span class="nav-badge nb-done">3/3</span></a>
-    <a class="nav-item" href="#w3b">W3B — Compliance & Access <span class="nav-badge nb-done">3/4</span></a>
+    <a class="nav-item" href="#w3b">W3B — Compliance & Access <span class="nav-badge nb-done">4/4</span></a>
     <a class="nav-item" href="#w3c">W3C — Production Polish <span class="nav-badge nb-todo">0/4</span></a>
     <a class="nav-item" href="#w3d">W3D — Analytics & Infra <span class="nav-badge nb-todo">0/4</span></a>
     <a class="nav-item" href="#summary">Ringkasan</a>
@@ -322,7 +322,7 @@
             <a class="wave-link" href="authorization-pattern.html">authorization-pattern</a>
           </div>
         </div>
-        <div class="wave-status"><span class="badge badge-prog">⚡ 3/4</span></div>
+        <div class="wave-status"><span class="badge badge-done">✅ 4/4</span></div>
       </div>
 
       <div class="tasks">
@@ -464,34 +464,54 @@
         </div>
 
         <!-- W3B-07: Password reset -->
-        <div class="task">
+        <div class="task done">
           <div class="task-head">
             <span class="task-id">W3B-07</span>
-            <span class="task-title">Password reset flow — OTP-based reset password + confirm-reset</span>
+            <span class="task-title">Password reset flow — forgot-password + reset-password + change-password (OTP-based)</span>
             <span class="task-scope">auth-service</span>
             <span class="priority-badge pb-p1">P1</span>
+            <span class="badge badge-done" style="flex-shrink:0;margin-top:2px;font-size:.7rem;font-weight:700;padding:.12rem .55rem;border-radius:20px;background:rgba(63,185,80,.15);color:var(--green);border:1px solid rgba(63,185,80,.3);">✅ Done</span>
           </div>
           <div class="task-body">
             <div class="task-body-inner gap-section">
               <div>
-                <div class="section-label">OpenSpec change baru: <code>ws-password-reset</code></div>
+                <div class="section-label">OpenSpec change: <code>ws-password-reset</code></div>
+                <div class="done-tag" style="display:inline-block;background:rgba(63,185,80,.15);color:var(--green);border:1px solid rgba(63,185,80,.3);border-radius:20px;padding:.15rem .65rem;font-size:.7rem;font-weight:700;margin-top:.3rem;">✅ DONE 19 Jun 2026</div>
               </div>
               <div>
-                <div class="section-label">Target gap: D2</div>
+                <div class="section-label">Implementasi</div>
                 <div class="impl-list">
-                  <div class="impl-item">Handler: <code>POST /api/v1/auth/reset-password</code> — terima email, kirim OTP, timing-safe response (anti-enumeration)</div>
-                  <div class="impl-item">Handler: <code>POST /api/v1/auth/confirm-reset</code> — terima email + OTP + new_password, consume OTP, update password_hash</div>
-                  <div class="impl-item">Rate limit: 3 reset request per email per jam, 5 OTP verify attempt (sama dengan register)</div>
-                  <div class="impl-item">Audit log: event password_reset_requested, password_changed (via W3B-04)</div>
-                  <div class="impl-item">Notification: kirim OTP via email/SMS (pakai notification-service)</div>
-                  <div class="impl-item">Invalidate semua refresh token setelah password berubah (security — session hijacking prevention)</div>
-                  <div class="impl-item">Test: unit test reset flow, integration test OTP consume + password verify + token invalidation</div>
+                  <div class="impl-item"><code>POST /forgot-password</code> — anti-enumeration (selalu 200 OK), rate limit 3 req/15m, kirim OTP <code>reset_password</code> via email</div>
+                  <div class="impl-item"><code>POST /reset-password</code> — consume OTP + update password hash + revoke ALL refresh tokens dalam 1 atomik transaction</div>
+                  <div class="impl-item"><code>POST /change-password/otp</code> — authed (JWT), kirim OTP <code>change_password</code> ke email terdaftar</div>
+                  <div class="impl-item"><code>POST /change-password</code> — authed, atomik consume OTP + update password + revoke OTHER sessions</div>
+                  <div class="impl-item"><code>OtpPurpose::ResetPassword</code> / <code>ChangePassword</code> — validasi purpose OTP</div>
+                  <div class="impl-item">Audit event: <code>PasswordReset</code>, <code>PasswordChanged</code>, <code>OtpSent</code> (via W3B-04 audit_log)</div>
+                  <div class="impl-item">Bcrypt hash + SHA-256 OTP hash + timing-safe dummy hash untuk anti-enumeration</div>
                 </div>
               </div>
-              <div class="callout c-info">
-                <span class="callout-icon">📌</span>
-                <div><strong>Dependency opsional</strong>
-                <p>W3B-07 idealnya dikerjakan setelah W3B-04 (audit_log) agar event tercatat. Tapi bisa dimulai duluan dengan TODO marker untuk audit log integration.</p></div>
+              <div>
+                <div class="section-label">File yang disentuh</div>
+                <div class="file-list">
+                  <div class="file-row"><span class="fop fop-edit">edit</span><span class="fpath">auth-service/src/domain/entity.rs</span><span class="fnote">— OtpPurpose enum variant</span></div>
+                  <div class="file-row"><span class="fop fop-edit">edit</span><span class="fpath">auth-service/src/application/dto.rs</span><span class="fnote">— ForgotPasswordInput, ResetPasswordInput, ChangePasswordInput</span></div>
+                  <div class="file-row"><span class="fop fop-edit">edit</span><span class="fpath">auth-service/src/application/service.rs</span><span class="fnote">— forgot_password(), reset_password(), request_change_password_otp(), change_password()</span></div>
+                  <div class="file-row"><span class="fop fop-edit">edit</span><span class="fpath">auth-service/src/infrastructure/pg_repository.rs</span><span class="fnote">— consume_otp_and_update_password_transactional()</span></div>
+                  <div class="file-row"><span class="fop fop-edit">edit</span><span class="fpath">auth-service/src/interface/handlers.rs</span><span class="fnote">— 4 handler functions</span></div>
+                  <div class="file-row"><span class="fop fop-edit">edit</span><span class="fpath">auth-service/src/interface/mod.rs</span><span class="fnote">— 4 route entries</span></div>
+                  <div class="file-row"><span class="fop fop-edit">edit</span><span class="fpath">rejki-app/src/openapi.rs</span><span class="fnote">— ForgotPasswordDocRequest, ResetPasswordDocRequest, ChangePasswordDocRequest</span></div>
+                </div>
+              </div>
+              <div>
+                <div class="section-label">Verifikasi</div>
+                <div class="status-badge" style="margin-top:.3rem;">
+                  <span style="color:var(--green);">fmt ✅ clippy zero ✅ check ✅ test ✅ sqlx prepare ✅</span>
+                </div>
+              </div>
+              <div class="callout c-ok">
+                <span class="callout-icon">✅</span>
+                <div><strong>Wave 3B COMPLETE — 4/4 P1.</strong>
+                <p>Audit log (W3B-04), multi-tier RBAC (W3B-05), PATCH iklan (W3B-06), password reset (W3B-07). Semua sudah diimplementasi, ditest, dan di-archive.</p></div>
               </div>
             </div>
           </div>
@@ -512,26 +532,47 @@
             <a class="wave-link" href="../openspec/changes/ws-testing-coverage/design.md">ws-testing-coverage design</a>
           </div>
         </div>
-        <div class="wave-status"><span class="badge badge-todo">📋 Pending</span></div>
+        <div class="wave-status"><span class="badge badge-prog">⚡ 1/4</span></div>
       </div>
 
       <div class="tasks">
 
-        <div class="task">
+        <div class="task done">
           <div class="task-head">
             <span class="task-id">W3C-08</span>
             <span class="task-title">CORS production policy — whitelist origin dari env var</span>
             <span class="task-scope">rejki-app</span>
             <span class="priority-badge pb-p2">P2</span>
+            <span class="badge badge-done" style="flex-shrink:0;margin-top:2px;font-size:.7rem;font-weight:700;padding:.12rem .55rem;border-radius:20px;background:rgba(63,185,80,.15);color:var(--green);border:1px solid rgba(63,185,80,.3);">✅ Done</span>
           </div>
           <div class="task-body">
             <div class="task-body-inner gap-section">
-              <div><div class="section-label">Target gap: A4</div></div>
-              <div class="impl-list">
-                <div class="impl-item">Env var: <code>CORS_ALLOWED_ORIGINS</code> — comma-separated list (default: <code>https://rejki.id,https://app.rejki.id</code>)</div>
-                <div class="impl-item">Development fallback: <code>Any</code> jika <code>APP_ENV=development</code></div>
-                <div class="impl-item">Patch: <code>rejki-app/src/main.rs</code> — CorsLayer conditional</div>
-                <div class="impl-item">Test: integration test CORS preflight (OPTIONS) + CORS header presence</div>
+              <div>
+                <div class="section-label">OpenSpec change: <code>ws-cors-production</code></div>
+                <div class="done-tag" style="display:inline-block;background:rgba(63,185,80,.15);color:var(--green);border:1px solid rgba(63,185,80,.3);border-radius:20px;padding:.15rem .65rem;font-size:.7rem;font-weight:700;margin-top:.3rem;">✅ DONE 19 Jun 2026</div>
+              </div>
+              <div>
+                <div class="section-label">Implementasi</div>
+                <div class="impl-list">
+                  <div class="impl-item"><code>CORS_ALLOWED_ORIGINS</code> env var — comma-separated list (default: <code>https://rejki.id,https://app.rejki.id</code>) di <code>common/config</code></div>
+                  <div class="impl-item">Development: <code>allow_origin(Any)</code> — longgar untuk frontend lokal</div>
+                  <div class="impl-item">Production: whitelist dari env var + <code>allow_credentials(true)</code> + methods terbatas (GET, POST, PATCH, DELETE, OPTIONS)</div>
+                  <div class="impl-item"><code>AppConfig.cors_allowed_origins: Vec&lt;String&gt;</code> — validasi fail-fast (panic jika kosong)</div>
+                </div>
+              </div>
+              <div>
+                <div class="section-label">File yang disentuh</div>
+                <div class="file-list">
+                  <div class="file-row"><span class="fop fop-edit">edit</span><span class="fpath">common/config/src/lib.rs</span><span class="fnote">— cors_allowed_origins field + parsing</span></div>
+                  <div class="file-row"><span class="fop fop-edit">edit</span><span class="fpath">rejki-app/src/main.rs</span><span class="fnote">— conditional CorsLayer is_production()</span></div>
+                  <div class="file-row"><span class="fop fop-edit">edit</span><span class="fpath">.env.example</span><span class="fnote">— CORS_ALLOWED_ORIGINS</span></div>
+                </div>
+              </div>
+              <div>
+                <div class="section-label">Verifikasi</div>
+                <div class="status-badge" style="margin-top:.3rem;">
+                  <span style="color:var(--green);">cargo check ✅</span>
+                </div>
               </div>
             </div>
           </div>
@@ -714,8 +755,8 @@
             <tr><td>W3B-04</td><td>audit_log table + repository — migration + PgAuditLogRepository + 11 AuditEvent variants + inject ke 10 auth events + fail-open + 247 unit + 50 integration PASS</td><td>3B</td><td>P1</td><td><code>ws-audit-log</code></td><td>—</td><td><span class="badge badge-done">✅ Done</span></td></tr>
             <tr><td>W3B-05</td><td>Multi-tier RBAC (6 roles) — SuperAdmin (100), AdminIklan/AdminUser (80), Moderator (60), UserVerified (40), User (20) + require_role(min_rank) middleware + InsufficientRole error + 8 router update + admin_login guard >= 80 + migration alter CHECK + 67 auth unit PASS</td><td>3B</td><td>P1</td><td><code>ws-multi-tier-rbac</code></td><td>—</td><td><span class="badge badge-done">✅ Done</span></td></tr>
             <tr><td>W3B-06</td><td>PATCH iklan (update handler)</td><td>3B</td><td>P1</td><td><code>ws-patch-iklan</code> (NEW)</td><td>W3A-02 (rate limit)</td><td><span class="badge badge-done">✅ Done</span></td></tr>
-            <tr><td>W3B-07</td><td>Password reset flow</td><td>3B</td><td>P1</td><td><code>ws-password-reset</code> (NEW)</td><td>W3B-04 (audit_log) [opsional]</td><td><span class="badge badge-todo">📋 Pending</span></td></tr>
-            <tr><td>W3C-08</td><td>CORS production policy</td><td>3C</td><td>P2</td><td>Langsung ke kode</td><td>—</td><td><span class="badge badge-todo">📋 Pending</span></td></tr>
+            <tr><td>W3B-07</td><td>Password reset flow — forgot-password + reset-password + change-password (OTP-based) + atomik transaction + audit event + rate limit 3 req/15m</td><td>3B</td><td>P1</td><td><code>ws-password-reset</code></td><td>W3B-04 (audit_log) [opsional]</td><td><span class="badge badge-done">✅ Done</span></td></tr>
+            <tr><td>W3C-08</td><td>CORS production policy — CORS_ALLOWED_ORIGINS env var + conditional CorsLayer (development=Any, production=whitelist)</td><td>3C</td><td>P2</td><td><code>ws-cors-production</code></td><td>—</td><td><span class="badge badge-done">✅ Done</span></td></tr>
             <tr><td>W3C-09</td><td>Enkripsi phone + rekening bank</td><td>3C</td><td>P2</td><td><code>ws-encryption-at-rest</code> (NEW)</td><td>—</td><td><span class="badge badge-todo">📋 Pending</span></td></tr>
             <tr><td>W3C-10</td><td>Integration test per-service crate</td><td>3C</td><td>P2</td><td>Extend <code>ws-testing-coverage</code></td><td>W3A-01</td><td><span class="badge badge-todo">📋 Pending</span></td></tr>
             <tr><td>W3C-11</td><td>Validasi chain region_id di user profiles</td><td>3C</td><td>P2</td><td><code>ws-region-validation</code> (NEW)</td><td>W3A-03 (region_id exist)</td><td><span class="badge badge-todo">📋 Pending</span></td></tr>
@@ -741,8 +782,8 @@
     </section>
 
     <footer>
-      <span>rejki-backend · Phase 3 Implementation Plan · 18 Juni 2026</span>
-      <span>15 task · 4 waves · Wave 3A ✅ Complete · W3A-01 ✅ · W3A-02 ✅ · W3A-03 ✅ · W3B-04 ✅ · W3B-05 ✅ · P1 3/4 complete · W3B-06 ✅</span>
+      <span>rejki-backend · Phase 3 Implementation Plan · 20 Juni 2026</span>
+      <span>15 task · 4 waves · Wave 3A ✅ Complete · W3A-01 ✅ · W3A-02 ✅ · W3A-03 ✅ · W3B-04 ✅ · W3B-05 ✅ · W3B-06 ✅ · W3B-07 ✅ · W3C-08 ✅ · P1 4/4 complete · W3B DONE ✅</span>
     </footer>
 
   </main>

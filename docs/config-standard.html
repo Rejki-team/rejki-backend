@@ -163,6 +163,7 @@
           <tr><td><code>APP_ENV</code></td><td>string</td><td><code>development</code></td><td>Nilai valid: <code>development</code>, <code>test</code>, <code>staging</code>, <code>production</code>. Menentukan log format, CORS policy, dsb.</td></tr>
           <tr><td><code>APP_PORT</code></td><td>u16</td><td><code>8080</code></td><td>Port yang didengarkan service. Default: <code>8080</code> jika tidak di-set (satu-satunya variabel dengan fallback).</td></tr>
           <tr><td><code>DATABASE_URL</code></td><td>string URL</td><td><code>postgresql://rejki:pass@localhost/rejki_dev</code></td><td>PostgreSQL connection string. Wajib valid, koneksi dicek saat startup.</td></tr>
+	          <tr><td><code>CORS_ALLOWED_ORIGINS</code></td><td>string (comma-separated)</td><td><code>https://rejki.id,https://app.rejki.id</code></td><td>Daftar origin CORS yang diizinkan di production. Default: <code>https://rejki.id,https://app.rejki.id</code>. Development selalu <code>allow_origin(Any)</code>.</td></tr>
         </tbody>
       </table></div>
 
