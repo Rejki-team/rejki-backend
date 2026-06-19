@@ -296,10 +296,10 @@
       <!-- D. Fitur Kurang -->
       <div class="sub-title">D. 🔄 Fitur yang Masih Kurang (5 gap)</div>
       <div class="gap-grid">
-        <div class="gap-card p1">
-          <h4><span class="id-tag">D1</span> PATCH iklan (update) <span class="priority-badge pb-p1">P1</span></h4>
-          <p>API standard mendokumentasikan PATCH untuk partial update. Semua 4 iklan service punya create/list/get/delete tapi tidak ada update. User tidak bisa edit iklan yang sudah diposting.</p>
-          <p class="evidence">Evidence: iklan-*-service/interface/handlers.rs — tidak ada fn update_iklan. Domain repository tidak punya method update.</p>
+        <div class="gap-card done">
+          <h4><span class="id-tag">D1</span> PATCH iklan (update) <span class="priority-badge pb-done">✅ W3B-06 selesai 19 Jun 2026</span></h4>
+          <p>✅ 4 iklan service (pekerjaan, pekerja, barang-bekas, pelatihan) sudah punya <code>PATCH /{id}</code> handler. Partial update via COALESCE SQL. Lifecycle guard per service. <code>is_active</code> toggle. IDOR 404. Rate limited. Swagger DTO mirror di rejki-app.</p>
+          <p class="evidence">Implementation: iklan-*-service/src/{application/dto.rs, domain/repository.rs, infrastructure/pg_repository.rs, application/service.rs, interface/handlers.rs, interface/mod.rs} — semua punya update() method.</p>
         </div>
         <div class="gap-card p1">
           <h4><span class="id-tag">D2</span> Password reset flow <span class="priority-badge pb-p1">P1</span></h4>

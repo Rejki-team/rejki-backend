@@ -738,6 +738,22 @@ pub struct CreateIklanDocRequest {
     pub foto_urls: Option<Vec<String>>,
 }
 
+/// Payload update iklan pekerjaan (PATCH).
+#[allow(dead_code)]
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct UpdateIklanPekerjaanDocRequest {
+    pub judul: Option<String>,
+    pub perusahaan: Option<String>,
+    pub deskripsi: Option<String>,
+    pub lokasi: Option<String>,
+    pub region_id: Option<String>,
+    pub gaji_min: Option<i64>,
+    pub gaji_max: Option<i64>,
+    pub tipe: Option<String>,
+    pub foto_urls: Option<Vec<String>>,
+    pub is_active: Option<bool>,
+}
+
 /// Payload suspend iklan (admin).
 #[allow(dead_code)]
 #[derive(Debug, Deserialize, ToSchema)]
@@ -798,6 +814,18 @@ fn get_pekerjaan_doc() {}
 )]
 #[allow(dead_code)]
 fn create_pekerjaan_doc() {}
+
+/// PATCH /api/v1/pekerjaan/{id} — update iklan pekerjaan (pemilik, partial).
+#[utoipa::path(patch, path = "/api/v1/pekerjaan/{id}", tag = "iklan-pekerjaan",
+    params(("id" = uuid::Uuid, Path, description = "ID iklan")),
+    request_body = UpdateIklanPekerjaanDocRequest,
+    responses(
+        (status = 200, description = "Iklan pekerjaan diperbarui", body = IklanPekerjaanDocResponse),
+        (status = 404, description = "Iklan tidak ditemukan atau bukan milik anda")
+    )
+)]
+#[allow(dead_code)]
+fn update_pekerjaan_doc() {}
 
 // ── Iklan: path annotations (admin) ───────────────────────────────────────────
 
@@ -903,6 +931,21 @@ pub struct CreatePekerjaDocRequest {
     pub foto_urls: Option<Vec<String>>,
 }
 
+/// Payload update iklan pekerja (PATCH).
+#[allow(dead_code)]
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct UpdatePekerjaDocRequest {
+    pub nama: Option<String>,
+    pub keahlian: Option<Vec<String>>,
+    pub deskripsi: Option<String>,
+    pub lokasi: Option<String>,
+    pub region_id: Option<String>,
+    pub tarif_min: Option<i64>,
+    pub tarif_max: Option<i64>,
+    pub foto_urls: Option<Vec<String>>,
+    pub is_active: Option<bool>,
+}
+
 // ── Iklan Pekerja: path annotations (public) ─────────────────────────────────────
 
 /// GET /api/v1/pekerja — daftar pekerja publik.
@@ -936,6 +979,18 @@ fn get_pekerja_doc() {}
 )]
 #[allow(dead_code)]
 fn create_pekerja_doc() {}
+
+/// PATCH /api/v1/pekerja/{id} — update iklan pekerja (pemilik, partial).
+#[utoipa::path(patch, path = "/api/v1/pekerja/{id}", tag = "iklan-pekerja",
+    params(("id" = uuid::Uuid, Path, description = "ID iklan")),
+    request_body = UpdatePekerjaDocRequest,
+    responses(
+        (status = 200, description = "Iklan pekerja diperbarui", body = IklanPekerjaDocResponse),
+        (status = 404, description = "Iklan tidak ditemukan atau bukan milik anda")
+    )
+)]
+#[allow(dead_code)]
+fn update_pekerja_doc() {}
 
 // ── Iklan Pekerja: path annotations (admin) ─────────────────────────────────────
 
@@ -1045,6 +1100,21 @@ pub struct CreateBarangBekasDocRequest {
     pub foto_urls: Option<Vec<String>>,
 }
 
+/// Payload update iklan barang bekas (PATCH).
+#[allow(dead_code)]
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct UpdateBarangBekasDocRequest {
+    pub judul: Option<String>,
+    pub deskripsi: Option<String>,
+    pub jenis_barang: Option<String>,
+    pub jumlah: Option<i32>,
+    pub lokasi_pengambilan: Option<String>,
+    pub lokasi: Option<String>,
+    pub region_id: Option<String>,
+    pub foto_urls: Option<Vec<String>>,
+    pub is_active: Option<bool>,
+}
+
 // ── Barang Bekas: path annotations (public) ──────────────────────────────────────
 
 /// GET /api/v1/barang — daftar barang bekas publik.
@@ -1088,6 +1158,18 @@ fn create_barang_doc() {}
 )]
 #[allow(dead_code)]
 fn mark_taken_barang_doc() {}
+
+/// PATCH /api/v1/barang/{id} — update iklan barang bekas (pemilik, partial).
+#[utoipa::path(patch, path = "/api/v1/barang/{id}", tag = "barang-bekas",
+    params(("id" = uuid::Uuid, Path, description = "ID iklan")),
+    request_body = UpdateBarangBekasDocRequest,
+    responses(
+        (status = 200, description = "Iklan barang bekas diperbarui", body = IklanBarangBekasDocResponse),
+        (status = 404, description = "Iklan tidak ditemukan atau bukan milik anda")
+    )
+)]
+#[allow(dead_code)]
+fn update_barang_doc() {}
 
 // ── Barang Bekas: path annotations (admin) ───────────────────────────────────────
 
@@ -1199,7 +1281,7 @@ pub struct CreatePelatihanDocRequest {
     pub jumlah_peserta: Option<i32>,
 }
 
-/// Payload update pelatihan.
+/// Payload update pelatihan (admin — semua field wajib).
 #[allow(dead_code)]
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct UpdatePelatihanDocRequest {
@@ -1212,6 +1294,23 @@ pub struct UpdatePelatihanDocRequest {
     pub tanggal_mulai: Option<String>,
     pub tanggal_selesai: Option<String>,
     pub jumlah_peserta: Option<i32>,
+}
+
+/// Payload update iklan pelatihan oleh pemilik (PATCH — partial).
+#[allow(dead_code)]
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct UpdatePelatihanOwnerDocRequest {
+    pub judul: Option<String>,
+    pub penyelenggara: Option<String>,
+    pub deskripsi: Option<String>,
+    pub lokasi: Option<String>,
+    pub region_id: Option<String>,
+    pub harga: Option<i64>,
+    pub tanggal_mulai: Option<String>,
+    pub tanggal_selesai: Option<String>,
+    pub foto_urls: Option<Vec<String>>,
+    pub jumlah_peserta: Option<i32>,
+    pub is_active: Option<bool>,
 }
 
 /// Payload review pelatihan (approve/reject).
@@ -1316,6 +1415,18 @@ fn enroll_pelatihan_doc() {}
 )]
 #[allow(dead_code)]
 fn badge_pelatihan_doc() {}
+
+/// PATCH /api/v1/pelatihan/{id} — update iklan pelatihan (pemilik, partial).
+#[utoipa::path(patch, path = "/api/v1/pelatihan/{id}", tag = "pelatihan",
+    params(("id" = uuid::Uuid, Path, description = "ID pelatihan")),
+    request_body = UpdatePelatihanOwnerDocRequest,
+    responses(
+        (status = 200, description = "Iklan pelatihan diperbarui", body = IklanPelatihanDocResponse),
+        (status = 404, description = "Iklan tidak ditemukan atau bukan milik anda")
+    )
+)]
+#[allow(dead_code)]
+fn update_pelatihan_doc() {}
 
 // ── Admin: Pelatihan ──────────────────────────────────────────────────────────
 
