@@ -96,9 +96,9 @@ pub async fn seed_admin(pool: &PgPool, suffix: &str) -> TestUser {
     sqlx::query!(
         r#"
         INSERT INTO auth.users (id, email, password_hash, status, role, created_at, updated_at)
-        VALUES ($1, $2, $3, 'active', 'admin', now(), now())
+        VALUES ($1, $2, $3, 'active', 'super_admin', now(), now())
         ON CONFLICT (email) DO UPDATE
-            SET status = 'active', role = 'admin'
+            SET status = 'active', role = 'super_admin'
         RETURNING id
         "#,
         id,
@@ -138,7 +138,7 @@ pub async fn seed_admin(pool: &PgPool, suffix: &str) -> TestUser {
             id,
             &email,
             auth_service::AccountStatus::Active,
-            auth_service::Role::Admin,
+            auth_service::Role::SuperAdmin,
         )
         .expect("issue_access_token failed");
 

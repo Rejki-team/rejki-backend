@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE user_svc.profiles\n        SET full_name = 'Budi Tester', nik_last4 = '8901',\n            education_level = 's1', gender = 'male',\n            birth_date = DATE '1995-05-05', address_line = 'Jl. Uji No. 1',\n            country_code = 'ID', province_id = '11', regency_id = '1101',\n            district_id = '110101', village_id = '1101012001', updated_at = now()\n        WHERE id = $1\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "4d6e27c4511fb2c67bfb2d04dc57b16a337538bc5c8864591d04e166066e7913"
+}

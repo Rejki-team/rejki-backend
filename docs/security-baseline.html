@@ -923,6 +923,51 @@ location /api/v1/auth/ {
       </div>
     </section>
 
+    <!-- PHASE 3: RBAC -->
+    <section id="rbac">
+      <h2 class="sec-title"><span class="sec-icon ic-y">🎭</span>RBAC — Role-Based Access Control (Phase 3)</h2>
+
+      <p style="color:var(--muted);font-size:.85rem;margin-bottom:1rem;">Multi-tier authorization dengan pure hierarchy rank-based. ✅ <strong>Sudah diimplementasi</strong> — lihat <a href="../../openspec/changes/ws-multi-tier-rbac/tasks.md" style="color:var(--blue);">W3B-05 · ws-multi-tier-rbac</a>.</p>
+
+      <div class="sub-title">Hierarchy Rank</div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Role</th><th>Rank</th><th>DB Value</th><th>Akses</th></tr></thead>
+          <tbody>
+            <tr><td><code>super_admin</code></td><td>100</td><td><code>'super_admin'</code></td><td>Semua endpoint</td></tr>
+            <tr><td><code>admin_iklan</code></td><td>80</td><td><code>'admin_iklan'</code></td><td>Admin iklan + user + moderator + user</td></tr>
+            <tr><td><code>admin_user</code></td><td>80</td><td><code>'admin_user'</code></td><td>Admin user/KYC + moderator + user</td></tr>
+            <tr><td><code>moderator</code></td><td>60</td><td><code>'moderator'</code></td><td>Report + corporate-comms + user</td></tr>
+            <tr><td><code>user_verified</code></td><td>40</td><td><code>'user_verified'</code></td><td>Post iklan, chat, create reports</td></tr>
+            <tr><td><code>user</code></td><td>20</td><td><code>'user'</code> (default)</td><td>Browse, register, login</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sub-title">Middleware</div>
+      <p style="color:var(--muted);font-size:.83rem;"><code>require_role(min_rank: u8)</code> — Axum middleware via <code>from_fn_with_state</code>. Gantikan <code>require_admin()</code> (binary). Dipasang setelah <code>require_auth</code>. Menolak <code>403 FORBIDDEN + INSUFFICIENT_ROLE</code> bila rank tidak mencukupi.</p>
+
+      <div class="sub-title">Guard per Service</div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Service</th><th>Min Rank</th><th>Role yang Lolos</th></tr></thead>
+          <tbody>
+            <tr><td>auth, user, 4 iklan</td><td>80</td><td>super_admin, admin_iklan, admin_user</td></tr>
+            <tr><td>report, corporate-comms</td><td>60</td><td>super_admin, admin_iklan, admin_user, moderator</td></tr>
+            <tr><td><code>admin_login</code> gate</td><td>80</td><td>super_admin, admin_iklan, admin_user (bukan moderator)</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout c-info" style="margin-top:.75rem;">
+        <span class="callout-icon">ℹ️</span>
+        <div>
+          <strong>Pure Hierarchy Trade-off</strong>
+          <p><code>admin_iklan</code> dan <code>admin_user</code> rank sama (80) — bisa akses endpoint satu sama lain. Ini konsekuensi dari model hierarchy murni. Jika diperlukan pemisahan ketat, module-based RBAC bisa dibangun di iterasi berikutnya.</p>
+        </div>
+      </div>
+    </section>
+
     <!-- PHASE 3: ENCRYPTION AT REST -->
     <section id="encryption-rest">
       <h2 class="sec-title"><span class="sec-icon ic-y">🔒</span>Enkripsi at Rest (Phase 3)</h2>

@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT ktp_object_key, selfie_object_key, status FROM user_svc.kyc_submission WHERE id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "ktp_object_key",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "user_svc.kyc_submission",
+            "name": "ktp_object_key"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "selfie_object_key",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "user_svc.kyc_submission",
+            "name": "selfie_object_key"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "status",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "user_svc.kyc_submission",
+            "name": "status"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "65e1546f4732bb11e16212f5058c5c0defccdb6aa527015ff9c56aa9615cd5a6"
+}

@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM auth.users WHERE email LIKE '%@test.rejki.internal'",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "90868b57108b8c911994986c86b8c07f69b013f7e50fe81e4ae05599cbc3cd70"
+}

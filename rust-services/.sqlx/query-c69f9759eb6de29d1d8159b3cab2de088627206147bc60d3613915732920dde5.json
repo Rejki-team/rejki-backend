@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT ktp_object_key, selfie_object_key FROM user_svc.kyc_submission WHERE profile_id = $1 ORDER BY created_at DESC LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "ktp_object_key",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "user_svc.kyc_submission",
+            "name": "ktp_object_key"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "selfie_object_key",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "user_svc.kyc_submission",
+            "name": "selfie_object_key"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      true,
+      true
+    ]
+  },
+  "hash": "c69f9759eb6de29d1d8159b3cab2de088627206147bc60d3613915732920dde5"
+}

@@ -189,7 +189,8 @@ pub struct UserProfileDocResponse {
     pub avatar: Option<String>,
     pub bio: Option<String>,
     pub phone: Option<String>,
-    /// Peran pengguna (RBAC) — "user" atau "admin".
+    /// Peran pengguna (multi-tier RBAC) — rank hierarchy: super_admin (100) ≥
+    /// admin_iklan/admin_user (80) ≥ moderator (60) ≥ user_verified (40) ≥ user (20).
     pub role: Option<String>,
     pub nik_masked: Option<String>,
     pub kyc_status: Option<String>,

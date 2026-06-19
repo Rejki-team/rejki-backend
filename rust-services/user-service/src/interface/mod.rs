@@ -9,7 +9,7 @@ use axum::{routing::get, Router};
 use sqlx::PgPool;
 
 use auth_service_client::AuthClient;
-use common_auth_mw::{require_admin, require_auth};
+use common_auth_mw::{require_auth, require_role};
 use notification_service_client::NotificationClient;
 use region_service_client::RegionClient;
 use storage_service_client::StorageClient;
@@ -90,7 +90,7 @@ pub fn router(
         )
         .route("/admin/kyc/{id}", get(handlers::admin_get_kyc))
         .with_state(state.clone())
-        .layer(axum::middleware::from_fn(require_admin))
+        .layer(axum::middleware::from_fn_with_state(80u8, require_role))
         .layer(axum::middleware::from_fn_with_state(
             auth_client.clone(),
             require_auth,

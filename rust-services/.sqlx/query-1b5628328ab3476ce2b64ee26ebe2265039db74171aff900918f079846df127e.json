@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO user_svc.profiles (id, auth_id, username, created_at, updated_at)\n        VALUES ($1, $1, $2, now(), now())\n        ON CONFLICT (auth_id) DO NOTHING\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "1b5628328ab3476ce2b64ee26ebe2265039db74171aff900918f079846df127e"
+}

@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO iklan_pekerjaan.iklan\n            (id, poster_id, judul, perusahaan, deskripsi, lokasi, gaji_min, gaji_max, created_at, updated_at)\n        VALUES ($1, $2, 'My Iklan', 'PT Self', 'Deskripsi', 'Bandung', 3000000, 6000000, now(), now())\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "743e670b9a23bec5a1680d668582e0ea2c6221f2994b600a485761f584782c89"
+}

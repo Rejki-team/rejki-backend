@@ -141,9 +141,9 @@
     <div class="progress-wrap">
       <div class="progress-label">
         <span>Phase 3 Progress</span>
-        <span style="color:var(--green);font-weight:700;">55%</span>
+        <span style="color:var(--green);font-weight:700;">60%</span>
       </div>
-      <div class="progress-track"><div class="progress-fill" style="width:55%"></div></div>
+      <div class="progress-track"><div class="progress-fill" style="width:60%"></div></div>
     </div>
     <div class="nav-divider"></div>
     <div class="nav-section">Navigasi</div>
@@ -151,7 +151,7 @@
     <a class="nav-item nav-back" href="brainstorm/phase-3-hardening-analysis.html">← Brainstorm Phase 3</a>
     <div class="nav-section">Wave</div>
     <a class="nav-item" href="#w3a">W3A — Security Core & Foundation <span class="nav-badge nb-done">3/3</span></a>
-    <a class="nav-item" href="#w3b">W3B — Compliance & Access <span class="nav-badge nb-prog">1/4</span></a>
+    <a class="nav-item" href="#w3b">W3B — Compliance & Access <span class="nav-badge nb-prog">2/4</span></a>
     <a class="nav-item" href="#w3c">W3C — Production Polish <span class="nav-badge nb-todo">0/4</span></a>
     <a class="nav-item" href="#w3d">W3D — Analytics & Infra <span class="nav-badge nb-todo">0/4</span></a>
     <a class="nav-item" href="#summary">Ringkasan</a>
@@ -322,7 +322,7 @@
             <a class="wave-link" href="authorization-pattern.html">authorization-pattern</a>
           </div>
         </div>
-        <div class="wave-status"><span class="badge badge-prog">⚡ 1/4</span></div>
+        <div class="wave-status"><span class="badge badge-prog">⚡ 2/4</span></div>
       </div>
 
       <div class="tasks">
@@ -366,39 +366,48 @@
         </div>
 
         <!-- W3B-05: Multi-tier RBAC -->
-        <div class="task">
+        <div class="task done">
           <div class="task-head">
             <span class="task-id">W3B-05</span>
-            <span class="task-title">Multi-tier RBAC — extend Role enum (6 value) + require_role() middleware</span>
-            <span class="task-scope">auth-service + common</span>
+            <span class="task-title">Multi-tier RBAC — 6 role hierarchy + require_role() middleware</span>
+            <span class="task-scope">auth-service + common + 8 interface files</span>
             <span class="priority-badge pb-p1">P1</span>
           </div>
           <div class="task-body">
             <div class="task-body-inner gap-section">
               <div>
-                <div class="section-label">OpenSpec change baru: <code>ws-multi-tier-rbac</code></div>
+                <div class="section-label">OpenSpec change: <code>ws-multi-tier-rbac</code></div>
+                <div class="done-tag" style="display:inline-block;background:rgba(63,185,80,.15);color:var(--green);border:1px solid rgba(63,185,80,.3);border-radius:20px;padding:.15rem .65rem;font-size:.7rem;font-weight:700;margin-top:.3rem;">✅ DONE 19 Jun 2026</div>
               </div>
               <div>
-                <div class="section-label">Target gap: A2</div>
+                <div class="section-label">Implementasi</div>
                 <div class="impl-list">
-                  <div class="impl-item">Extend enum <code>Role</code>: <code>User</code>, <code>Admin</code>, <code>Moderator</code>, <code>SuperAdmin</code>, <code>Support</code>, <code>Executive</code></div>
-                  <div class="impl-item">Migration: extend CHECK constraint di <code>auth.users.role</code></div>
-                  <div class="impl-item">Update <code>require_admin</code> → <code>require_role(required: &[Role])</code> — support multiple roles</div>
-                  <div class="impl-item">Update JWT claims: tambah <code>role</code> field agar middleware tidak perlu DB lookup per request</div>
-                  <div class="impl-item">Dashboard endpoints: moderator = moderasi konten; super_admin = suspend user + RBAC management</div>
-                  <div class="impl-item">CEO endpoints: executive = read-only analytics</div>
-                  <div class="impl-item">Support endpoints: support = lihat user profile + audit log (read-only)</div>
-                  <div class="impl-item">Test: unit test require_role() middleware, integration test role-based access (200/403 matrix)</div>
+                  <div class="impl-item"><code>Role</code> enum: <code>SuperAdmin</code> (100), <code>AdminIklan</code> (80), <code>AdminUser</code> (80), <code>Moderator</code> (60), <code>UserVerified</code> (40), <code>User</code> (20) — rank() method + is_admin() = rank >= 60</div>
+                  <div class="impl-item"><code>require_role(min_rank: u8)</code> — Axum middleware factory via <code>from_fn_with_state</code>, ganti <code>require_admin()</code> (dihapus)</div>
+                  <div class="impl-item"><code>AppError::InsufficientRole</code> — 403 FORBIDDEN + INSUFFICIENT_ROLE</div>
+                  <div class="impl-item">Migration: alter CHECK constraint 2→6 role values, backfill <code>admin</code> → <code>super_admin</code></div>
+                  <div class="impl-item">8 service routers: iklan (80), user (80), auth (80), report (60), corporate-comms (60)</div>
+                  <div class="impl-item"><code>admin_login</code> guard: <code>rank() >= 80</code> (admin/super_admin, bukan moderator)</div>
+                  <div class="impl-item">Test fixtures: <code>Role::Admin</code> → <code>Role::SuperAdmin</code> di seed_admin + JWTs</div>
                 </div>
               </div>
               <div>
-                <div class="section-label">File yang akan disentuh</div>
+                <div class="section-label">File yang disentuh</div>
                 <div class="file-list">
-                  <div class="file-row"><span class="fop fop-migr">migrate</span><span class="fpath">auth-service/migrations/*_extend_role.up.sql</span></div>
-                  <div class="file-row"><span class="fop fop-edit">edit</span><span class="fpath">auth-service-client/src/lib.rs</span><span class="fnote">— extend Role enum</span></div>
-                  <div class="file-row"><span class="fop fop-edit">edit</span><span class="fpath">common/auth-middleware/src/lib.rs</span><span class="fnote">— require_role()</span></div>
-                  <div class="file-row"><span class="fop fop-edit">edit</span><span class="fpath">auth-service/src/infrastructure/jwt.rs</span><span class="fnote">— inject role ke JWT claims</span></div>
-                  <div class="file-row"><span class="fop fop-edit">edit</span><span class="fpath">semua service interface/mod.rs</span><span class="fnote">— update middleware auth gate</span></div>
+                  <div class="file-row"><span class="fop fop-edit">edit</span><span class="fpath">auth-service-client/src/lib.rs</span><span class="fnote">— Role: 6 variant + rank()</span></div>
+                  <div class="file-row"><span class="fop fop-migr">migrate</span><span class="fpath">auth-service/migrations/20260619000002_extend_roles</span></div>
+                  <div class="file-row"><span class="fop fop-edit">edit</span><span class="fpath">common/errors/src/lib.rs</span><span class="fnote">— InsufficientRole</span></div>
+                  <div class="file-row"><span class="fop fop-edit">edit</span><span class="fpath">common/auth-middleware/src/lib.rs</span><span class="fnote">— require_role() factory</span></div>
+                  <div class="file-row"><span class="fop fop-edit">edit</span><span class="fpath">8 service interface/mod.rs</span><span class="fnote">— from_fn(require_admin) → from_fn_with_state(rank, require_role)</span></div>
+                  <div class="file-row"><span class="fop fop-edit">edit</span><span class="fpath">auth-service/application/service.rs</span><span class="fnote">— admin_login guard + test</span></div>
+                  <div class="file-row"><span class="fop fop-edit">edit</span><span class="fpath">rejki-app/tests/common/fixtures.rs</span><span class="fnote">— seed_admin → SuperAdmin</span></div>
+                  <div class="file-row"><span class="fop fop-edit">edit</span><span class="fpath">rejki-app/src/openapi.rs</span><span class="fnote">— Role doc update</span></div>
+                </div>
+              </div>
+              <div>
+                <div class="section-label">Verifikasi</div>
+                <div class="status-badge" style="margin-top:.3rem;">
+                  <span style="color:var(--green);">fmt ✅ clippy zero ✅ check ✅ test 67/67 ✅ sqlx prepare ✅</span>
                 </div>
               </div>
             </div>
@@ -683,7 +692,7 @@
             <tr><td>W3A-02</td><td>Rate limiting bisnis — common/rate-limit crate, 8 services injected + global middleware + 247 unit + 52 integration PASS</td><td>3A</td><td>P0</td><td><code>ws-rate-limiting-bisnis</code></td><td>—</td><td><span class="badge badge-done">✅ Archived</span></td></tr>
             <tr><td>W3A-03</td><td>ws-region-id-iklan — region_id TEXT + partial index di 4 tabel iklan, RegionClient::get_region() validation, 247 unit test PASS</td><td>3A</td><td>P0</td><td><code>ws-region-id-iklan</code></td><td>—</td><td><span class="badge badge-done">✅ Archived</span></td></tr>
             <tr><td>W3B-04</td><td>audit_log table + repository — migration + PgAuditLogRepository + 11 AuditEvent variants + inject ke 10 auth events + fail-open + 247 unit + 50 integration PASS</td><td>3B</td><td>P1</td><td><code>ws-audit-log</code></td><td>—</td><td><span class="badge badge-done">✅ Done</span></td></tr>
-            <tr><td>W3B-05</td><td>Multi-tier RBAC (6 roles)</td><td>3B</td><td>P1</td><td><code>ws-multi-tier-rbac</code> (NEW)</td><td>—</td><td><span class="badge badge-todo">📋 Pending</span></td></tr>
+            <tr><td>W3B-05</td><td>Multi-tier RBAC (6 roles) — SuperAdmin (100), AdminIklan/AdminUser (80), Moderator (60), UserVerified (40), User (20) + require_role(min_rank) middleware + InsufficientRole error + 8 router update + admin_login guard >= 80 + migration alter CHECK + 67 auth unit PASS</td><td>3B</td><td>P1</td><td><code>ws-multi-tier-rbac</code></td><td>—</td><td><span class="badge badge-done">✅ Done</span></td></tr>
             <tr><td>W3B-06</td><td>PATCH iklan (update handler)</td><td>3B</td><td>P1</td><td><code>ws-patch-iklan</code> (NEW)</td><td>—</td><td><span class="badge badge-todo">📋 Pending</span></td></tr>
             <tr><td>W3B-07</td><td>Password reset flow</td><td>3B</td><td>P1</td><td><code>ws-password-reset</code> (NEW)</td><td>W3B-04 (audit_log) [opsional]</td><td><span class="badge badge-todo">📋 Pending</span></td></tr>
             <tr><td>W3C-08</td><td>CORS production policy</td><td>3C</td><td>P2</td><td>Langsung ke kode</td><td>—</td><td><span class="badge badge-todo">📋 Pending</span></td></tr>
@@ -713,7 +722,7 @@
 
     <footer>
       <span>rejki-backend · Phase 3 Implementation Plan · 18 Juni 2026</span>
-      <span>15 task · 4 waves · Wave 3A ✅ Complete · W3A-01 ✅ · W3A-02 ✅ · W3A-03 ✅ · W3B-04 ✅ · Next: W3B-05 · P1 1/4 complete</span>
+      <span>15 task · 4 waves · Wave 3A ✅ Complete · W3A-01 ✅ · W3A-02 ✅ · W3A-03 ✅ · W3B-04 ✅ · W3B-05 ✅ · P1 2/4 complete</span>
     </footer>
 
   </main>

@@ -44,6 +44,10 @@ pub enum AppError {
     #[error("account not admin")]
     AccountNotAdmin,
 
+    /// Role tidak mencukupi untuk mengakses endpoint ini. Kode mesin: INSUFFICIENT_ROLE.
+    #[error("insufficient role")]
+    InsufficientRole,
+
     #[error("internal server error")]
     Internal(#[from] anyhow::Error),
 }
@@ -102,6 +106,11 @@ impl IntoResponse for AppError {
                 StatusCode::FORBIDDEN,
                 "ACCOUNT_NOT_ADMIN",
                 "akses admin diperlukan — akun tidak memiliki peran admin".into(),
+            ),
+            AppError::InsufficientRole => (
+                StatusCode::FORBIDDEN,
+                "INSUFFICIENT_ROLE",
+                "peran anda tidak memiliki akses ke sumber daya ini".into(),
             ),
             AppError::Internal(e) => {
                 tracing::error!(error = ?e, "internal server error");
