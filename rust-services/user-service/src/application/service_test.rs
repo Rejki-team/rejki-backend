@@ -2,6 +2,7 @@
 mod tests {
     use crate::application::dto::AdminKycListQuery;
     use crate::application::dto::KycPersonalDataInput;
+    use crate::domain::repository::UpdateProfileParams;
     use base64::Engine;
     use std::collections::HashMap;
     use std::sync::Arc;
@@ -218,6 +219,8 @@ mod tests {
             avatar: None,
             bio: None,
             phone: None,
+            phone_encrypted: None,
+            rekening_encrypted: None,
             nik_encrypted: None,
             nik_last4: None,
             education_level: None,
@@ -654,6 +657,8 @@ mod tests {
                 avatar: None,
                 bio: None,
                 phone: None,
+                phone_encrypted: None,
+                rekening_encrypted: None,
                 nik_encrypted: None,
                 nik_last4: None,
                 education_level: None,
@@ -672,29 +677,26 @@ mod tests {
             Ok(p)
         }
 
-        async fn update(
-            &self,
-            id: Uuid,
-            full_name: Option<&str>,
-            avatar: Option<&str>,
-            bio: Option<&str>,
-            phone: Option<&str>,
-        ) -> Result<UserProfile, anyhow::Error> {
+        async fn update(&self, params: UpdateProfileParams) -> Result<UserProfile, anyhow::Error> {
             let mut profiles = self.profiles.lock().unwrap();
             let p = profiles
-                .get_mut(&id)
+                .get_mut(&params.id)
                 .ok_or_else(|| anyhow::anyhow!("profil tidak ditemukan"))?;
-            if let Some(v) = full_name {
-                p.full_name = Some(v.into());
+            if let Some(v) = params.full_name {
+                p.full_name = Some(v);
             }
-            if let Some(v) = avatar {
-                p.avatar = Some(v.into());
+            if let Some(v) = params.avatar {
+                p.avatar = Some(v);
             }
-            if let Some(v) = bio {
-                p.bio = Some(v.into());
+            if let Some(v) = params.bio {
+                p.bio = Some(v);
             }
-            if let Some(v) = phone {
-                p.phone = Some(v.into());
+            if let Some(v) = params.phone {
+                p.phone = Some(v);
+            }
+            if let Some(v) = params.rekening {
+                p.rekening_encrypted =
+                    Some(common_crypto::encrypt(&serde_json::to_string(&v).unwrap()).unwrap());
             }
             p.updated_at = chrono::Utc::now();
             Ok(p.clone())
@@ -831,6 +833,8 @@ mod tests {
                 avatar: None,
                 bio: None,
                 phone: None,
+                phone_encrypted: None,
+                rekening_encrypted: None,
                 nik_encrypted: None,
                 nik_last4: None,
                 education_level: None,
@@ -860,6 +864,8 @@ mod tests {
             avatar: None,
             bio: None,
             phone: Some("081234567890".into()),
+            phone_encrypted: None,
+            rekening_encrypted: None,
             nik_encrypted: None,
             nik_last4: None,
             education_level: None,
@@ -898,6 +904,7 @@ mod tests {
             avatar: None,
             bio: Some("Bio singkat".into()),
             phone: Some("081111111111".into()),
+            rekening: None,
         };
 
         let result = svc.update_profile(profile.id, input).await;
@@ -929,9 +936,10 @@ mod tests {
             avatar: None,
             bio: None,
             phone: None,
+            rekening: None,
         };
 
-        // update_profile hanya ubah full_name/bio/phone/avatar — NIK tidak disentuh.
+        // update_profile hanya ubah full_name/bio/phone/avatar/rekening — NIK tidak disentuh.
         let result = svc.update_profile(profile.id, input).await;
         assert!(
             result.is_ok(),

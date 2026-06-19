@@ -5,11 +5,75 @@ use sqlx::{PgPool, Row};
 use uuid::Uuid;
 
 use crate::domain::entity::{
-    DocumentAccessAction, KycSubmission, KycSubmissionStatus, UserProfile,
+    DocumentAccessAction, KycSubmission, KycSubmissionStatus, RekeningInfo, UserProfile,
 };
 use crate::domain::repository::{
-    AdminKycListParams, AdminKycListResult, AdminKycRow, TxUserRepository, UserRepository,
+    AdminKycListParams, AdminKycListResult, AdminKycRow, TxUserRepository, UpdateProfileParams,
+    UserRepository,
 };
+
+/// Decrypt phone dengan fallback ke plaintext lama. Gagal → warn + None.
+fn decrypt_phone(encrypted: Option<&str>, plaintext_fallback: Option<String>) -> Option<String> {
+    let decrypted = encrypted.and_then(|enc| match common_crypto::decrypt(enc) {
+        Ok(p) => Some(p),
+        Err(e) => {
+            tracing::warn!(error = %e, "gagal dekripsi phone_encrypted — fallback ke plaintext lama");
+            None
+        }
+    });
+    decrypted.or(plaintext_fallback)
+}
+
+#[allow(dead_code)]
+/// Decrypt rekening JSON. Gagal → warn + None.
+fn decrypt_rekening(encrypted: Option<&str>) -> Option<RekeningInfo> {
+    encrypted.and_then(|enc| match common_crypto::decrypt(enc) {
+        Ok(json) => match serde_json::from_str(&json) {
+            Ok(r) => Some(r),
+            Err(e) => {
+                tracing::warn!(error = %e, "gagal parse JSON rekening setelah dekripsi");
+                None
+            }
+        },
+        Err(e) => {
+            tracing::warn!(error = %e, "gagal dekripsi rekening_encrypted");
+            None
+        }
+    })
+}
+
+/// Map satu PgRow (semua kolom `user_svc.profiles`) ke `UserProfile`,
+/// termasuk dekripsi phone_encrypted + rekening_encrypted.
+fn row_to_profile(r: &PgRow) -> UserProfile {
+    let phone_encrypted: Option<String> = r.get("phone_encrypted");
+    let rekening_encrypted: Option<String> = r.get("rekening_encrypted");
+    let phone_plain: Option<String> = r.get("phone");
+
+    UserProfile {
+        id: r.get("id"),
+        auth_id: r.get("auth_id"),
+        username: r.get("username"),
+        full_name: r.get("full_name"),
+        avatar: r.get("avatar"),
+        bio: r.get("bio"),
+        phone: decrypt_phone(phone_encrypted.as_deref(), phone_plain),
+        phone_encrypted,
+        rekening_encrypted,
+        nik_encrypted: r.get("nik_encrypted"),
+        nik_last4: r.get("nik_last4"),
+        education_level: r.get("education_level"),
+        gender: r.get("gender"),
+        birth_date: r.get("birth_date"),
+        address_line: r.get("address_line"),
+        country_code: r.get("country_code"),
+        province_id: r.get("province_id"),
+        regency_id: r.get("regency_id"),
+        district_id: r.get("district_id"),
+        village_id: r.get("village_id"),
+        created_at: r.get("created_at"),
+        updated_at: r.get("updated_at"),
+    }
+}
 
 // SQL listing/detail admin KYC — literal statis (sqlx 0.9 menolak dynamic string;
 // literal = anti SQL-injection). Kolom konsisten antar-query; hanya klausa
@@ -86,164 +150,104 @@ impl PgUserRepository {
 impl UserRepository for PgUserRepository {
     async fn find_by_id(&self, id: Uuid) -> Result<Option<UserProfile>, anyhow::Error> {
         let t = Instant::now();
-        let row = sqlx::query!(
-            r#"SELECT id, auth_id, username, full_name, avatar, bio, phone,
-                      nik_encrypted, nik_last4, education_level, gender, birth_date,
-                      address_line, country_code, province_id, regency_id, district_id, village_id,
-                      created_at, updated_at
-               FROM user_svc.profiles WHERE id = $1"#,
-            id
+        let row = sqlx::query(
+            "SELECT id, auth_id, username, full_name, avatar, bio, phone, \
+                    phone_encrypted, rekening_encrypted, \
+                    nik_encrypted, nik_last4, education_level, gender, birth_date, \
+                    address_line, country_code, province_id, regency_id, district_id, village_id, \
+                    created_at, updated_at \
+             FROM user_svc.profiles WHERE id = $1",
         )
+        .bind(id)
         .fetch_optional(&self.pool)
         .await?;
         warn_slow!(t, "user.find_by_id");
-        Ok(row.map(|r| UserProfile {
-            id: r.id,
-            auth_id: r.auth_id,
-            username: r.username,
-            full_name: r.full_name,
-            avatar: r.avatar,
-            bio: r.bio,
-            phone: r.phone,
-            nik_encrypted: r.nik_encrypted,
-            nik_last4: r.nik_last4,
-            education_level: r.education_level,
-            gender: r.gender,
-            birth_date: r.birth_date,
-            address_line: r.address_line,
-            country_code: r.country_code,
-            province_id: r.province_id,
-            regency_id: r.regency_id,
-            district_id: r.district_id,
-            village_id: r.village_id,
-            created_at: r.created_at,
-            updated_at: r.updated_at,
-        }))
+        Ok(row.as_ref().map(row_to_profile))
     }
 
     async fn find_by_auth_id(&self, auth_id: Uuid) -> Result<Option<UserProfile>, anyhow::Error> {
         let t = Instant::now();
-        let row = sqlx::query!(
-            r#"SELECT id, auth_id, username, full_name, avatar, bio, phone,
-                      nik_encrypted, nik_last4, education_level, gender, birth_date,
-                      address_line, country_code, province_id, regency_id, district_id, village_id,
-                      created_at, updated_at
-               FROM user_svc.profiles WHERE auth_id = $1"#,
-            auth_id
+        let row = sqlx::query(
+            "SELECT id, auth_id, username, full_name, avatar, bio, phone, \
+                    phone_encrypted, rekening_encrypted, \
+                    nik_encrypted, nik_last4, education_level, gender, birth_date, \
+                    address_line, country_code, province_id, regency_id, district_id, village_id, \
+                    created_at, updated_at \
+             FROM user_svc.profiles WHERE auth_id = $1",
         )
+        .bind(auth_id)
         .fetch_optional(&self.pool)
         .await?;
         warn_slow!(t, "user.find_by_auth_id");
-        Ok(row.map(|r| UserProfile {
-            id: r.id,
-            auth_id: r.auth_id,
-            username: r.username,
-            full_name: r.full_name,
-            avatar: r.avatar,
-            bio: r.bio,
-            phone: r.phone,
-            nik_encrypted: r.nik_encrypted,
-            nik_last4: r.nik_last4,
-            education_level: r.education_level,
-            gender: r.gender,
-            birth_date: r.birth_date,
-            address_line: r.address_line,
-            country_code: r.country_code,
-            province_id: r.province_id,
-            regency_id: r.regency_id,
-            district_id: r.district_id,
-            village_id: r.village_id,
-            created_at: r.created_at,
-            updated_at: r.updated_at,
-        }))
+        Ok(row.as_ref().map(row_to_profile))
     }
 
     async fn create(&self, auth_id: Uuid, username: &str) -> Result<UserProfile, anyhow::Error> {
         let t = Instant::now();
-        let row = sqlx::query!(
-            r#"INSERT INTO user_svc.profiles (id, auth_id, username)
-               VALUES (gen_random_uuid(), $1, $2)
-               RETURNING id, auth_id, username, full_name, avatar, bio, phone,
-                         nik_encrypted, nik_last4, education_level, gender, birth_date,
-                         address_line, country_code, province_id, regency_id, district_id, village_id,
-                         created_at, updated_at"#,
-            auth_id, username
+        let row = sqlx::query(
+            "INSERT INTO user_svc.profiles (id, auth_id, username) \
+             VALUES (gen_random_uuid(), $1, $2) \
+             RETURNING id, auth_id, username, full_name, avatar, bio, phone, \
+                       phone_encrypted, rekening_encrypted, \
+                       nik_encrypted, nik_last4, education_level, gender, birth_date, \
+                       address_line, country_code, province_id, regency_id, district_id, village_id, \
+                       created_at, updated_at",
         )
+        .bind(auth_id)
+        .bind(username)
         .fetch_one(&self.pool)
         .await?;
         warn_slow!(t, "user.create");
-        Ok(UserProfile {
-            id: row.id,
-            auth_id: row.auth_id,
-            username: row.username,
-            full_name: row.full_name,
-            avatar: row.avatar,
-            bio: row.bio,
-            phone: row.phone,
-            nik_encrypted: row.nik_encrypted,
-            nik_last4: row.nik_last4,
-            education_level: row.education_level,
-            gender: row.gender,
-            birth_date: row.birth_date,
-            address_line: row.address_line,
-            country_code: row.country_code,
-            province_id: row.province_id,
-            regency_id: row.regency_id,
-            district_id: row.district_id,
-            village_id: row.village_id,
-            created_at: row.created_at,
-            updated_at: row.updated_at,
-        })
+        Ok(row_to_profile(&row))
     }
 
-    async fn update(
-        &self,
-        id: Uuid,
-        full_name: Option<&str>,
-        avatar: Option<&str>,
-        bio: Option<&str>,
-        phone: Option<&str>,
-    ) -> Result<UserProfile, anyhow::Error> {
+    async fn update(&self, params: UpdateProfileParams) -> Result<UserProfile, anyhow::Error> {
         let t = Instant::now();
-        let row = sqlx::query!(
-            r#"UPDATE user_svc.profiles
-               SET full_name  = COALESCE($2, full_name),
-                   avatar     = COALESCE($3, avatar),
-                   bio        = COALESCE($4, bio),
-                   phone      = COALESCE($5, phone),
-                   updated_at = now()
-               WHERE id = $1
-               RETURNING id, auth_id, username, full_name, avatar, bio, phone,
-                         nik_encrypted, nik_last4, education_level, gender, birth_date,
-                         address_line, country_code, province_id, regency_id, district_id, village_id,
-                         created_at, updated_at"#,
-            id, full_name, avatar, bio, phone
+
+        // Encrypt phone bila ada.
+        let phone_encrypted = params
+            .phone
+            .as_deref()
+            .map(common_crypto::encrypt)
+            .transpose()
+            .map_err(|e| anyhow::anyhow!("gagal enkripsi phone: {e}"))?;
+
+        // Encrypt rekening bila ada.
+        let rekening_encrypted = params
+            .rekening
+            .as_ref()
+            .map(serde_json::to_string)
+            .transpose()
+            .map_err(|e| anyhow::anyhow!("gagal serialise rekening: {e}"))?
+            .map(|json| common_crypto::encrypt(&json))
+            .transpose()
+            .map_err(|e| anyhow::anyhow!("gagal enkripsi rekening: {e}"))?;
+
+        let row = sqlx::query(
+            "UPDATE user_svc.profiles SET \
+                full_name          = COALESCE($2, full_name), \
+                avatar             = COALESCE($3, avatar), \
+                bio                = COALESCE($4, bio), \
+                phone_encrypted    = COALESCE($5, phone_encrypted), \
+                rekening_encrypted = COALESCE($6, rekening_encrypted), \
+                updated_at         = now() \
+             WHERE id = $1 \
+             RETURNING id, auth_id, username, full_name, avatar, bio, phone, \
+                       phone_encrypted, rekening_encrypted, \
+                       nik_encrypted, nik_last4, education_level, gender, birth_date, \
+                       address_line, country_code, province_id, regency_id, district_id, village_id, \
+                       created_at, updated_at",
         )
+        .bind(params.id)
+        .bind(&params.full_name)
+        .bind(&params.avatar)
+        .bind(&params.bio)
+        .bind(&phone_encrypted)
+        .bind(&rekening_encrypted)
         .fetch_one(&self.pool)
         .await?;
         warn_slow!(t, "user.update");
-        Ok(UserProfile {
-            id: row.id,
-            auth_id: row.auth_id,
-            username: row.username,
-            full_name: row.full_name,
-            avatar: row.avatar,
-            bio: row.bio,
-            phone: row.phone,
-            nik_encrypted: row.nik_encrypted,
-            nik_last4: row.nik_last4,
-            education_level: row.education_level,
-            gender: row.gender,
-            birth_date: row.birth_date,
-            address_line: row.address_line,
-            country_code: row.country_code,
-            province_id: row.province_id,
-            regency_id: row.regency_id,
-            district_id: row.district_id,
-            village_id: row.village_id,
-            created_at: row.created_at,
-            updated_at: row.updated_at,
-        })
+        Ok(row_to_profile(&row))
     }
 
     async fn update_avatar(&self, id: Uuid, object_key: &str) -> Result<(), anyhow::Error> {
@@ -608,38 +612,18 @@ impl TxUserRepository for PgTxUserRepository {
         &mut self,
         auth_id: Uuid,
     ) -> Result<Option<UserProfile>, anyhow::Error> {
-        let row = sqlx::query!(
-            r#"SELECT id, auth_id, username, full_name, avatar, bio, phone,
-                      nik_encrypted, nik_last4, education_level, gender, birth_date,
-                      address_line, country_code, province_id, regency_id, district_id, village_id,
-                      created_at, updated_at
-               FROM user_svc.profiles WHERE auth_id = $1"#,
-            auth_id
+        let row = sqlx::query(
+            "SELECT id, auth_id, username, full_name, avatar, bio, phone, \
+                    phone_encrypted, rekening_encrypted, \
+                    nik_encrypted, nik_last4, education_level, gender, birth_date, \
+                    address_line, country_code, province_id, regency_id, district_id, village_id, \
+                    created_at, updated_at \
+             FROM user_svc.profiles WHERE auth_id = $1",
         )
+        .bind(auth_id)
         .fetch_optional(&mut *self.tx)
         .await?;
-        Ok(row.map(|r| UserProfile {
-            id: r.id,
-            auth_id: r.auth_id,
-            username: r.username,
-            full_name: r.full_name,
-            avatar: r.avatar,
-            bio: r.bio,
-            phone: r.phone,
-            nik_encrypted: r.nik_encrypted,
-            nik_last4: r.nik_last4,
-            education_level: r.education_level,
-            gender: r.gender,
-            birth_date: r.birth_date,
-            address_line: r.address_line,
-            country_code: r.country_code,
-            province_id: r.province_id,
-            regency_id: r.regency_id,
-            district_id: r.district_id,
-            village_id: r.village_id,
-            created_at: r.created_at,
-            updated_at: r.updated_at,
-        }))
+        Ok(row.as_ref().map(row_to_profile))
     }
 
     async fn update_profile(&mut self, profile: &UserProfile) -> Result<bool, anyhow::Error> {

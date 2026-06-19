@@ -236,10 +236,10 @@
           <p>✅ <code>CORS_ALLOWED_ORIGINS</code> env var (default: <code>rejki.id,app.rejki.id</code>). Conditional CorsLayer: development=Any, production=whitelist + allow_credentials(true). Methods terbatas: GET/POST/PATCH/DELETE/OPTIONS. Fail-fast parsing di AppConfig startup.</p>
           <p class="evidence">Implementation: common/config/src/lib.rs + rejki-app/src/main.rs — CorsLayer conditional is_production().</p>
         </div>
-        <div class="gap-card p2">
-          <h4><span class="id-tag">A5</span> Enkripsi at rest (phone, rekening) <span class="priority-badge pb-p2">P2</span></h4>
-          <p>NIK sudah dienkripsi AES-256-GCM via common/crypto. Phone masih plaintext. Rekening bank belum ada field tapi disebut di security baseline.</p>
-          <p class="evidence">Evidence: auth-service/domain/entity.rs — phone: Option&lt;String&gt; (ciphertext dari DB). Belum ada decrypt wrapper di service layer.</p>
+        <div class="gap-card done">
+          <h4><span class="id-tag">A5</span> Enkripsi at rest (phone, rekening) <span class="priority-badge pb-done">✅ W3C-09 selesai 20 Jun 2026</span></h4>
+          <p>✅ AES-256-GCM via common-crypto. Phone di auth-service sekarang didekripsi di repository layer. User-service: kolom baru <code>phone_encrypted</code> + <code>rekening_encrypted</code> (JSON: bank, number, holder). Decrypt transparan di repo, masking di response (****1234). Key rotation strategy didokumentasikan di security-baseline.</p>
+          <p class="evidence">Evidence: common/crypto/src/lib.rs — encrypt/decrypt AES-256-GCM. auth-service/pg_repository.rs — row_to_user decrypt phone. user-service: encrypt di INSERT/UPDATE, decrypt di SELECT. Rekening sebagai JSON terenkripsi + parsial masking.</p>
         </div>
         <div class="gap-card p3">
           <h4><span class="id-tag">A6</span> Dependency audit (cargo audit/deny) <span class="priority-badge pb-p3">P3</span></h4>

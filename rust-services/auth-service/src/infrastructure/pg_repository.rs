@@ -53,13 +53,21 @@ fn parse_role(s: &str) -> Role {
 impl PgAuthRepository {
     /// Map a row to AuthUser — single source of truth for column-name contracts.
     fn row_to_user(row: &sqlx::postgres::PgRow) -> Result<AuthUser, anyhow::Error> {
+        let phone_raw: Option<String> = row.try_get("phone")?;
+        let phone = phone_raw.and_then(|p| match crate::application::crypto::decrypt(&p) {
+            Ok(plain) => Some(plain),
+            Err(e) => {
+                tracing::warn!(error = %e, "gagal dekripsi phone — fallback ke None");
+                None
+            }
+        });
         Ok(AuthUser {
             id: row.try_get("id")?,
             email: row.try_get("email")?,
             password_hash: row.try_get("password_hash")?,
             status: parse_status(row.try_get::<&str, _>("status")?)?,
             role: parse_role(row.try_get::<&str, _>("role")?),
-            phone: row.try_get("phone")?,
+            phone,
             tos_accepted_at: row.try_get("tos_accepted_at")?,
             tos_version: row.try_get("tos_version")?,
             created_at: row.try_get("created_at")?,

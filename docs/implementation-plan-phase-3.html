@@ -152,7 +152,7 @@
     <div class="nav-section">Wave</div>
     <a class="nav-item" href="#w3a">W3A — Security Core & Foundation <span class="nav-badge nb-done">3/3</span></a>
     <a class="nav-item" href="#w3b">W3B — Compliance & Access <span class="nav-badge nb-done">4/4</span></a>
-    <a class="nav-item" href="#w3c">W3C — Production Polish <span class="nav-badge nb-todo">0/4</span></a>
+    <a class="nav-item" href="#w3c">W3C — Production Polish <span class="nav-badge nb-todo">1/4</span></a>
     <a class="nav-item" href="#w3d">W3D — Analytics & Infra <span class="nav-badge nb-todo">0/4</span></a>
     <a class="nav-item" href="#summary">Ringkasan</a>
     <div class="nav-divider"></div>
@@ -578,21 +578,22 @@
           </div>
         </div>
 
-        <div class="task">
+        <div class="task done">
           <div class="task-head">
             <span class="task-id">W3C-09</span>
-            <span class="task-title">Enkripsi at rest — phone + future kolom sensitif via common/crypto AES-256-GCM</span>
+            <span class="task-title">Enkripsi at rest — phone + rekening via common/crypto AES-256-GCM</span>
             <span class="task-scope">auth + user service</span>
-            <span class="priority-badge pb-p2">P2</span>
+            <span class="priority-badge pb-done">✅ Done</span>
           </div>
           <div class="task-body">
             <div class="task-body-inner gap-section">
               <div><div class="section-label">Target gap: A5</div></div>
               <div class="impl-list">
-                <div class="impl-item">Encrypt/decrypt phone di auth-service: pakai <code>common/crypto</code> AES-256-GCM (NIK sudah pakai pola yang sama)</div>
-                <div class="impl-item">Migration: enkripsi existing phone plaintext → ciphertext (one-time backfill script)</div>
-                <div class="impl-item">Future: tambah field rekening_bank di user-service — encrypted by default di application layer</div>
-                <div class="impl-item">Key rotation strategy: dokumentasikan di security-baseline</div>
+                <div class="impl-item">✅ Auth-service: decrypt phone di <code>row_to_user()</code> — ciphertext dari DB → plaintext di memori via <code>common_crypto::decrypt()</code>. Fail gracefully → warn! + None.</div>
+                <div class="impl-item">✅ User-service: migration <code>phone_encrypted TEXT</code> + <code>rekening_encrypted TEXT</code> (kolom baru, tidak destruktif).</div>
+                <div class="impl-item">✅ User-service repo layer: encrypt phone/rekening di INSERT/UPDATE, decrypt di SELECT. Transparan ke service/handler.</div>
+                <div class="impl-item">✅ Rekening: JSON <code>{"bank","number","holder"}</code> di-stringify → AES-256-GCM → TEXT. Response: <code>rekening_bank</code> (plain), <code>rekening_masked</code> (****1234), <code>rekening_holder_masked</code> (J***e).</div>
+                <div class="impl-item">✅ Key rotation strategy: dokumentasi di security-baseline (emergency rotation + future envelope encryption).</div>
               </div>
             </div>
           </div>
@@ -757,7 +758,7 @@
             <tr><td>W3B-06</td><td>PATCH iklan (update handler)</td><td>3B</td><td>P1</td><td><code>ws-patch-iklan</code> (NEW)</td><td>W3A-02 (rate limit)</td><td><span class="badge badge-done">✅ Done</span></td></tr>
             <tr><td>W3B-07</td><td>Password reset flow — forgot-password + reset-password + change-password (OTP-based) + atomik transaction + audit event + rate limit 3 req/15m</td><td>3B</td><td>P1</td><td><code>ws-password-reset</code></td><td>W3B-04 (audit_log) [opsional]</td><td><span class="badge badge-done">✅ Done</span></td></tr>
             <tr><td>W3C-08</td><td>CORS production policy — CORS_ALLOWED_ORIGINS env var + conditional CorsLayer (development=Any, production=whitelist)</td><td>3C</td><td>P2</td><td><code>ws-cors-production</code></td><td>—</td><td><span class="badge badge-done">✅ Done</span></td></tr>
-            <tr><td>W3C-09</td><td>Enkripsi phone + rekening bank</td><td>3C</td><td>P2</td><td><code>ws-encryption-at-rest</code> (NEW)</td><td>—</td><td><span class="badge badge-todo">📋 Pending</span></td></tr>
+            <tr><td>W3C-09</td><td>Enkripsi phone + rekening bank — phone_encrypted TEXT + rekening_encrypted (JSON: bank/number/holder) via common-crypto AES-256-GCM + decrypt transparan di repo + mask response (****1234) + key rotation strategy</td><td>3C</td><td>P2</td><td><code>ws-encryption-at-rest</code> (NEW)</td><td>—</td><td><span class="badge badge-done">✅ Done</span></td></tr>
             <tr><td>W3C-10</td><td>Integration test per-service crate</td><td>3C</td><td>P2</td><td>Extend <code>ws-testing-coverage</code></td><td>W3A-01</td><td><span class="badge badge-todo">📋 Pending</span></td></tr>
             <tr><td>W3C-11</td><td>Validasi chain region_id di user profiles</td><td>3C</td><td>P2</td><td><code>ws-region-validation</code> (NEW)</td><td>W3A-03 (region_id exist)</td><td><span class="badge badge-todo">📋 Pending</span></td></tr>
             <tr><td>W3D-12</td><td>CEO analytics endpoints</td><td>3D</td><td>P2</td><td><code>ws-ceo-analytics</code> (NEW)</td><td>W3A-03 (C1), W3B-05 (A2)</td><td><span class="badge badge-todo">📋 Pending</span></td></tr>
@@ -783,7 +784,7 @@
 
     <footer>
       <span>rejki-backend · Phase 3 Implementation Plan · 20 Juni 2026</span>
-      <span>15 task · 4 waves · Wave 3A ✅ Complete · W3A-01 ✅ · W3A-02 ✅ · W3A-03 ✅ · W3B-04 ✅ · W3B-05 ✅ · W3B-06 ✅ · W3B-07 ✅ · W3C-08 ✅ · P1 4/4 complete · W3B DONE ✅</span>
+      <span>15 task · 4 waves · Wave 3A ✅ Complete · W3A-01 ✅ · W3A-02 ✅ · W3A-03 ✅ · W3B-04 ✅ · W3B-05 ✅ · W3B-06 ✅ · W3B-07 ✅ · W3C-08 ✅ · W3C-09 ✅ · P1 4/4 complete · W3B DONE ✅</span>
     </footer>
 
   </main>

@@ -2,7 +2,9 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use validator::Validate;
 
-// ── Profile response (diperluas dengan status KYC) ──────────────────────────
+use crate::domain::entity::RekeningInfo;
+
+// ── Profile response (diperluas dengan status KYC + enkripsi at-rest) ─────
 
 #[derive(Debug, Serialize)]
 pub struct UserProfileResponse {
@@ -18,6 +20,16 @@ pub struct UserProfileResponse {
     pub nik_masked: Option<String>,
     /// Status KYC terkini (pending / approved / rejected / null bila belum kirim)
     pub kyc_status: Option<String>,
+    // ── Enkripsi at-rest (W3C-09) ─────────────────────────────────────
+    /// Nama bank (plaintext dari rekening terdekripsi).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rekening_bank: Option<String>,
+    /// Nomor rekening ter-mask (****1234).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rekening_masked: Option<String>,
+    /// Nama pemilik rekening ter-mask (J***e).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rekening_holder_masked: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Validate)]
@@ -28,6 +40,9 @@ pub struct UpdateProfileInput {
     #[validate(length(max = 300))]
     pub bio: Option<String>,
     pub phone: Option<String>,
+    /// Informasi rekening bank — akan di-encrypt AES-256-GCM sebelum disimpan.
+    /// Validasi: bank non-empty, number digit-only, holder non-empty dilakukan di service layer.
+    pub rekening: Option<RekeningInfo>,
 }
 
 // ── KYC data diri (US-04) ───────────────────────────────────────────────────
