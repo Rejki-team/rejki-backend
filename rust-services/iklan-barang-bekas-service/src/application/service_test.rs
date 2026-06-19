@@ -12,6 +12,7 @@ mod tests {
     };
     use crate::domain::repository::{
         AdminListParams, AdminListResult, CreateBarangBekasParams, IklanBarangBekasRepository,
+        UpdateBarangBekasParams,
     };
 
     // ── MockIklanBarangBekasRepository ────────────────────────────────────────────
@@ -180,6 +181,24 @@ mod tests {
         }
         async fn is_poster_in_cooldown(&self, _poster_id: Uuid) -> Result<bool, anyhow::Error> {
             Ok(false)
+        }
+
+        async fn update(
+            &self,
+            id: Uuid,
+            seller_id: Uuid,
+            _params: UpdateBarangBekasParams,
+        ) -> Result<Option<IklanBarangBekas>, anyhow::Error> {
+            let mut iklan = self.iklan.lock().unwrap();
+            if let Some(item) = iklan
+                .iter_mut()
+                .find(|i| i.id == id && i.seller_id == seller_id && i.deleted_at.is_none())
+            {
+                item.updated_at = chrono::Utc::now();
+                Ok(Some(item.clone()))
+            } else {
+                Ok(None)
+            }
         }
     }
 

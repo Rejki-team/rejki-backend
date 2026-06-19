@@ -10,7 +10,7 @@ use crate::domain::entity::{
 };
 use crate::domain::repository::{
     AdminListParams, AdminListResult, CreatePelatihanParams, IklanPelatihanRepository, ListParams,
-    UpdatePelatihanParams,
+    PatchPelatihanParams, UpdatePelatihanParams,
 };
 
 pub struct PgIklanPelatihanRepository {
@@ -209,6 +209,51 @@ impl IklanPelatihanRepository for PgIklanPelatihanRepository {
                 .await?;
         warn_slow!(t, "iklan_pelatihan.exists");
         Ok(r.unwrap_or(false))
+    }
+
+    // ── PATCH (partial update by owner) ─────────────────────────────────
+
+    async fn update(
+        &self,
+        id: Uuid,
+        poster_id: Uuid,
+        params: PatchPelatihanParams,
+    ) -> Result<Option<IklanPelatihan>, anyhow::Error> {
+        let t = Instant::now();
+        let r = sqlx::query(concat!(
+            "UPDATE iklan_pelatihan.iklan SET ",
+            "judul=COALESCE($3,judul),",
+            "penyelenggara=COALESCE($4,penyelenggara),",
+            "deskripsi=COALESCE($5,deskripsi),",
+            "lokasi=COALESCE($6,lokasi),",
+            "region_id=COALESCE($7,region_id),",
+            "harga=COALESCE($8,harga),",
+            "tanggal_mulai=COALESCE($9,tanggal_mulai),",
+            "tanggal_selesai=COALESCE($10,tanggal_selesai),",
+            "foto_urls=COALESCE($11,foto_urls),",
+            "jumlah_peserta=COALESCE($12,jumlah_peserta),",
+            "is_active=COALESCE($13,is_active),",
+            "updated_at=now() ",
+            "WHERE id=$1 AND poster_id=$2 AND deleted_at IS NULL RETURNING ",
+            pelatihan_cols!()
+        ))
+        .bind(id)
+        .bind(poster_id)
+        .bind(&params.judul)
+        .bind(&params.penyelenggara)
+        .bind(&params.deskripsi)
+        .bind(&params.lokasi)
+        .bind(&params.region_id)
+        .bind(params.harga)
+        .bind(params.tanggal_mulai)
+        .bind(params.tanggal_selesai)
+        .bind(&params.foto_urls)
+        .bind(params.jumlah_peserta)
+        .bind(params.is_active)
+        .fetch_optional(&self.pool)
+        .await?;
+        warn_slow!(t, "iklan_pelatihan.update");
+        Ok(r.as_ref().map(row_to_entity))
     }
 
     // ── Admin pelatihan listing (7-stage status) ─────────────────────────

@@ -10,6 +10,7 @@ mod tests {
     use crate::domain::entity::{IklanPekerjaan, IklanSuspension, ModerationStatus};
     use crate::domain::repository::{
         AdminListParams, AdminListResult, CreatePekerjaanParams, IklanPekerjaanRepository,
+        UpdatePekerjaanParams,
     };
 
     // ── MockIklanPekerjaanRepository ──────────────────────────────────────────────
@@ -187,6 +188,22 @@ mod tests {
 
         async fn is_poster_in_cooldown(&self, _poster_id: Uuid) -> Result<bool, anyhow::Error> {
             Ok(false)
+        }
+
+        async fn update(
+            &self,
+            params: UpdatePekerjaanParams<'_>,
+        ) -> Result<IklanPekerjaan, anyhow::Error> {
+            let mut iklan = self.iklan.lock().unwrap();
+            if let Some(item) = iklan
+                .iter_mut()
+                .find(|i| i.id == params.id && i.deleted_at.is_none())
+            {
+                item.updated_at = chrono::Utc::now();
+                Ok(item.clone())
+            } else {
+                Err(anyhow::anyhow!("not found"))
+            }
         }
     }
 
@@ -400,6 +417,12 @@ mod tests {
             }
             async fn expire_temporary_suspensions(&self) -> Result<u64, anyhow::Error> {
                 self.inner.expire_temporary_suspensions().await
+            }
+            async fn update(
+                &self,
+                params: UpdatePekerjaanParams<'_>,
+            ) -> Result<IklanPekerjaan, anyhow::Error> {
+                self.inner.update(params).await
             }
             async fn is_poster_in_cooldown(&self, _poster_id: Uuid) -> Result<bool, anyhow::Error> {
                 Ok(true)

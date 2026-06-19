@@ -10,6 +10,7 @@ mod tests {
     use crate::domain::entity::{IklanPekerja, IklanSuspension, ModerationStatus};
     use crate::domain::repository::{
         AdminListParams, AdminListResult, CreatePekerjaParams, IklanPekerjaRepository,
+        UpdatePekerjaParams,
     };
 
     // ── MockIklanPekerjaRepository ────────────────────────────────────────────────
@@ -160,6 +161,24 @@ mod tests {
         }
         async fn is_poster_in_cooldown(&self, _poster_id: Uuid) -> Result<bool, anyhow::Error> {
             Ok(false)
+        }
+
+        async fn update(
+            &self,
+            id: Uuid,
+            poster_id: Uuid,
+            _params: UpdatePekerjaParams,
+        ) -> Result<Option<IklanPekerja>, anyhow::Error> {
+            let mut iklan = self.iklan.lock().unwrap();
+            if let Some(item) = iklan
+                .iter_mut()
+                .find(|i| i.id == id && i.poster_id == poster_id && i.deleted_at.is_none())
+            {
+                item.updated_at = chrono::Utc::now();
+                Ok(Some(item.clone()))
+            } else {
+                Ok(None)
+            }
         }
     }
 

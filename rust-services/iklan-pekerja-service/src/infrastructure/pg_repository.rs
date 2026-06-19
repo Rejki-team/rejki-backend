@@ -7,6 +7,7 @@ use uuid::Uuid;
 use crate::domain::entity::{IklanPekerja, IklanSuspension, ModerationStatus};
 use crate::domain::repository::{
     AdminListParams, AdminListResult, CreatePekerjaParams, IklanPekerjaRepository,
+    UpdatePekerjaParams,
 };
 
 pub struct PgIklanPekerjaRepository {
@@ -102,6 +103,45 @@ impl IklanPekerjaRepository for PgIklanPekerjaRepository {
             .await?;
         warn_slow!(t, "iklan_pekerja.delete");
         Ok(r.rows_affected() > 0)
+    }
+
+    async fn update(
+        &self,
+        id: Uuid,
+        poster_id: Uuid,
+        params: UpdatePekerjaParams,
+    ) -> Result<Option<IklanPekerja>, anyhow::Error> {
+        let t = Instant::now();
+        let r = sqlx::query(
+            "UPDATE iklan_pekerja.iklan SET \
+             nama = COALESCE($3, nama), \
+             keahlian = COALESCE($4, keahlian), \
+             deskripsi = COALESCE($5, deskripsi), \
+             lokasi = COALESCE($6, lokasi), \
+             region_id = COALESCE($7, region_id), \
+             tarif_min = COALESCE($8, tarif_min), \
+             tarif_max = COALESCE($9, tarif_max), \
+             foto_urls = COALESCE($10, foto_urls), \
+             is_active = COALESCE($11, is_active), \
+             updated_at = now() \
+             WHERE id = $1 AND poster_id = $2 AND deleted_at IS NULL \
+             RETURNING id,poster_id,nama,keahlian,deskripsi,lokasi,region_id,tarif_min,tarif_max,foto_urls,is_active,moderation_status,deleted_at,created_at,updated_at",
+        )
+        .bind(id)
+        .bind(poster_id)
+        .bind(&params.nama)
+        .bind(&params.keahlian)
+        .bind(&params.deskripsi)
+        .bind(&params.lokasi)
+        .bind(&params.region_id)
+        .bind(params.tarif_min)
+        .bind(params.tarif_max)
+        .bind(&params.foto_urls)
+        .bind(params.is_active)
+        .fetch_optional(&self.pool)
+        .await?;
+        warn_slow!(t, "iklan_pekerja.update");
+        Ok(r.as_ref().map(row_to_entity))
     }
 
     async fn exists(&self, id: Uuid) -> Result<bool, anyhow::Error> {

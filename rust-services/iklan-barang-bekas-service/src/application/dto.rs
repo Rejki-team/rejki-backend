@@ -63,6 +63,24 @@ pub struct CreateIklanBarangBekasInput {
     pub foto_urls: Option<Vec<String>>,
 }
 
+/// Input update iklan barang gratis — semua field Optional.
+#[derive(Debug, Clone, Validate, Deserialize)]
+pub struct UpdateBarangBekasInput {
+    #[validate(length(min = 3, max = 200))]
+    pub judul: Option<String>,
+    #[validate(length(min = 1))]
+    pub deskripsi: Option<String>,
+    pub jenis_barang: Option<String>, // "bekas" | "baru"
+    #[validate(range(min = 1))]
+    pub jumlah: Option<i32>,
+    #[validate(length(min = 1))]
+    pub lokasi_pengambilan: Option<String>,
+    pub lokasi: Option<String>,
+    pub region_id: Option<String>,
+    pub foto_urls: Option<Vec<String>>,
+    pub is_active: Option<bool>,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct ListQuery {
     pub limit: Option<i64>,

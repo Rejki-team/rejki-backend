@@ -4,8 +4,12 @@ use uuid::Uuid;
 use super::dto::{
     AdminIklanPekerjaanResponse, AdminListQuery, CreateIklanPekerjaanInput, IklanPekerjaanResponse,
     ListQuery, SuspendEvidenceInput, SuspendInput, SuspendResponse, SuspendResultItem,
+    UpdatePekerjaanInput,
 };
-use crate::domain::repository::{AdminListParams, CreatePekerjaanParams, IklanPekerjaanRepository};
+use crate::domain::entity::ModerationStatus;
+use crate::domain::repository::{
+    AdminListParams, CreatePekerjaanParams, IklanPekerjaanRepository, UpdatePekerjaanParams,
+};
 use common_rate_limit::RateLimiter;
 use notification_service_client::NotificationClient;
 use region_service_client::RegionClient;
@@ -126,6 +130,77 @@ impl<R: IklanPekerjaanRepository> IklanPekerjaanService<R> {
 
     pub async fn delete(&self, id: Uuid, poster_id: Uuid) -> Result<bool, anyhow::Error> {
         self.repo.delete(id, poster_id).await
+    }
+
+    pub async fn update(
+        &self,
+        poster_id: Uuid,
+        id: Uuid,
+        input: UpdatePekerjaanInput,
+    ) -> Result<IklanPekerjaanResponse, anyhow::Error> {
+        // Rate limit: 30 req/15 menit per user untuk update iklan.
+        if let Some(rl) = &self.rate_limiter {
+            if !rl
+                .allow("iklan_pekerjaan:update", &poster_id.to_string())
+                .await
+            {
+                return Err(anyhow::anyhow!(
+                    "terlalu banyak permintaan, coba lagi nanti"
+                ));
+            }
+        }
+
+        // Lifecycle guard: only allow update if moderation_status == Active.
+        let existing = self
+            .repo
+            .find_by_id(id)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("iklan tidak ditemukan"))?;
+        if existing.moderation_status != ModerationStatus::Active {
+            return Err(anyhow::anyhow!(
+                "iklan tidak dapat diedit karena status moderasi: {}",
+                existing.moderation_status
+            ));
+        }
+
+        // Validasi region_id jika diisi.
+        if let (Some(rc), Some(ref rid)) = (&self.region_client, &input.region_id) {
+            if !rid.is_empty() {
+                match rc.get_region(rid).await {
+                    Err(region_service_client::RegionClientError::NotFound) => {
+                        return Err(anyhow::anyhow!("region_id tidak ditemukan"));
+                    }
+                    Err(_) => {
+                        tracing::warn!(region_id = %rid, "region-service unavailable saat validasi update");
+                    }
+                    Ok(_) => { /* valid */ }
+                }
+            }
+        }
+
+        let judul = input.judul.map(|v| ammonia::clean_text(&v));
+        let perusahaan = input.perusahaan.map(|v| ammonia::clean_text(&v));
+        let deskripsi = input.deskripsi.map(|v| ammonia::clean_text(&v));
+        let lokasi = input.lokasi.map(|v| ammonia::clean_text(&v));
+
+        let item = self
+            .repo
+            .update(UpdatePekerjaanParams {
+                id,
+                poster_id,
+                judul: judul.as_deref(),
+                perusahaan: perusahaan.as_deref(),
+                deskripsi: deskripsi.as_deref(),
+                lokasi: lokasi.as_deref(),
+                region_id: input.region_id.as_deref(),
+                gaji_min: input.gaji_min,
+                gaji_max: input.gaji_max,
+                tipe: input.tipe.as_deref(),
+                foto_urls: input.foto_urls.as_deref(),
+                is_active: input.is_active,
+            })
+            .await?;
+        Ok(to_response(item))
     }
 
     // ── Admin: listing ────────────────────────────────────────────────────────

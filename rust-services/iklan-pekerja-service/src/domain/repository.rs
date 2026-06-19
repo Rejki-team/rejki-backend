@@ -18,6 +18,19 @@ pub struct AdminListResult {
     pub total: i64,
 }
 
+#[derive(Debug, Clone)]
+pub struct UpdatePekerjaParams {
+    pub nama: Option<String>,
+    pub keahlian: Option<Vec<String>>,
+    pub deskripsi: Option<String>,
+    pub lokasi: Option<String>,
+    pub region_id: Option<String>,
+    pub tarif_min: Option<i64>,
+    pub tarif_max: Option<i64>,
+    pub foto_urls: Option<Vec<String>>,
+    pub is_active: Option<bool>,
+}
+
 /// Params untuk `create()` — grouping untuk menghindari too_many_arguments.
 pub struct CreatePekerjaParams<'a> {
     pub poster_id: Uuid,
@@ -54,5 +67,11 @@ pub trait IklanPekerjaRepository: Send + Sync {
     ) -> Result<Vec<IklanSuspension>, anyhow::Error>;
     async fn soft_delete(&self, id: Uuid) -> Result<bool, anyhow::Error>;
     async fn expire_temporary_suspensions(&self) -> Result<u64, anyhow::Error>;
+    async fn update(
+        &self,
+        id: Uuid,
+        poster_id: Uuid,
+        params: UpdatePekerjaParams,
+    ) -> Result<Option<IklanPekerja>, anyhow::Error>;
     async fn is_poster_in_cooldown(&self, poster_id: Uuid) -> Result<bool, anyhow::Error>;
 }

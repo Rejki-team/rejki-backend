@@ -7,12 +7,12 @@ use super::dto::{
     EnrollEvidenceInput, EnrollmentListQuery, EnrollmentResponse, IklanPelatihanResponse,
     ListQuery, PelatihanListQuery, ReviewBadgeInput, ReviewEnrollmentInput, ReviewPelatihanInput,
     SuspendEvidenceInput, SuspendInput, SuspendResponse, SuspendResultItem,
-    UpdateIklanPelatihanInput,
+    UpdateIklanPelatihanInput, UpdatePelatihanInput,
 };
-use crate::domain::entity::{CreatedByRole, PelatihanStatus};
+use crate::domain::entity::{CreatedByRole, ModerationStatus, PelatihanStatus};
 use crate::domain::repository::{
-    CreatePelatihanParams, IklanPelatihanRepository, ListParams, UpdatePelatihanParams, CSV_MAX,
-    DEFAULT_LIMIT,
+    CreatePelatihanParams, IklanPelatihanRepository, ListParams, PatchPelatihanParams,
+    UpdatePelatihanParams, CSV_MAX, DEFAULT_LIMIT,
 };
 use common_rate_limit::RateLimiter;
 use notification_service_client::NotificationClient;
@@ -160,6 +160,97 @@ impl<R: IklanPelatihanRepository> IklanPelatihanService<R> {
 
     pub async fn delete(&self, id: Uuid, poster_id: Uuid) -> Result<bool, anyhow::Error> {
         self.repo.delete(id, poster_id).await
+    }
+
+    // ── PATCH (user-level partial update) ───────────────────────────────
+
+    pub async fn update(
+        &self,
+        poster_id: Uuid,
+        id: Uuid,
+        input: UpdatePelatihanInput,
+    ) -> Result<IklanPelatihanResponse, anyhow::Error> {
+        // 1. Rate limit
+        if let Some(rl) = &self.rate_limiter {
+            if !rl
+                .allow("iklan_pelatihan:update", &poster_id.to_string())
+                .await
+            {
+                return Err(anyhow::anyhow!(
+                    "terlalu banyak permintaan, coba lagi nanti"
+                ));
+            }
+        }
+
+        // 2. find_by_id + ownership check
+        let existing = self
+            .repo
+            .find_by_id(id)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("tidak ditemukan"))?;
+
+        if existing.poster_id != poster_id {
+            return Err(anyhow::anyhow!("tidak ditemukan"));
+        }
+
+        // 3. Lifecycle guard: hanya bisa diubah jika moderation_status == Active
+        //    DAN status IN (VerifikasiDiterima, PelatihanBelumDimulai)
+        if existing.moderation_status != ModerationStatus::Active {
+            return Err(anyhow::anyhow!("Iklan sedang ditangguhkan"));
+        }
+        match existing.status {
+            PelatihanStatus::VerifikasiDiterima | PelatihanStatus::PelatihanBelumDimulai => {}
+            _ => {
+                return Err(anyhow::anyhow!(
+                    "Pelatihan tidak dapat diubah pada status saat ini"
+                ));
+            }
+        }
+
+        // 4. Sanitasi
+        let sanitized_judul = input.judul.as_ref().map(|v| sanitize(v));
+        let sanitized_penyelenggara = input.penyelenggara.as_ref().map(|v| sanitize(v));
+        let sanitized_deskripsi = input.deskripsi.as_ref().map(|v| sanitize(v));
+        let sanitized_lokasi = input.lokasi.as_ref().map(|v| sanitize(v));
+        let sanitized_region_id = input.region_id.as_ref().map(|v| sanitize(v));
+
+        // 5. Region validation
+        if let (Some(rc), Some(ref rid)) = (&self.region_client, &input.region_id) {
+            if !rid.is_empty() {
+                match rc.get_region(rid).await {
+                    Err(region_service_client::RegionClientError::NotFound) => {
+                        return Err(anyhow::anyhow!("region_id tidak ditemukan"));
+                    }
+                    Err(_) => {
+                        tracing::warn!(region_id = %rid, "region-service unavailable saat validasi update");
+                    }
+                    Ok(_) => {}
+                }
+            }
+        }
+
+        // 6. Build optional params and call repo.update()
+        let params = PatchPelatihanParams {
+            judul: sanitized_judul,
+            penyelenggara: sanitized_penyelenggara,
+            deskripsi: sanitized_deskripsi,
+            lokasi: sanitized_lokasi,
+            region_id: sanitized_region_id,
+            harga: input.harga,
+            tanggal_mulai: input.tanggal_mulai,
+            tanggal_selesai: input.tanggal_selesai,
+            foto_urls: input.foto_urls,
+            jumlah_peserta: input.jumlah_peserta,
+            is_active: input.is_active,
+        };
+
+        let updated = self
+            .repo
+            .update(id, poster_id, params)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("tidak ditemukan"))?;
+
+        Ok(to_resp(updated))
     }
 
     // ── Admin: pelatihan listing ────────────────────────────────────────

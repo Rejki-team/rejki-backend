@@ -30,7 +30,6 @@ corporate-comms-service     = { path = "../corporate-comms-service" }
 report-service              = { path = "../report-service" }
 region-service              = { path = "../region-service" }
 storage-service             = { path = "../storage-service" }
-user-service-client         = { path = "../user-service-client" }
 
 axum        = { workspace = true }
 tokio       = { workspace = true }

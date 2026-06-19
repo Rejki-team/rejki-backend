@@ -33,6 +33,22 @@ pub struct CreatePekerjaanParams<'a> {
     pub gaji_max: Option<i64>,
 }
 
+/// Params untuk `update()` — grouping untuk menghindari too_many_arguments.
+pub struct UpdatePekerjaanParams<'a> {
+    pub id: Uuid,
+    pub poster_id: Uuid,
+    pub judul: Option<&'a str>,
+    pub perusahaan: Option<&'a str>,
+    pub deskripsi: Option<&'a str>,
+    pub lokasi: Option<&'a str>,
+    pub region_id: Option<&'a str>,
+    pub gaji_min: Option<i64>,
+    pub gaji_max: Option<i64>,
+    pub tipe: Option<&'a str>,
+    pub foto_urls: Option<&'a [String]>,
+    pub is_active: Option<bool>,
+}
+
 // `async fn` di trait kini stabil; lint hanya menyoroti ketiadaan Send bound otomatis.
 // Repository dipakai in-process; cukup di-allow.
 #[allow(async_fn_in_trait)]
@@ -44,6 +60,10 @@ pub trait IklanPekerjaanRepository: Send + Sync {
         params: CreatePekerjaanParams<'_>,
     ) -> Result<IklanPekerjaan, anyhow::Error>;
     async fn delete(&self, id: Uuid, poster_id: Uuid) -> Result<bool, anyhow::Error>;
+    async fn update(
+        &self,
+        params: UpdatePekerjaanParams<'_>,
+    ) -> Result<IklanPekerjaan, anyhow::Error>;
     async fn exists(&self, id: Uuid) -> Result<bool, anyhow::Error>;
 
     // ── Admin endpoints ──

@@ -55,6 +55,7 @@ pub fn router(
 
     let protected = Router::new()
         .route("/", post(handlers::create))
+        .route("/{id}", patch(handlers::update_iklan))
         .route("/{id}", delete(handlers::delete_iklan))
         .route("/{id}/taken", patch(handlers::mark_taken))
         .with_state(state.clone())

@@ -9,6 +9,7 @@ use crate::domain::entity::{
 };
 use crate::domain::repository::{
     AdminListParams, AdminListResult, CreateBarangBekasParams, IklanBarangBekasRepository,
+    UpdateBarangBekasParams,
 };
 
 pub struct PgIklanBarangBekasRepository {
@@ -128,6 +129,31 @@ impl IklanBarangBekasRepository for PgIklanBarangBekasRepository {
             .await?;
         warn_slow!(t, "iklan_barang_bekas.delete");
         Ok(r.rows_affected() > 0)
+    }
+
+    async fn update(
+        &self,
+        id: Uuid,
+        seller_id: Uuid,
+        params: UpdateBarangBekasParams,
+    ) -> Result<Option<IklanBarangBekas>, anyhow::Error> {
+        let t = Instant::now();
+        let r = sqlx::query(SQL_UPDATE)
+            .bind(id)
+            .bind(seller_id)
+            .bind(&params.judul)
+            .bind(&params.deskripsi)
+            .bind(&params.jenis_barang)
+            .bind(params.jumlah)
+            .bind(&params.lokasi_pengambilan)
+            .bind(&params.lokasi)
+            .bind(&params.region_id)
+            .bind(&params.foto_urls)
+            .bind(params.is_active)
+            .fetch_optional(&self.pool)
+            .await?;
+        warn_slow!(t, "iklan_barang_bekas.update");
+        Ok(r.as_ref().map(row_to_entity))
     }
 
     async fn exists(&self, id: Uuid) -> Result<bool, anyhow::Error> {
@@ -300,6 +326,23 @@ const SQL_LIST: &str = "SELECT id,seller_id,judul,deskripsi,jenis_barang,jumlah,
 const SQL_CREATE: &str = "INSERT INTO iklan_barang_bekas.iklan (id,seller_id,judul,deskripsi,jenis_barang,jumlah,lokasi_pengambilan,lokasi,region_id,foto_urls) VALUES (gen_random_uuid(),$1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id,seller_id,judul,deskripsi,jenis_barang,jumlah,lokasi_pengambilan,lokasi,region_id,foto_urls,availability_status,moderation_status,deleted_at,created_at,updated_at";
 const SQL_MARK_TAKEN: &str = "UPDATE iklan_barang_bekas.iklan SET availability_status='sudah_diambil', updated_at=now() WHERE id=$1 AND seller_id=$2 AND availability_status='tersedia'";
 const SQL_DELETE: &str = "DELETE FROM iklan_barang_bekas.iklan WHERE id=$1 AND seller_id=$2";
+const SQL_UPDATE: &str = r#"
+UPDATE iklan_barang_bekas.iklan SET
+    judul       = COALESCE($3, judul),
+    deskripsi   = COALESCE($4, deskripsi),
+    jenis_barang = COALESCE($5, jenis_barang),
+    jumlah      = COALESCE($6, jumlah),
+    lokasi_pengambilan = COALESCE($7, lokasi_pengambilan),
+    lokasi      = COALESCE($8, lokasi),
+    region_id   = COALESCE($9, region_id),
+    foto_urls   = COALESCE($10, foto_urls),
+    is_active   = COALESCE($11, is_active),
+    updated_at  = now()
+WHERE id = $1
+  AND seller_id = $2
+  AND deleted_at IS NULL
+RETURNING id,seller_id,judul,deskripsi,jenis_barang,jumlah,lokasi_pengambilan,lokasi,region_id,foto_urls,availability_status,moderation_status,deleted_at,created_at,updated_at
+"#;
 const SQL_EXISTS: &str = "SELECT EXISTS(SELECT 1 FROM iklan_barang_bekas.iklan WHERE id=$1)";
 const SQL_SUSPEND_UPDATE: &str = "UPDATE iklan_barang_bekas.iklan SET moderation_status=$1, updated_at=now() WHERE id=$2 AND deleted_at IS NULL RETURNING id";
 const SQL_SUSPEND_INSERT: &str = "INSERT INTO iklan_barang_bekas.iklan_suspension (id,iklan_id,is_permanent,reason,evidence_object_key,expires_at,created_by,created_at) VALUES (gen_random_uuid(),$1,$2,$3,$4,$5,$6,now()) RETURNING id,iklan_id,is_permanent,reason,evidence_object_key,expires_at,created_by,created_at";

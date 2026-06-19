@@ -91,7 +91,7 @@ async fn main() {
     // UserClient — in-process untuk suspend permanen → purge dokumen KYC (D4).
     // Dibangun dari UserService yang sama dengan user-service router (satu instance,
     // satu sumber kebenaran profil/dokumen).
-    let user_client: Arc<dyn user_service_client::UserClient> = {
+    let user_client: Arc<dyn user_service::UserClient> = {
         let user_repo = Arc::new(user_service::PgUserRepository::new(pool.clone()));
         let user_svc = Arc::new(user_service::UserService::new(
             user_repo,
