@@ -415,28 +415,48 @@
         </div>
 
         <!-- W3B-06: PATCH iklan -->
-        <div class="task">
+        <div class="task done">
           <div class="task-head">
             <span class="task-id">W3B-06</span>
             <span class="task-title">PATCH iklan — update handler di 4 iklan service + ownership check SQL</span>
             <span class="task-scope">4 iklan services</span>
             <span class="priority-badge pb-p1">P1</span>
+            <span class="badge badge-done" style="flex-shrink:0;margin-top:2px;font-size:.7rem;font-weight:700;padding:.12rem .55rem;border-radius:20px;background:rgba(63,185,80,.15);color:var(--green);border:1px solid rgba(63,185,80,.3);">✅ Done</span>
           </div>
           <div class="task-body">
             <div class="task-body-inner gap-section">
               <div>
-                <div class="section-label">OpenSpec change baru: <code>ws-patch-iklan</code></div>
+                <div class="section-label">OpenSpec change: <code>ws-patch-iklan</code></div>
+                <div class="done-tag" style="display:inline-block;background:rgba(63,185,80,.15);color:var(--green);border:1px solid rgba(63,185,80,.3);border-radius:20px;padding:.15rem .65rem;font-size:.7rem;font-weight:700;margin-top:.3rem;">✅ DONE 19 Jun 2026</div>
               </div>
               <div>
-                <div class="section-label">Target gap: D1</div>
+                <div class="section-label">Implementasi</div>
                 <div class="impl-list">
-                  <div class="impl-item">DTO: <code>Update*Input</code> struct — semua field <code>Option&lt;T&gt;</code> (hanya update yang diberikan)</div>
-                  <div class="impl-item">Domain trait: <code>update(id, owner_id, input) -> Result<Iklan, AppError></code></div>
-                  <div class="impl-item">Repository: <code>UPDATE ... SET field1 = COALESCE($3, field1), ... WHERE id = $1 AND owner_id = $2 AND deleted_at IS NULL</code></div>
-                  <div class="impl-item">Handler: <code>PATCH /api/v1/{resource}/{id}</code> dengan ownership check → 404 untuk IDOR</div>
-                  <div class="impl-item">Field yang boleh di-update per vertikal — definisikan whitelist (mis. judul, deskripsi, gaji, harga, lokasi — tapi TIDAK poster_id/role/is_active)</div>
-                  <div class="impl-item">Rate limit: 30 req/min per user (bergantung W3A-02)</div>
-                  <div class="impl-item">Test: unit test update service, integration test IDOR (other_user → 404), field immutable guard</div>
+                  <div class="impl-item"><code>PATCH /api/v1/{resource}/{id}</code> — 4 iklan service punya endpoint partial update via COALESCE SQL</div>
+                  <div class="impl-item"><code>Update*Input</code> DTO — semua field <code>Option&lt;T&gt;</code>, hanya field yang dikirim berubah</div>
+                  <div class="impl-item"><code>is_active</code> toggle — user bisa non-aktifkan/aktifkan iklan sendiri (<code>Option&lt;bool&gt;</code>)</div>
+                  <div class="impl-item">Lifecycle guard per service: barang (moderation=Active + availability=Tersedia), pelatihan (moderation=Active + status valid), pekerja/pekerjaan (moderation=Active)</div>
+                  <div class="impl-item">IDOR 404 — ownership check di SQL: <code>WHERE id=$1 AND poster_id=$2 AND deleted_at IS NULL</code></div>
+                  <div class="impl-item">Rate limit: 30 req/min per user (via W3A-02 OtpRateLimiter)</div>
+                  <div class="impl-item">Immutable field dihapus dari DTO: <code>poster_id</code>/<code>seller_id</code>, <code>moderation_status</code>, <code>created_at</code></div>
+                </div>
+              </div>
+              <div>
+                <div class="section-label">File yang disentuh</div>
+                <div class="file-list">
+                  <div class="file-row"><span class="fop fop-new">new</span><span class="fpath">iklan-*-service/src/application/dto.rs</span><span class="fnote">— Update*Input (Option semua field)</span></div>
+                  <div class="file-row"><span class="fop fop-edit">edit</span><span class="fpath">iklan-*-service/src/domain/repository.rs</span><span class="fnote">— trait update() + params struct</span></div>
+                  <div class="file-row"><span class="fop fop-edit">edit</span><span class="fpath">iklan-*-service/src/infrastructure/pg_repository.rs</span><span class="fnote">— UPDATE COALESCE + warn_slow!</span></div>
+                  <div class="file-row"><span class="fop fop-edit">edit</span><span class="fpath">iklan-*-service/src/application/service.rs</span><span class="fnote">— update() + guard + rate limit</span></div>
+                  <div class="file-row"><span class="fop fop-edit">edit</span><span class="fpath">iklan-*-service/src/interface/handlers.rs</span><span class="fnote">— handler PATCH 200/404</span></div>
+                  <div class="file-row"><span class="fop fop-edit">edit</span><span class="fpath">iklan-*-service/src/interface/mod.rs</span><span class="fnote">— route PATCH /{id}</span></div>
+                  <div class="file-row"><span class="fop fop-edit">edit</span><span class="fpath">rejki-app/src/openapi.rs</span><span class="fnote">— 4 Update*DocRequest + PATCH path</span></div>
+                </div>
+              </div>
+              <div>
+                <div class="section-label">Verifikasi</div>
+                <div class="status-badge" style="margin-top:.3rem;">
+                  <span style="color:var(--green);">fmt ✅ clippy zero ✅ check ✅ test ✅ sqlx prepare ✅</span>
                 </div>
               </div>
             </div>
