@@ -236,13 +236,26 @@ async fn main() {
         let origins: Vec<_> = cfg
             .cors_allowed_origins
             .iter()
-            .map(|o| o.parse::<axum::http::HeaderValue>().expect("CORS_ALLOWED_ORIGINS tidak valid — pastikan format URL benar"))
+            .map(|o| {
+                o.parse::<axum::http::HeaderValue>()
+                    .expect("CORS_ALLOWED_ORIGINS tidak valid — pastikan format URL benar")
+            })
             .collect();
         CorsLayer::new()
             .allow_origin(origins)
             .allow_credentials(true)
-            .allow_methods([axum::http::Method::GET, axum::http::Method::POST, axum::http::Method::PATCH, axum::http::Method::DELETE, axum::http::Method::OPTIONS])
-            .allow_headers([axum::http::header::AUTHORIZATION, axum::http::header::CONTENT_TYPE, axum::http::header::ACCEPT])
+            .allow_methods([
+                axum::http::Method::GET,
+                axum::http::Method::POST,
+                axum::http::Method::PATCH,
+                axum::http::Method::DELETE,
+                axum::http::Method::OPTIONS,
+            ])
+            .allow_headers([
+                axum::http::header::AUTHORIZATION,
+                axum::http::header::CONTENT_TYPE,
+                axum::http::header::ACCEPT,
+            ])
     } else {
         CorsLayer::new()
             .allow_origin(Any)

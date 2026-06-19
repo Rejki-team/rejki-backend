@@ -1,5 +1,14 @@
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+
+/// Informasi rekening bank — disimpan sebagai JSON terenkripsi AES-256-GCM.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RekeningInfo {
+    pub bank: String,
+    pub number: String,
+    pub holder: String,
+}
 
 #[derive(Debug, Clone)]
 pub struct UserProfile {
@@ -10,6 +19,9 @@ pub struct UserProfile {
     pub avatar: Option<String>,
     pub bio: Option<String>,
     pub phone: Option<String>,
+    // Encryption at-rest (W3C-09)
+    pub phone_encrypted: Option<String>,
+    pub rekening_encrypted: Option<String>,
     // KYC fields
     pub nik_encrypted: Option<Vec<u8>>,
     pub nik_last4: Option<String>,

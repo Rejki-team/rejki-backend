@@ -2,7 +2,9 @@ use async_trait::async_trait;
 use chrono::{DateTime, NaiveDate, Utc};
 use uuid::Uuid;
 
-use super::entity::{DocumentAccessAction, KycSubmission, KycSubmissionStatus, UserProfile};
+use super::entity::{
+    DocumentAccessAction, KycSubmission, KycSubmissionStatus, RekeningInfo, UserProfile,
+};
 
 /// Transaction handle — bungkus operasi tulis multi-step agar atomic (C2).
 /// Hanya untuk operasi yang perlu rollback pada partial failure.
@@ -60,6 +62,19 @@ pub struct AdminKycRow {
     pub selfie_object_key: Option<String>,
 }
 
+/// Parameter update profil — refactored dari positional args untuk menghindari
+/// clippy::too_many_arguments (W3C-09).
+#[derive(Debug, Clone, Default)]
+pub struct UpdateProfileParams {
+    pub id: Uuid,
+    pub full_name: Option<String>,
+    pub avatar: Option<String>,
+    pub bio: Option<String>,
+    pub phone: Option<String>,
+    /// Rekening — akan di-serialize ke JSON lalu di-encrypt AES-256-GCM di repo layer.
+    pub rekening: Option<RekeningInfo>,
+}
+
 // Native async fn in trait per CLAUDE.md §4.1 (Rust ≥ 1.75).
 // Trait TIDAK digunakan sebagai dyn object, jadi async-trait tidak diperlukan.
 #[allow(async_fn_in_trait)]
@@ -68,14 +83,8 @@ pub trait UserRepository: Send + Sync {
     async fn find_by_id(&self, id: Uuid) -> Result<Option<UserProfile>, anyhow::Error>;
     async fn find_by_auth_id(&self, auth_id: Uuid) -> Result<Option<UserProfile>, anyhow::Error>;
     async fn create(&self, auth_id: Uuid, username: &str) -> Result<UserProfile, anyhow::Error>;
-    async fn update(
-        &self,
-        id: Uuid,
-        full_name: Option<&str>,
-        avatar: Option<&str>,
-        bio: Option<&str>,
-        phone: Option<&str>,
-    ) -> Result<UserProfile, anyhow::Error>;
+    /// Update profil — gunakan `UpdateProfileParams` untuk menghindari too_many_arguments.
+    async fn update(&self, params: UpdateProfileParams) -> Result<UserProfile, anyhow::Error>;
     async fn update_avatar(&self, id: Uuid, object_key: &str) -> Result<(), anyhow::Error>;
     /// Perbarui SEMUA field profil (termasuk KYC) — dipakai untuk simpan data diri.
     /// Atomic: UPDATE hanya bila `nik_encrypted IS NULL` (NIK guard, anti-race C1).

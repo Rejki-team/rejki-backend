@@ -283,10 +283,10 @@
           <p>Log setiap auth event: login, logout, refresh, failed attempts, OTP sent, password changed, suspend. Log write ke tabel <code>auth.audit_log</code> — append-only, 11 AuditEvent variant, fail-open. <a href="../../openspec/changes/ws-audit-log/tasks.md" style="color:var(--green);">W3B-04 · 19 Jun 2026</a></p>
         </div>
 
-        <div class="sec-card ph3">
-          <div class="card-phase"><span class="ph-tag ph-3">◌ Phase 3 — Hardening</span></div>
+        <div class="sec-card done">
+          <div class="card-phase"><span class="ph-tag ph-done">✓ W3C-09 — 20 Jun 2026</span></div>
           <h4>Enkripsi at Rest</h4>
-          <p>Kolom sensitif (NIK, no. HP) dienkripsi dengan AES-256-GCM sebelum disimpan ke DB. Key disimpan di environment secret.</p>
+          <p>NIK (BYTEA, write-only), phone (TEXT, AES-256-GCM), dan rekening (JSON terenkripsi: bank+number+holder) dilindungi AES-256-GCM via <code>common-crypto</code>. Key dari env <code>DATA_ENCRYPTION_KEY</code>.</p>
         </div>
 
         <div class="sec-card ph3">
@@ -974,36 +974,44 @@ location /api/v1/auth/ {
 
     <!-- PHASE 3: ENCRYPTION AT REST -->
     <section id="encryption-rest">
-      <h2 class="sec-title"><span class="sec-icon ic-y">🔒</span>Enkripsi at Rest (Phase 3)</h2>
+      <h2 class="sec-title"><span class="sec-icon ic-y">🔒</span>Enkripsi at Rest (Phase 3) — ✅ DONE (W3C-09)</h2>
 
-      <p style="color:var(--muted);font-size:.85rem;margin-bottom:1rem;">Kolom yang berisi data sangat sensitif dienkripsi sebelum disimpan ke DB, bahkan jika DB breach sekalipun data tidak terbaca tanpa encryption key.</p>
+      <p style="color:var(--muted);font-size:.85rem;margin-bottom:1rem;">Kolom yang berisi data sangat sensitif dienkripsi sebelum disimpan ke DB, bahkan jika DB breach sekalipun data tidak terbaca tanpa encryption key. Implementasi via <code>common-crypto</code> crate, shared oleh auth-service dan user-service.</p>
 
       <div class="tbl-wrap">
         <table class="tbl">
-          <thead><tr><th>Kolom</th><th>Service</th><th>Alasan Dienkripsi</th></tr></thead>
+          <thead><tr><th>Kolom</th><th>Tabel</th><th>Format</th><th>Akses</th></tr></thead>
           <tbody>
-            <tr><td><code>nomor_identitas</code> (NIK/KTP)</td><td>user-service</td><td>Data pribadi sensitif — wajib dilindungi regulasi PDP Indonesia</td></tr>
-            <tr><td><code>nomor_hp</code></td><td>user-service</td><td>Potensi disalahgunakan untuk spam/phishing jika bocor</td></tr>
-            <tr><td><code>rekening_bank</code></td><td>user-service</td><td>Data finansial</td></tr>
+            <tr><td><code>nik_encrypted</code> (NIK/KTP)</td><td><code>user_svc.profiles</code></td><td>BYTEA — <code>common_crypto::encrypt()</code> → <code>.into_bytes()</code></td><td>Write-only: tidak pernah didekripsi. Hanya <code>nik_last4</code> untuk masking (<code>xxx...1234</code>).</td></tr>
+            <tr><td><code>phone</code> (auth.users)</td><td><code>auth.users</code></td><td>TEXT — base64(nonce \|\| ciphertext)</td><td>Dienkripsi saat register, didekripsi di repository layer (<code>row_to_user()</code>). Plaintext di memori.</td></tr>
+            <tr><td><code>phone_encrypted</code> (user_svc.profiles)</td><td><code>user_svc.profiles</code></td><td>TEXT — base64(nonce \|\| ciphertext)</td><td>Kolom baru (W3C-09). Encrypt di repo layer, decrypt transparan. Plaintext di memori + response.</td></tr>
+            <tr><td><code>rekening_encrypted</code></td><td><code>user_svc.profiles</code></td><td>TEXT — JSON <code>{"bank","number","holder"}</code> di-stringify → AES-256-GCM → base64</td><td>Decrypt di repo layer. Response: <code>rekening_bank</code> (plain), <code>rekening_masked</code> (****1234), <code>rekening_holder_masked</code> (J***e).</td></tr>
           </tbody>
         </table>
       </div>
 
+      <div class="sub-title">Algoritma</div>
       <div class="code">
-        <pre><span class="cc">// Algoritma: AES-256-GCM (authenticated encryption)</span>
-<span class="cc">// Key: baca dari environment variable, panjang 32 byte</span>
-<span class="cc">// Nonce: 12 byte random per enkripsi (simpan bersama ciphertext)</span>
-<span class="cc">// Format di DB: base64(nonce || ciphertext || tag)</span>
+        <pre><span class="cc">// AES-256-GCM (authenticated encryption via common-crypto)</span>
+<span class="cc">// Key: DATA_ENCRYPTION_KEY (32 byte, base64) dari environment variable</span>
+<span class="cc">// Nonce: 12 byte random per enkripsi (OsRng), disimpan bersama ciphertext</span>
+<span class="cc">// Format: base64( nonce(12) || ciphertext )</span>
+<span class="cc">// Crate: aes-gcm = "0.10" di workspace root</span>
 
-<span class="cc">// Crate: aes-gcm = "0.10"</span>
-<span class="ck">use</span> aes_gcm::{<span class="ct">Aes256Gcm</span>, <span class="ct">Key</span>, <span class="ct">Nonce</span>};
-
-<span class="ck">fn</span> <span class="cfn">encrypt_field</span>(plaintext: &amp;<span class="ct">str</span>, key: &amp;<span class="ct">Key</span>&lt;<span class="ct">Aes256Gcm</span>&gt;) -&gt; <span class="ct">String</span> {
-  <span class="ck">let</span> nonce = <span class="ct">Nonce</span>::<span class="cfn">from</span>(<span class="cfn">rand_nonce</span>()); <span class="cc">// 12 random bytes</span>
-  <span class="ck">let</span> ciphertext = cipher.<span class="cfn">encrypt</span>(&amp;nonce, plaintext.<span class="cfn">as_bytes</span>());
-  <span class="cfn">base64</span>(nonce + ciphertext)
+<span class="ck">pub fn</span> <span class="cfn">encrypt</span>(plaintext: &amp;<span class="ct">str</span>) -&gt; <span class="ct">String</span> {
+    <span class="ck">let</span> nonce = <span class="ct">Nonce</span>::<span class="cfn">from</span>(<span class="cfn">OsRng</span>.<span class="cfn">fill_bytes</span>([0u8; 12]));
+    <span class="ck">let</span> ct = cipher.<span class="cfn">encrypt</span>(&amp;nonce, plaintext.<span class="cfn">as_bytes</span>())?;
+    <span class="cfn">base64</span>(nonce + ct)
 }</pre>
       </div>
+
+      <div class="sub-title">Key Rotation Strategy</div>
+      <p style="color:var(--muted);font-size:.85rem;margin-bottom:.5rem;">Saat ini menggunakan single KEK (Key Encryption Key) langsung. Strategi rotasi:</p>
+      <ol style="color:var(--muted);font-size:.85rem;line-height:1.8;padding-left:1.2rem;">
+        <li><strong>Emergency rotation</strong>: Set <code>DATA_ENCRYPTION_KEY_NEW</code> di env → one-time app yang decrypt dengan key lama, encrypt dengan key baru → swap <code>DATA_ENCRYPTION_KEY</code>, hapus <code>_NEW</code> → verify integrity via sample decrypt.</li>
+        <li><strong>Future: Envelope encryption</strong>: DEK (Data Encryption Key) per-record dienkripsi dengan KEK, DEK disimpan bersama ciphertext. Rotasi cukup re-wrap DEK tanpa re-encrypt data.</li>
+        <li><strong>Key derivation</strong>: Future — gunakan HKDF dari master secret, sehingga key berbeda per service/kolom (key per-purpose).</li>
+      </ol>
     </section>
 
     <!-- PHASE 3: TLS -->
@@ -1071,7 +1079,7 @@ location /api/v1/auth/ {
             <tr><td>CORS production policy (whitelist origin)</td><td><span class="ph-tag ph-3">Phase 3</span></td></tr>
             <tr><td>HSTS header di nginx production</td><td><span class="ph-tag ph-3">Phase 3</span></td></tr>
             <tr><td>Audit log tabel append-only</td><td><span class="ph-tag ph-3">Phase 3</span></td></tr>
-            <tr><td>Enkripsi at rest kolom sensitif (AES-256-GCM)</td><td><span class="ph-tag ph-3">Phase 3</span></td></tr>
+            <tr><td>Enkripsi at rest kolom sensitif (AES-256-GCM)</td><td><span class="ph-tag ph-done">✓ W3C-09 — 20 Jun 2026</span></td></tr>
             <tr><td>Virus scan file upload (ClamAV / cloud)</td><td><span class="ph-tag ph-3">Phase 3</span></td></tr>
             <tr><td><code>cargo audit</code> di CI/CD pipeline</td><td><span class="ph-tag ph-3">Phase 3</span></td></tr>
             <tr><td>Dependency license compliance (<code>cargo deny</code>)</td><td><span class="ph-tag ph-3">Phase 3</span></td></tr>
@@ -1081,7 +1089,7 @@ location /api/v1/auth/ {
     </section>
 
     <footer>
-      <p>Rejki Backend — Security Baseline · 20 Juni 2026 · Phase 1.5 + W3B-04/05/06/07 + W3C-08</p>
+      <p>Rejki Backend — Security Baseline · 20 Juni 2026 · Phase 1.5 + W3B-04/05/06/07 + W3C-08/09</p>
       <p style="margin-top:.3rem;">Referensi: OWASP Top 10 2021 · OWASP ASVS Level 2 · PDP Indonesia</p>
     </footer>
 

@@ -12,9 +12,12 @@ use super::dto::{
     KycSubmissionResponse, UpdateProfileInput, UserProfileResponse,
 };
 use crate::domain::entity::{
-    DocumentAccessAction, KycSubmission, KycSubmissionStatus, ReviewError, UserProfile,
+    DocumentAccessAction, KycSubmission, KycSubmissionStatus, RekeningInfo, ReviewError,
+    UserProfile,
 };
-use crate::domain::repository::{AdminKycListParams, AdminKycRow, UserRepository};
+use crate::domain::repository::{
+    AdminKycListParams, AdminKycRow, UpdateProfileParams, UserRepository,
+};
 
 /// Cooldown KYC setelah rejection — 3 hari kalender (M1, rename dari BUSINESS_DAYS).
 const KYC_COOLDOWN_DAYS: i64 = 3;
@@ -97,13 +100,14 @@ impl<R: UserRepository> UserService<R> {
     ) -> Result<UserProfileResponse, anyhow::Error> {
         let profile = self
             .repo
-            .update(
-                profile_id,
-                input.full_name.as_deref(),
-                input.avatar.as_deref(),
-                input.bio.as_deref(),
-                input.phone.as_deref(),
-            )
+            .update(UpdateProfileParams {
+                id: profile_id,
+                full_name: input.full_name,
+                avatar: input.avatar,
+                bio: input.bio,
+                phone: input.phone,
+                rekening: input.rekening,
+            })
             .await?;
         let kyc = self.repo.get_latest_submission(profile.id).await?;
         Ok(self.to_response(&profile, kyc.as_ref()))
@@ -668,6 +672,21 @@ impl<R: UserRepository> UserService<R> {
     fn to_response(&self, p: &UserProfile, kyc: Option<&KycSubmission>) -> UserProfileResponse {
         let nik_masked = p.nik_last4.as_ref().map(|l4| format!("xxx...{l4}"));
         let kyc_status = kyc.map(|s| s.status.as_str().to_owned());
+
+        // Parse rekening dari ciphertext — decrypt + deserialise
+        let (rekening_bank, rekening_masked, rekening_holder_masked) = p
+            .rekening_encrypted
+            .as_deref()
+            .and_then(|enc| common_crypto::decrypt(enc).ok())
+            .and_then(|json| serde_json::from_str::<RekeningInfo>(&json).ok())
+            .map(|rek| {
+                let bank = rek.bank.clone();
+                let num = mask_rekening_number(&rek.number);
+                let holder = mask_holder(&rek.holder);
+                (Some(bank), Some(num), Some(holder))
+            })
+            .unwrap_or((None, None, None));
+
         UserProfileResponse {
             id: p.id,
             username: p.username.clone(),
@@ -679,6 +698,9 @@ impl<R: UserRepository> UserService<R> {
             role: None,
             nik_masked,
             kyc_status,
+            rekening_bank,
+            rekening_masked,
+            rekening_holder_masked,
         }
     }
 }
@@ -688,6 +710,29 @@ impl<R: UserRepository> UserService<R> {
 /// Mask NIK menjadi `xxx...1234` dari 4 digit terakhir; None bila belum ada.
 fn mask_nik(nik_last4: Option<&str>) -> Option<String> {
     nik_last4.map(|l4| format!("xxx...{l4}"))
+}
+
+/// Mask nomor rekening — tampilkan 4 digit terakhir, sisanya ****.
+fn mask_rekening_number(num: &str) -> String {
+    if num.len() >= 4 {
+        format!("****{}", &num[num.len() - 4..])
+    } else {
+        "****".to_string()
+    }
+}
+
+/// Mask nama pemilik rekening — karakter pertama dan terakhir, tengah ***.
+/// Contoh: "John Doe" → "J***e", "A" → "A***"
+fn mask_holder(name: &str) -> String {
+    if name.len() <= 2 {
+        if name.is_empty() {
+            "***".to_string()
+        } else {
+            format!("{}***", &name[..1])
+        }
+    } else {
+        format!("{}***{}", &name[..1], &name[name.len() - 1..])
+    }
 }
 
 /// Normalisasi `limit` ke rentang aman [1, ADMIN_CSV_MAX]; default bila None.

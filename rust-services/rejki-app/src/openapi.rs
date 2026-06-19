@@ -194,6 +194,24 @@ pub struct UserProfileDocResponse {
     pub role: Option<String>,
     pub nik_masked: Option<String>,
     pub kyc_status: Option<String>,
+    /// Nama bank (plaintext dari rekening terdekripsi, W3C-09).
+    pub rekening_bank: Option<String>,
+    /// Nomor rekening ter-mask (****1234).
+    pub rekening_masked: Option<String>,
+    /// Nama pemilik rekening ter-mask (J***e).
+    pub rekening_holder_masked: Option<String>,
+}
+
+/// Informasi rekening bank — dikirim sebagai nested JSON, di-encrypt AES-256-GCM di backend.
+#[allow(dead_code)]
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct RekeningInfoDoc {
+    #[schema(example = "BCA")]
+    pub bank: String,
+    #[schema(example = "1234567890")]
+    pub number: String,
+    #[schema(example = "John Doe")]
+    pub holder: String,
 }
 
 /// Payload update profil (`PATCH /api/v1/users/me`).
@@ -204,6 +222,8 @@ pub struct UpdateProfileDocRequest {
     pub avatar: Option<String>,
     pub bio: Option<String>,
     pub phone: Option<String>,
+    /// Informasi rekening bank (W3C-09).
+    pub rekening: Option<RekeningInfoDoc>,
 }
 
 /// Payload kirim data KYC (`PUT /api/v1/users/me/kyc`).
@@ -1856,7 +1876,7 @@ fn admin_export_reports_doc() {}
         SuspendDocRequest, BulkSuspendDocRequest,
         BulkSuspendItemDocResponse, BulkSuspendDocResponse, SuspendEvidenceDocRequest,
         // Users / KYC
-        UserProfileDocResponse, UpdateProfileDocRequest, KycSubmitDocRequest,
+        UserProfileDocResponse, UpdateProfileDocRequest, RekeningInfoDoc, KycSubmitDocRequest,
         KycSubmissionDocResponse, UploadRequestDocRequest, CommitDocumentDocRequest,
         UploadPermissionDocResponse, ReviewKycDocRequest,
         AdminKycListItemDocResponse, AdminKycDetailDocResponse,
