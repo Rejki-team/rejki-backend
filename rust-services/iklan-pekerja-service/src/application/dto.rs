@@ -54,6 +54,21 @@ pub struct CreateIklanPekerjaInput {
     pub foto_urls: Option<Vec<String>>,
 }
 
+#[derive(Debug, Clone, Validate, Deserialize)]
+pub struct UpdatePekerjaInput {
+    #[validate(length(min = 2, max = 200))]
+    pub nama: Option<String>,
+    pub keahlian: Option<Vec<String>>,
+    #[validate(length(min = 1))]
+    pub deskripsi: Option<String>,
+    pub lokasi: Option<String>,
+    pub region_id: Option<String>,
+    pub tarif_min: Option<i64>,
+    pub tarif_max: Option<i64>,
+    pub foto_urls: Option<Vec<String>>,
+    pub is_active: Option<bool>,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct ListQuery {
     pub limit: Option<i64>,

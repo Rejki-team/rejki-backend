@@ -3,7 +3,7 @@ use crate::application::service::IklanPekerjaService;
 use crate::infrastructure::PgIklanPekerjaRepository;
 use auth_service_client::AuthClient;
 use axum::{
-    routing::{delete, get, post},
+    routing::{delete, get, patch, post},
     Router,
 };
 use common_auth_mw::{require_active_account, require_auth, require_role};
@@ -56,6 +56,7 @@ pub fn router(
     let protected = Router::new()
         .route("/", post(handlers::create))
         .route("/{id}", delete(handlers::delete_iklan))
+        .route("/{id}", patch(handlers::update))
         .with_state(state.clone())
         .layer(axum::middleware::from_fn_with_state(
             auth_client.clone(),

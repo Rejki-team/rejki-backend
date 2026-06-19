@@ -4,8 +4,11 @@ use uuid::Uuid;
 use super::dto::{
     AdminIklanPekerjaResponse, AdminListQuery, CreateIklanPekerjaInput, IklanPekerjaResponse,
     ListQuery, SuspendEvidenceInput, SuspendInput, SuspendResponse, SuspendResultItem,
+    UpdatePekerjaInput,
 };
-use crate::domain::repository::{AdminListParams, CreatePekerjaParams, IklanPekerjaRepository};
+use crate::domain::repository::{
+    AdminListParams, CreatePekerjaParams, IklanPekerjaRepository, UpdatePekerjaParams,
+};
 use common_rate_limit::RateLimiter;
 use notification_service_client::NotificationClient;
 use region_service_client::RegionClient;
@@ -114,6 +117,83 @@ impl<R: IklanPekerjaRepository> IklanPekerjaService<R> {
 
     pub async fn delete(&self, id: Uuid, poster_id: Uuid) -> Result<bool, anyhow::Error> {
         self.repo.delete(id, poster_id).await
+    }
+
+    pub async fn update(
+        &self,
+        poster_id: Uuid,
+        id: Uuid,
+        input: UpdatePekerjaInput,
+    ) -> Result<IklanPekerjaResponse, anyhow::Error> {
+        // Rate limit: 30 req/15 menit per user
+        if let Some(rl) = &self.rate_limiter {
+            if !rl
+                .allow("iklan_pekerja:update", &poster_id.to_string())
+                .await
+            {
+                return Err(anyhow::anyhow!(
+                    "terlalu banyak permintaan, coba lagi nanti"
+                ));
+            }
+        }
+
+        let existing = self
+            .repo
+            .find_by_id(id)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("tidak ditemukan"))?;
+
+        // Ownership check — return NotFound, not Forbidden
+        if existing.poster_id != poster_id {
+            return Err(anyhow::anyhow!("tidak ditemukan"));
+        }
+
+        // Lifecycle guard: only allow updates when moderation_status is Active
+        if existing.moderation_status != crate::domain::entity::ModerationStatus::Active {
+            return Err(anyhow::anyhow!(
+                "iklan tidak dapat diubah dalam status moderasi saat ini"
+            ));
+        }
+
+        // Sanitasi
+        let nama = input.nama.map(|v| ammonia::clean_text(&v));
+        let deskripsi = input.deskripsi.map(|v| ammonia::clean_text(&v));
+
+        // Validasi region_id jika diisi.
+        if let (Some(rc), Some(ref rid)) = (&self.region_client, &input.region_id) {
+            if !rid.is_empty() {
+                match rc.get_region(rid).await {
+                    Err(region_service_client::RegionClientError::NotFound) => {
+                        return Err(anyhow::anyhow!("region_id tidak ditemukan"));
+                    }
+                    Err(_) => {
+                        tracing::warn!(region_id = %rid, "region-service unavailable saat validasi update");
+                    }
+                    Ok(_) => {}
+                }
+            }
+        }
+
+        Ok(to_response(
+            self.repo
+                .update(
+                    id,
+                    poster_id,
+                    UpdatePekerjaParams {
+                        nama,
+                        keahlian: input.keahlian,
+                        deskripsi,
+                        lokasi: input.lokasi,
+                        region_id: input.region_id,
+                        tarif_min: input.tarif_min,
+                        tarif_max: input.tarif_max,
+                        foto_urls: input.foto_urls,
+                        is_active: input.is_active,
+                    },
+                )
+                .await?
+                .ok_or_else(|| anyhow::anyhow!("tidak ditemukan"))?,
+        ))
     }
 
     pub async fn admin_list(

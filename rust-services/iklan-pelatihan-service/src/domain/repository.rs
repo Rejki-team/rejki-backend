@@ -73,6 +73,21 @@ pub struct UpdatePelatihanParams<'a> {
     pub jumlah_peserta: Option<i32>,
 }
 
+/// Params untuk `update()` (PATCH user) — semua field Option<T> untuk partial update.
+pub struct PatchPelatihanParams {
+    pub judul: Option<String>,
+    pub penyelenggara: Option<String>,
+    pub deskripsi: Option<String>,
+    pub lokasi: Option<String>,
+    pub region_id: Option<String>,
+    pub harga: Option<i64>,
+    pub tanggal_mulai: Option<DateTime<Utc>>,
+    pub tanggal_selesai: Option<DateTime<Utc>>,
+    pub foto_urls: Option<Vec<String>>,
+    pub jumlah_peserta: Option<i32>,
+    pub is_active: Option<bool>,
+}
+
 #[allow(async_fn_in_trait)]
 pub trait IklanPelatihanRepository: Send + Sync {
     async fn find_by_id(&self, id: Uuid) -> Result<Option<IklanPelatihan>, anyhow::Error>;
@@ -83,6 +98,15 @@ pub trait IklanPelatihanRepository: Send + Sync {
     ) -> Result<IklanPelatihan, anyhow::Error>;
     async fn delete(&self, id: Uuid, poster_id: Uuid) -> Result<bool, anyhow::Error>;
     async fn exists(&self, id: Uuid) -> Result<bool, anyhow::Error>;
+
+    // ── PATCH (partial update by owner) ─────────────────────────────────
+
+    async fn update(
+        &self,
+        id: Uuid,
+        poster_id: Uuid,
+        params: PatchPelatihanParams,
+    ) -> Result<Option<IklanPelatihan>, anyhow::Error>;
 
     // ── Admin moderation ──────────────────────────────────────────────────
 

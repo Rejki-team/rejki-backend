@@ -1,7 +1,7 @@
 use super::AppState;
 use crate::application::dto::{
     AdminListQuery, CreateIklanBarangBekasInput, IklanBarangBekasResponse, ListQuery,
-    SuspendEvidenceInput, SuspendInput, SuspendResponse,
+    SuspendEvidenceInput, SuspendInput, SuspendResponse, UpdateBarangBekasInput,
 };
 use auth_service_client::AuthClaims;
 use axum::{
@@ -85,6 +85,25 @@ pub async fn delete_iklan(
     } else {
         Err(AppError::NotFound("tidak ditemukan".into()))
     }
+}
+
+pub async fn update_iklan(
+    State(s): State<AppState>,
+    Extension(claims): Extension<AuthClaims>,
+    Path(id): Path<Uuid>,
+    ValidatedJson(body): ValidatedJson<UpdateBarangBekasInput>,
+) -> Result<Json<ApiResponse<IklanBarangBekasResponse>>, AppError> {
+    let item = s.svc.update(claims.user_id, id, body).await.map_err(|e| {
+        let msg = e.to_string();
+        if msg.contains("terlalu banyak permintaan") {
+            AppError::TooManyRequests(msg)
+        } else if msg.contains("ditangguhkan") || msg.contains("tidak tersedia") {
+            AppError::Forbidden(msg)
+        } else {
+            AppError::NotFound(msg)
+        }
+    })?;
+    Ok(Json(ApiResponse::ok(item)))
 }
 
 pub async fn health() -> (StatusCode, Json<serde_json::Value>) {

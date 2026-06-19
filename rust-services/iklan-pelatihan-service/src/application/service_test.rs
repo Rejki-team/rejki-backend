@@ -13,7 +13,7 @@ mod tests {
     };
     use crate::domain::repository::{
         AdminListParams, AdminListResult, CreatePelatihanParams, IklanPelatihanRepository,
-        ListParams, UpdatePelatihanParams,
+        ListParams, PatchPelatihanParams, UpdatePelatihanParams,
     };
 
     // ── MockIklanPelatihanRepository ──────────────────────────────────────────────
@@ -254,6 +254,24 @@ mod tests {
         }
         async fn is_poster_in_cooldown(&self, _poster_id: Uuid) -> Result<bool, anyhow::Error> {
             Ok(false)
+        }
+
+        async fn update(
+            &self,
+            id: Uuid,
+            poster_id: Uuid,
+            _params: PatchPelatihanParams,
+        ) -> Result<Option<IklanPelatihan>, anyhow::Error> {
+            let mut p = self.pelatihan.lock().unwrap();
+            if let Some(item) = p
+                .iter_mut()
+                .find(|i| i.id == id && i.poster_id == poster_id && i.deleted_at.is_none())
+            {
+                item.updated_at = chrono::Utc::now();
+                Ok(Some(item.clone()))
+            } else {
+                Ok(None)
+            }
         }
 
         // ── enrollment ──

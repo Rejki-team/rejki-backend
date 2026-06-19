@@ -88,6 +88,24 @@ pub struct UpdateIklanPelatihanInput {
     pub jumlah_peserta: Option<i32>,
 }
 
+#[derive(Debug, Clone, Validate, Deserialize)]
+pub struct UpdatePelatihanInput {
+    #[validate(length(min = 3, max = 200))]
+    pub judul: Option<String>,
+    #[validate(length(min = 1))]
+    pub penyelenggara: Option<String>,
+    #[validate(length(min = 1))]
+    pub deskripsi: Option<String>,
+    pub lokasi: Option<String>,
+    pub region_id: Option<String>,
+    pub harga: Option<i64>,
+    pub tanggal_mulai: Option<DateTime<Utc>>,
+    pub tanggal_selesai: Option<DateTime<Utc>>,
+    pub foto_urls: Option<Vec<String>>,
+    pub jumlah_peserta: Option<i32>,
+    pub is_active: Option<bool>,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct ReviewPelatihanInput {
     pub approved: bool,

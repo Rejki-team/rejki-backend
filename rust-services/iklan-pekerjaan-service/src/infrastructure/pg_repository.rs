@@ -7,6 +7,7 @@ use uuid::Uuid;
 use crate::domain::entity::{IklanPekerjaan, IklanSuspension, ModerationStatus};
 use crate::domain::repository::{
     AdminListParams, AdminListResult, CreatePekerjaanParams, IklanPekerjaanRepository,
+    UpdatePekerjaanParams,
 };
 
 pub struct PgIklanPekerjaanRepository {
@@ -131,6 +132,48 @@ impl IklanPekerjaanRepository for PgIklanPekerjaanRepository {
             .await?;
         warn_slow!(t, "iklan_pekerjaan.delete");
         Ok(r.rows_affected() > 0)
+    }
+
+    async fn update(
+        &self,
+        params: UpdatePekerjaanParams<'_>,
+    ) -> Result<IklanPekerjaan, anyhow::Error> {
+        let t = Instant::now();
+        let r = sqlx::query(concat!(
+            "UPDATE iklan_pekerjaan.iklan SET ",
+            "judul=COALESCE($2,judul), ",
+            "perusahaan=COALESCE($3,perusahaan), ",
+            "deskripsi=COALESCE($4,deskripsi), ",
+            "lokasi=COALESCE($5,lokasi), ",
+            "region_id=COALESCE($6,region_id), ",
+            "gaji_min=COALESCE($7,gaji_min), ",
+            "gaji_max=COALESCE($8,gaji_max), ",
+            "tipe=COALESCE($9,tipe), ",
+            "foto_urls=COALESCE($10,foto_urls), ",
+            "is_active=COALESCE($11,is_active), ",
+            "updated_at=now() ",
+            "WHERE id=$1 AND poster_id=$12 AND moderation_status='active' AND deleted_at IS NULL ",
+            "RETURNING ",
+            pekerjaan_cols!(),
+        ))
+        .bind(params.id)
+        .bind(params.judul)
+        .bind(params.perusahaan)
+        .bind(params.deskripsi)
+        .bind(params.lokasi)
+        .bind(params.region_id)
+        .bind(params.gaji_min)
+        .bind(params.gaji_max)
+        .bind(params.tipe)
+        .bind(params.foto_urls)
+        .bind(params.is_active)
+        .bind(params.poster_id)
+        .fetch_optional(&self.pool)
+        .await?;
+        warn_slow!(t, "iklan_pekerjaan.update");
+        r.as_ref()
+            .map(row_to_entity)
+            .ok_or_else(|| anyhow::anyhow!("iklan tidak ditemukan atau tidak dapat diubah"))
     }
 
     async fn exists(&self, id: Uuid) -> Result<bool, anyhow::Error> {

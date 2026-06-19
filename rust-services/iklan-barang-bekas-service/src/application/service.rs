@@ -4,11 +4,11 @@ use uuid::Uuid;
 use super::dto::{
     AdminIklanBarangBekasResponse, AdminListQuery, CreateIklanBarangBekasInput,
     IklanBarangBekasResponse, ListQuery, SuspendEvidenceInput, SuspendInput, SuspendResponse,
-    SuspendResultItem,
+    SuspendResultItem, UpdateBarangBekasInput,
 };
-use crate::domain::entity::IklanBarangBekas;
+use crate::domain::entity::{AvailabilityStatus, IklanBarangBekas, ModerationStatus};
 use crate::domain::repository::{
-    AdminListParams, CreateBarangBekasParams, IklanBarangBekasRepository,
+    AdminListParams, CreateBarangBekasParams, IklanBarangBekasRepository, UpdateBarangBekasParams,
 };
 use common_rate_limit::RateLimiter;
 use notification_service_client::NotificationClient;
@@ -141,6 +141,83 @@ impl<R: IklanBarangBekasRepository> IklanBarangBekasService<R> {
 
     pub async fn delete(&self, id: Uuid, seller_id: Uuid) -> Result<bool, anyhow::Error> {
         self.repo.delete(id, seller_id).await
+    }
+
+    pub async fn update(
+        &self,
+        user_id: Uuid,
+        id: Uuid,
+        input: UpdateBarangBekasInput,
+    ) -> Result<IklanBarangBekasResponse, anyhow::Error> {
+        // 1. Rate limit: 30 req/15 menit per user
+        if let Some(rl) = &self.rate_limiter {
+            if !rl
+                .allow("iklan_barang_bekas:update", &user_id.to_string())
+                .await
+            {
+                return Err(anyhow::anyhow!("terlalu banyak permintaan"));
+            }
+        }
+
+        // 2. Find existing to check lifecycle
+        let existing = self
+            .repo
+            .find_by_id(id)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("tidak ditemukan"))?;
+
+        // 3. Ownership check (IDOR → 404)
+        if existing.seller_id != user_id {
+            return Err(anyhow::anyhow!("tidak ditemukan"));
+        }
+
+        // 4. Lifecycle guard
+        if existing.moderation_status != ModerationStatus::Active {
+            return Err(anyhow::anyhow!("iklan sedang ditangguhkan"));
+        }
+        if existing.availability_status != AvailabilityStatus::Tersedia {
+            return Err(anyhow::anyhow!("iklan sudah tidak tersedia"));
+        }
+
+        // 5. Sanitasi
+        let judul = input.judul.map(|s| ammonia::clean_text(&s));
+        let deskripsi = input.deskripsi.map(|s| ammonia::clean_text(&s));
+        let lokasi_pengambilan = input.lokasi_pengambilan.map(|s| ammonia::clean_text(&s));
+        let lokasi = input.lokasi.map(|s| ammonia::clean_text(&s));
+
+        // 6. Validasi region_id
+        if let (Some(rc), Some(ref rid)) = (&self.region_client, &input.region_id) {
+            if !rid.is_empty() {
+                match rc.get_region(rid).await {
+                    Err(region_service_client::RegionClientError::NotFound) => {
+                        return Err(anyhow::anyhow!("region_id tidak valid"));
+                    }
+                    Err(_) => {
+                        tracing::warn!(region_id = %rid, "region-service unavailable saat validasi update");
+                    }
+                    Ok(_) => {}
+                }
+            }
+        }
+
+        // 7. Build params & update
+        let params = UpdateBarangBekasParams {
+            judul,
+            deskripsi,
+            jenis_barang: input.jenis_barang,
+            jumlah: input.jumlah,
+            lokasi_pengambilan,
+            lokasi,
+            region_id: input.region_id,
+            foto_urls: input.foto_urls,
+            is_active: input.is_active,
+        };
+
+        self.repo
+            .update(id, user_id, params)
+            .await?
+            .map(to_resp)
+            .ok_or_else(|| anyhow::anyhow!("tidak ditemukan"))
     }
 
     pub async fn admin_list(

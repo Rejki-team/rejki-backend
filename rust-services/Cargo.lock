@@ -3301,7 +3301,6 @@ dependencies = [
  "tower-http",
  "tracing",
  "user-service",
- "user-service-client",
  "utoipa",
  "utoipa-swagger-ui",
  "uuid",

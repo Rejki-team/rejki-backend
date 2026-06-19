@@ -18,6 +18,20 @@ pub struct AdminListResult {
     pub total: i64,
 }
 
+/// Params untuk `update()` — semua field Optional (partial update).
+#[derive(Debug, Clone)]
+pub struct UpdateBarangBekasParams {
+    pub judul: Option<String>,
+    pub deskripsi: Option<String>,
+    pub jenis_barang: Option<String>,
+    pub jumlah: Option<i32>,
+    pub lokasi_pengambilan: Option<String>,
+    pub lokasi: Option<String>,
+    pub region_id: Option<String>,
+    pub foto_urls: Option<Vec<String>>,
+    pub is_active: Option<bool>,
+}
+
 /// Params untuk `create()` — grouping untuk menghindari too_many_arguments.
 pub struct CreateBarangBekasParams<'a> {
     pub seller_id: Uuid,
@@ -43,6 +57,12 @@ pub trait IklanBarangBekasRepository: Send + Sync {
     /// Kembalikan true bila berhasil, false bila bukan pemilik/iklan tidak ditemukan.
     async fn mark_taken(&self, id: Uuid, seller_id: Uuid) -> Result<bool, anyhow::Error>;
     async fn delete(&self, id: Uuid, seller_id: Uuid) -> Result<bool, anyhow::Error>;
+    async fn update(
+        &self,
+        id: Uuid,
+        seller_id: Uuid,
+        params: UpdateBarangBekasParams,
+    ) -> Result<Option<IklanBarangBekas>, anyhow::Error>;
     async fn exists(&self, id: Uuid) -> Result<bool, anyhow::Error>;
 
     async fn admin_list(&self, params: AdminListParams) -> Result<AdminListResult, anyhow::Error>;

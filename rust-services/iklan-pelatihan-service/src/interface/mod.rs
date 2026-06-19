@@ -58,6 +58,7 @@ pub fn router(
     // ── Protected (auth user) ─────────────────────────────────────────
     let protected = Router::new()
         .route("/", post(handlers::create))
+        .route("/{id}", patch(handlers::update))
         .route("/{id}", delete(handlers::delete_iklan))
         // Enrollment
         .route("/{id}/enroll", post(handlers::create_enrollment))

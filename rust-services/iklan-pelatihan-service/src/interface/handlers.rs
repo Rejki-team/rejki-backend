@@ -4,7 +4,7 @@ use crate::application::dto::{
     CommitEnrollBuktiInput, CreateIklanPelatihanInput, EnrollEvidenceInput, EnrollmentListQuery,
     EnrollmentResponse, IklanPelatihanResponse, ListQuery, PelatihanListQuery, ReviewBadgeInput,
     ReviewEnrollmentInput, ReviewPelatihanInput, SuspendEvidenceInput, SuspendInput,
-    SuspendResponse, UpdateIklanPelatihanInput,
+    SuspendResponse, UpdateIklanPelatihanInput, UpdatePelatihanInput,
 };
 use auth_service_client::AuthClaims;
 use axum::{
@@ -81,6 +81,30 @@ pub async fn delete_iklan(
     } else {
         Err(AppError::NotFound("tidak ditemukan".into()))
     }
+}
+
+/// PATCH — user-level partial update (only editable fields that the plan maps).
+pub async fn update(
+    State(s): State<AppState>,
+    Extension(claims): Extension<AuthClaims>,
+    Path(id): Path<Uuid>,
+    ValidatedJson(body): ValidatedJson<UpdatePelatihanInput>,
+) -> Result<Json<ApiResponse<IklanPelatihanResponse>>, AppError> {
+    let result = s.svc.update(claims.user_id, id, body).await.map_err(|e| {
+        let msg = e.to_string();
+        if msg.contains("terlalu banyak permintaan") {
+            AppError::RateLimited(msg)
+        } else if msg.contains("ditangguhkan")
+            || msg.contains("tidak dapat diubah pada status saat ini")
+        {
+            AppError::Forbidden(msg)
+        } else if msg.contains("tidak ditemukan") {
+            AppError::NotFound(msg)
+        } else {
+            AppError::Internal(e)
+        }
+    })?;
+    Ok(Json(ApiResponse::ok(result)))
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
