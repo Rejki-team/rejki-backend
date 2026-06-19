@@ -1,0 +1,31 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO user_svc.kyc_submission\n            (id, profile_id, status, ktp_object_key, selfie_object_key, created_at, updated_at)\n        VALUES (gen_random_uuid(), $1, $2, $3, $4, now(), now())\n        RETURNING id\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "user_svc.kyc_submission",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "d316352ef9094d09ecb268ad6fb781addbab86aa73859a3aa148ac0ae0e5df44"
+}

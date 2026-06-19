@@ -506,7 +506,7 @@ impl<R: AuthRepository> AuthService<R> {
             .await
             .map_err(ServiceError::Other)?;
         let (is_admin, status, password_hash) = match &user_opt {
-            Some(u) => (u.role.is_admin(), u.status, u.password_hash.clone()),
+            Some(u) => (u.role.rank() >= 80, u.status, u.password_hash.clone()),
             None => (false, AccountStatus::Active, DUMMY_BCRYPT_HASH.to_owned()),
         };
 
@@ -1916,7 +1916,7 @@ mod tests {
             email: "admin@rejki.id".into(),
             password_hash: pw_hash,
             status: AccountStatus::Active,
-            role: Role::Admin,
+            role: Role::SuperAdmin,
             phone: None,
             tos_accepted_at: Some(chrono::Utc::now()),
             tos_version: Some("v1".into()),
@@ -1981,7 +1981,7 @@ mod tests {
             email: "admin@rejki.id".into(),
             password_hash: hash_test_password("Admin1!"),
             status: AccountStatus::Active,
-            role: Role::Admin,
+            role: Role::SuperAdmin,
             phone: None,
             tos_accepted_at: Some(chrono::Utc::now()),
             tos_version: Some("v1".into()),
@@ -2247,9 +2247,17 @@ mod tests {
     #[test]
     fn role_as_str_roundtrip() {
         assert_eq!(Role::User.as_str(), "user");
-        assert_eq!(Role::Admin.as_str(), "admin");
+        assert_eq!(Role::UserVerified.as_str(), "user_verified");
+        assert_eq!(Role::Moderator.as_str(), "moderator");
+        assert_eq!(Role::AdminIklan.as_str(), "admin_iklan");
+        assert_eq!(Role::AdminUser.as_str(), "admin_user");
+        assert_eq!(Role::SuperAdmin.as_str(), "super_admin");
         assert_eq!("user".parse::<Role>().unwrap(), Role::User);
-        assert_eq!("admin".parse::<Role>().unwrap(), Role::Admin);
-        assert!("super_admin".parse::<Role>().is_err());
+        assert_eq!("user_verified".parse::<Role>().unwrap(), Role::UserVerified);
+        assert_eq!("moderator".parse::<Role>().unwrap(), Role::Moderator);
+        assert_eq!("admin_iklan".parse::<Role>().unwrap(), Role::AdminIklan);
+        assert_eq!("admin_user".parse::<Role>().unwrap(), Role::AdminUser);
+        assert_eq!("super_admin".parse::<Role>().unwrap(), Role::SuperAdmin);
+        assert!("unknown_role".parse::<Role>().is_err());
     }
 }

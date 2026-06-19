@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE user_svc.profiles SET full_name = '=cmd|calc.exe' WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c38476dc7c3de1b1166e0a53a3e6fa2d9d5a341dee992ef12c5ea90d3075a0cd"
+}

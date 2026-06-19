@@ -1,28 +1,54 @@
 use uuid::Uuid;
 
-/// Peran pengguna (RBAC). Dirancang extensible — penambahan varian baru (mis.
-/// super_admin, moderator, support) bersifat aditif dan tidak breaking di konsumen.
-/// Ref: openspec/changes/add-admin-rbac, D1.
+/// Peran pengguna (multi-tier RBAC). Pure hierarchy dengan rank numerik.
+/// Role yang lebih tinggi bisa mengakses endpoint role yang sama/lebih rendah.
+/// Ref: openspec/changes/ws-multi-tier-rbac, D1.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum Role {
+    /// Pengguna biasa — default. Rank 20.
     #[default]
     User,
-    Admin,
+    /// Pengguna yang sudah terverifikasi — akses premium (chat, post iklan). Rank 40.
+    UserVerified,
+    /// Moderator — akses report & corporate-comms. Rank 60.
+    Moderator,
+    /// Admin iklan — akses admin endpoint iklan + user. Rank 80.
+    AdminIklan,
+    /// Admin user — akses admin endpoint user/KYC + suspend. Rank 80.
+    AdminUser,
+    /// Super admin — akses semua endpoint. Rank 100.
+    SuperAdmin,
 }
 
 impl Role {
-    pub fn as_str(&self) -> &'static str {
+    /// Hierarchy rank — semakin tinggi semakin besar akses.
+    pub fn rank(&self) -> u8 {
         match self {
-            Role::User => "user",
-            Role::Admin => "admin",
+            Role::User => 20,
+            Role::UserVerified => 40,
+            Role::Moderator => 60,
+            Role::AdminIklan => 80,
+            Role::AdminUser => 80,
+            Role::SuperAdmin => 100,
         }
     }
 
-    /// Apakah role ini memiliki akses admin.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Role::User => "user",
+            Role::UserVerified => "user_verified",
+            Role::Moderator => "moderator",
+            Role::AdminIklan => "admin_iklan",
+            Role::AdminUser => "admin_user",
+            Role::SuperAdmin => "super_admin",
+        }
+    }
+
+    /// Apakah role ini memiliki akses admin (rank >= moderator/60).
     pub fn is_admin(&self) -> bool {
-        matches!(self, Role::Admin)
+        self.rank() >= 60
     }
 }
 
@@ -32,7 +58,11 @@ impl std::str::FromStr for Role {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "user" => Ok(Role::User),
-            "admin" => Ok(Role::Admin),
+            "user_verified" => Ok(Role::UserVerified),
+            "moderator" => Ok(Role::Moderator),
+            "admin_iklan" => Ok(Role::AdminIklan),
+            "admin_user" => Ok(Role::AdminUser),
+            "super_admin" => Ok(Role::SuperAdmin),
             _ => Err(()),
         }
     }

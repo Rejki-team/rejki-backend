@@ -7,7 +7,7 @@ use axum::{
     routing::{delete, get, patch, post},
     Router,
 };
-use common_auth_mw::{require_active_account, require_admin, require_auth};
+use common_auth_mw::{require_active_account, require_auth, require_role};
 use common_rate_limit::RateLimiter;
 use notification_service_client::NotificationClient;
 use region_service_client::RegionClient;
@@ -123,7 +123,7 @@ pub fn router(
         .route("/badges/{id}/review", post(handlers::admin_badge_review))
         .route("/badges/export.csv", get(handlers::admin_badge_export_csv))
         .with_state(state)
-        .layer(axum::middleware::from_fn(require_admin))
+        .layer(axum::middleware::from_fn_with_state(80u8, require_role))
         .layer(axum::middleware::from_fn_with_state(
             auth_client.clone(),
             require_active_account,

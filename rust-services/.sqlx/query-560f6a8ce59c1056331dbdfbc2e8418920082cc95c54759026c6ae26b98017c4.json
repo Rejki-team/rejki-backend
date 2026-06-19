@@ -1,0 +1,30 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO auth.users (id, email, password_hash, status, created_at, updated_at)\n        VALUES ($1, $2, $3, 'active', now(), now())\n        ON CONFLICT (email) DO UPDATE\n            SET status = 'active'\n        RETURNING id\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "auth.users",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "560f6a8ce59c1056331dbdfbc2e8418920082cc95c54759026c6ae26b98017c4"
+}

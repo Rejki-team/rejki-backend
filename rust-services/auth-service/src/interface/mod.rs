@@ -20,7 +20,7 @@ use crate::infrastructure::{
     AuthInProcessClient, JwtService, OtpRateLimiter, PgAuditLogRepository, PgAuthRepository,
 };
 use auth_service_client::AuthClient;
-use common_auth_mw::{require_active_account, require_admin, require_auth};
+use common_auth_mw::{require_active_account, require_auth, require_role};
 use notification_service_client::NotificationClient;
 use storage_service_client::StorageClient;
 use user_service_client::UserClient;
@@ -149,7 +149,7 @@ fn build_router(state: AppState, auth_client: Arc<dyn AuthClient>) -> Router {
             auth_client.clone(),
             require_active_account,
         ))
-        .layer(axum::middleware::from_fn(require_admin))
+        .layer(axum::middleware::from_fn_with_state(80u8, require_role))
         .layer(axum::middleware::from_fn_with_state(
             auth_client.clone(),
             require_auth,
