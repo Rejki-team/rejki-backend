@@ -229,6 +229,27 @@ async fn main() {
         limiter: rate_limiter.clone(),
     };
 
+    // ── CORS — environment-aware ───────────────────────────────────
+    // Development: longgar (Any) untuk frontend lokal di port berbeda.
+    // Production: whitelist dari CORS_ALLOWED_ORIGINS + allow_credentials(true).
+    let cors = if cfg.app_env.is_production() {
+        let origins: Vec<_> = cfg
+            .cors_allowed_origins
+            .iter()
+            .map(|o| o.parse::<axum::http::HeaderValue>().expect("CORS_ALLOWED_ORIGINS tidak valid — pastikan format URL benar"))
+            .collect();
+        CorsLayer::new()
+            .allow_origin(origins)
+            .allow_credentials(true)
+            .allow_methods([axum::http::Method::GET, axum::http::Method::POST, axum::http::Method::PATCH, axum::http::Method::DELETE, axum::http::Method::OPTIONS])
+            .allow_headers([axum::http::header::AUTHORIZATION, axum::http::header::CONTENT_TYPE, axum::http::header::ACCEPT])
+    } else {
+        CorsLayer::new()
+            .allow_origin(Any)
+            .allow_methods(Any)
+            .allow_headers(Any)
+    };
+
     let app = app
         .layer(axum::middleware::from_fn_with_state(
             rl_state,
@@ -237,12 +258,7 @@ async fn main() {
         .layer(axum::middleware::from_fn(common_tracing::request_id_layer))
         .layer(CompressionLayer::new())
         .layer(TraceLayer::new_for_http())
-        .layer(
-            CorsLayer::new()
-                .allow_origin(Any)
-                .allow_methods(Any)
-                .allow_headers(Any),
-        );
+        .layer(cors);
 
     // ── 8. Bind listener ──────────────────────────────────────────────────────
     let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", cfg.app_port))

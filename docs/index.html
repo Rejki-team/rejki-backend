@@ -1145,6 +1145,16 @@
               <td><span class="cl-status-done">✅ Done</span></td>
             </tr>
             <tr class="cl-3">
+              <td><strong>ws-password-reset</strong> — forgot-password + reset-password + change-password (OTP-based) ✅, anti-enumeration ✅, atomik transaction consume OTP + update password + revoke tokens ✅, rate limit 3 req/15m ✅, audit event PasswordReset/PasswordChanged ✅ <br><small><a href="../../openspec/changes/ws-password-reset/tasks.md" style="color:var(--blue);">tasks.md</a> · <a href="implementation-plan-phase-3.html#w3b" style="color:var(--blue);">W3B-07 · P1 · 19 Jun 2026</a></small></td>
+              <td style="text-align:center;">3</td>
+              <td><span class="cl-status-done">✅ Done</span></td>
+            </tr>
+            <tr class="cl-3">
+              <td><strong>ws-cors-production</strong> — CORS_ALLOWED_ORIGINS env var (default: rejki.id,app.rejki.id) ✅, conditional CorsLayer (development=Any, production=whitelist+credentials) ✅ <br><small><a href="../../openspec/changes/ws-cors-production/tasks.md" style="color:var(--blue);">tasks.md</a> · <a href="implementation-plan-phase-3.html#w3c" style="color:var(--blue);">W3C-08 · P2 · 20 Jun 2026</a></small></td>
+              <td style="text-align:center;">3</td>
+              <td><span class="cl-status-done">✅ Done</span></td>
+            </tr>
+            <tr class="cl-3">
               <td><strong>Phase 3 plan</strong> — brainstorm + implementation plan (15 task, 4 wave, 8-12 minggu) <br><small><a href="brainstorm/phase-3-hardening-analysis.html" style="color:var(--yellow);">brainstorm</a> · <a href="implementation-plan-phase-3.html" style="color:var(--yellow);">implementation plan</a></small></td>
               <td style="text-align:center;">3</td>
               <td><span class="cl-status-done">✓ 17 Juni 2026</span></td>
@@ -1155,7 +1165,7 @@
     </section>
 
     <footer>
-      <p>Rejki Backend Architecture Document · Terakhir diperbarui: 19 Juni 2026 · Phase 2 selesai ✓ · Wave 3A COMPLETE ✓ · W3B 4/4 ✅ · W3B-04 ✅ · W3B-05 ✅ · W3B-06 ✅ · Next: W3B-07</p>
+      <p>Rejki Backend Architecture Document · Terakhir diperbarui: 20 Juni 2026 · Phase 2 selesai ✓ · Wave 3A COMPLETE ✓ · W3B 4/4 ✅ · W3B-04 ✅ · W3B-05 ✅ · W3B-06 ✅ · W3B-07 ✅ · W3C-08 ✅ · Next: W3C-09</p>
       <p style="margin-top:.3rem;">Stack: Rust · Axum 0.8 · sqlx 0.9 · PostgreSQL · Modular Monolith → Extraction-Ready</p>
     </footer>
 
