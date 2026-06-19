@@ -328,6 +328,16 @@ Sebelum koding fitur baru: ada **proposal** + **spec** + **tasks**. Setelah sele
 ter-deploy: **archive** perubahannya. Jangan menandai task selesai sebelum benar-benar
 terimplementasi & terverifikasi.
 
+### Git Flow
+1. **1 task = 1 branch.** Setiap pekerjaan dimulai dengan branch baru dari `develop`.
+2. **Nama branch:** `feature/<nama-pekerjaan>` (kebab-case, sesuai nama OpenSpec change).
+   Contoh: `feature/ws-audit-log`, `feature/ws-multi-tier-rbac`, `feature/ws-patch-iklan`.
+3. **Commit** hanya dilakukan ketika satu point pekerjaan selesai (bukan bertahap).
+4. **Push + PR** ke `develop` setelah commit. Jangan merge sendiri.
+5. **Branch dihapus** setelah PR di-merge ke `develop`.
+6. **Tidak menggabungkan multiple task dalam satu branch.** Jika terlanjur, cherry-pick commit
+   ke branch masing-masing.
+
 ---
 
 ## 9. Referensi Cepat
