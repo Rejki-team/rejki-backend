@@ -141,9 +141,9 @@
     <div class="progress-wrap">
       <div class="progress-label">
         <span>Phase 3 Progress</span>
-        <span style="color:var(--green);font-weight:700;">60%</span>
+        <span style="color:var(--green);font-weight:700;">65%</span>
       </div>
-      <div class="progress-track"><div class="progress-fill" style="width:60%"></div></div>
+      <div class="progress-track"><div class="progress-fill" style="width:65%"></div></div>
     </div>
     <div class="nav-divider"></div>
     <div class="nav-section">Navigasi</div>
@@ -151,7 +151,7 @@
     <a class="nav-item nav-back" href="brainstorm/phase-3-hardening-analysis.html">← Brainstorm Phase 3</a>
     <div class="nav-section">Wave</div>
     <a class="nav-item" href="#w3a">W3A — Security Core & Foundation <span class="nav-badge nb-done">3/3</span></a>
-    <a class="nav-item" href="#w3b">W3B — Compliance & Access <span class="nav-badge nb-prog">2/4</span></a>
+    <a class="nav-item" href="#w3b">W3B — Compliance & Access <span class="nav-badge nb-done">3/4</span></a>
     <a class="nav-item" href="#w3c">W3C — Production Polish <span class="nav-badge nb-todo">0/4</span></a>
     <a class="nav-item" href="#w3d">W3D — Analytics & Infra <span class="nav-badge nb-todo">0/4</span></a>
     <a class="nav-item" href="#summary">Ringkasan</a>
@@ -322,7 +322,7 @@
             <a class="wave-link" href="authorization-pattern.html">authorization-pattern</a>
           </div>
         </div>
-        <div class="wave-status"><span class="badge badge-prog">⚡ 2/4</span></div>
+        <div class="wave-status"><span class="badge badge-prog">⚡ 3/4</span></div>
       </div>
 
       <div class="tasks">
@@ -693,7 +693,7 @@
             <tr><td>W3A-03</td><td>ws-region-id-iklan — region_id TEXT + partial index di 4 tabel iklan, RegionClient::get_region() validation, 247 unit test PASS</td><td>3A</td><td>P0</td><td><code>ws-region-id-iklan</code></td><td>—</td><td><span class="badge badge-done">✅ Archived</span></td></tr>
             <tr><td>W3B-04</td><td>audit_log table + repository — migration + PgAuditLogRepository + 11 AuditEvent variants + inject ke 10 auth events + fail-open + 247 unit + 50 integration PASS</td><td>3B</td><td>P1</td><td><code>ws-audit-log</code></td><td>—</td><td><span class="badge badge-done">✅ Done</span></td></tr>
             <tr><td>W3B-05</td><td>Multi-tier RBAC (6 roles) — SuperAdmin (100), AdminIklan/AdminUser (80), Moderator (60), UserVerified (40), User (20) + require_role(min_rank) middleware + InsufficientRole error + 8 router update + admin_login guard >= 80 + migration alter CHECK + 67 auth unit PASS</td><td>3B</td><td>P1</td><td><code>ws-multi-tier-rbac</code></td><td>—</td><td><span class="badge badge-done">✅ Done</span></td></tr>
-            <tr><td>W3B-06</td><td>PATCH iklan (update handler)</td><td>3B</td><td>P1</td><td><code>ws-patch-iklan</code> (NEW)</td><td>—</td><td><span class="badge badge-todo">📋 Pending</span></td></tr>
+            <tr><td>W3B-06</td><td>PATCH iklan (update handler)</td><td>3B</td><td>P1</td><td><code>ws-patch-iklan</code> (NEW)</td><td>W3A-02 (rate limit)</td><td><span class="badge badge-done">✅ Done</span></td></tr>
             <tr><td>W3B-07</td><td>Password reset flow</td><td>3B</td><td>P1</td><td><code>ws-password-reset</code> (NEW)</td><td>W3B-04 (audit_log) [opsional]</td><td><span class="badge badge-todo">📋 Pending</span></td></tr>
             <tr><td>W3C-08</td><td>CORS production policy</td><td>3C</td><td>P2</td><td>Langsung ke kode</td><td>—</td><td><span class="badge badge-todo">📋 Pending</span></td></tr>
             <tr><td>W3C-09</td><td>Enkripsi phone + rekening bank</td><td>3C</td><td>P2</td><td><code>ws-encryption-at-rest</code> (NEW)</td><td>—</td><td><span class="badge badge-todo">📋 Pending</span></td></tr>
@@ -722,7 +722,7 @@
 
     <footer>
       <span>rejki-backend · Phase 3 Implementation Plan · 18 Juni 2026</span>
-      <span>15 task · 4 waves · Wave 3A ✅ Complete · W3A-01 ✅ · W3A-02 ✅ · W3A-03 ✅ · W3B-04 ✅ · W3B-05 ✅ · P1 2/4 complete</span>
+      <span>15 task · 4 waves · Wave 3A ✅ Complete · W3A-01 ✅ · W3A-02 ✅ · W3A-03 ✅ · W3B-04 ✅ · W3B-05 ✅ · P1 3/4 complete · W3B-06 ✅</span>
     </footer>
 
   </main>

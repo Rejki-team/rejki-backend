@@ -22,3 +22,22 @@
 - **4 service domain**: repository trait method baru
 - **4 service infrastructure**: SQL UPDATE query baru
 - **Swagger**: update openapi.rs
+
+---
+
+## Status
+
+✅ **SELESAI** — 19 Juni 2026. Seluruh 7 task terimplementasi. Branch `feature/ws-patch-iklan` sudah merge ke `develop`.
+
+### Ringkasan Eksekusi
+
+- **4 PATCH endpoint**: `/api/v1/{pekerjaan,pekerja,barang,pelatihan}/{id}` — partial update via COALESCE SQL
+- **DTO**: `Update*Input` struct dengan semua field `Option<T>`
+- **Lifecycle guard per service**:
+  - Barang: `moderation=Active` AND `availability=Tersedia`
+  - Pelatihan: `moderation=Active` AND status in (`VerifikasiDiterima`, `PelatihanBelumDimulai`)
+  - Pekerja/Pekerjaan: `moderation=Active`
+- **is_active toggle**: via field `Option<bool>` di DTO
+- **IDOR 404**: ownership check di SQL (`WHERE id=$1 AND owner_id=$2`)
+- **Rate limit**: 30 req/min per user (via W3A-02)
+- **Swagger**: 4 `Update*DocRequest` DTO + 4 PATCH path annotations di openapi.rs

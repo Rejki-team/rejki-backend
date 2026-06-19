@@ -35,3 +35,18 @@ Saat ini hanya ada 2 role (`User` dan `Admin`) dengan middleware binary `require
 - **Integration test fixtures**: update role value di fixture
 - **Swagger**: update Role enum doc di openapi.rs
 - **Tidak ada endpoint baru**, tidak ada perubahan protokol API
+
+---
+
+## Status
+
+✅ **SELESAI** — 19 Juni 2026. Seluruh 10 task terimplementasi. Branch `feature/ws-multi-tier-rbac` sudah merge ke `develop`.
+
+### Ringkasan Eksekusi
+
+- **Role enum**: 6 variant (`SuperAdmin` 100, `AdminIklan` 80, `AdminUser` 80, `Moderator` 60, `UserVerified` 40, `User` 20)
+- **Middleware**: `require_role(min_rank: u8)` factory — menggantikan `require_admin()` di `common/auth-middleware`
+- **AppError**: `InsufficientRole` (403 FORBIDDEN + INSUFFICIENT_ROLE)
+- **Migration**: alter CHECK constraint 2→6 nilai, backfill `admin` → `super_admin`
+- **Router update**: 8 service interface files ganti middleware + admin_login guard ≥ 80
+- **Dokumentasi**: authorization-pattern, security-baseline, index.html, openapi.rs, implementation-plan
