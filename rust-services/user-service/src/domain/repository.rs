@@ -73,6 +73,11 @@ pub struct UpdateProfileParams {
     pub phone: Option<String>,
     /// Rekening — akan di-serialize ke JSON lalu di-encrypt AES-256-GCM di repo layer.
     pub rekening: Option<RekeningInfo>,
+    // ── Region fields (W3C-11) ────────────────────────────────────────────
+    pub province_id: Option<String>,
+    pub regency_id: Option<String>,
+    pub district_id: Option<String>,
+    pub village_id: Option<String>,
 }
 
 // Native async fn in trait per CLAUDE.md §4.1 (Rust ≥ 1.75).

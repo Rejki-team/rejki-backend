@@ -230,6 +230,10 @@ impl UserRepository for PgUserRepository {
                 bio                = COALESCE($4, bio), \
                 phone_encrypted    = COALESCE($5, phone_encrypted), \
                 rekening_encrypted = COALESCE($6, rekening_encrypted), \
+                province_id        = COALESCE($7, province_id), \
+                regency_id         = COALESCE($8, regency_id), \
+                district_id        = COALESCE($9, district_id), \
+                village_id         = COALESCE($10, village_id), \
                 updated_at         = now() \
              WHERE id = $1 \
              RETURNING id, auth_id, username, full_name, avatar, bio, phone, \
@@ -244,6 +248,10 @@ impl UserRepository for PgUserRepository {
         .bind(&params.bio)
         .bind(&phone_encrypted)
         .bind(&rekening_encrypted)
+        .bind(&params.province_id)
+        .bind(&params.regency_id)
+        .bind(&params.district_id)
+        .bind(&params.village_id)
         .fetch_one(&self.pool)
         .await?;
         warn_slow!(t, "user.update");

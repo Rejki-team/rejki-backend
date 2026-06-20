@@ -62,7 +62,7 @@ pub async fn update_me(
         .user_svc
         .update_profile(profile_id, body)
         .await
-        .map_err(AppError::Internal)?;
+        .map_err(|e| AppError::Validation(e.to_string()))?;
     Ok(Json(ApiResponse::ok(profile)))
 }
 

@@ -385,6 +385,10 @@ mod tests {
                 validate_result: Mutex::new(true),
             }
         }
+
+        fn set_validate_result(&self, val: bool) {
+            *self.validate_result.lock().unwrap() = val;
+        }
     }
 
     #[async_trait::async_trait]
@@ -698,6 +702,18 @@ mod tests {
                 p.rekening_encrypted =
                     Some(common_crypto::encrypt(&serde_json::to_string(&v).unwrap()).unwrap());
             }
+            if let Some(v) = params.province_id {
+                p.province_id = Some(v);
+            }
+            if let Some(v) = params.regency_id {
+                p.regency_id = Some(v);
+            }
+            if let Some(v) = params.district_id {
+                p.district_id = Some(v);
+            }
+            if let Some(v) = params.village_id {
+                p.village_id = Some(v);
+            }
             p.updated_at = chrono::Utc::now();
             Ok(p.clone())
         }
@@ -905,6 +921,10 @@ mod tests {
             bio: Some("Bio singkat".into()),
             phone: Some("081111111111".into()),
             rekening: None,
+            province_id: None,
+            regency_id: None,
+            district_id: None,
+            village_id: None,
         };
 
         let result = svc.update_profile(profile.id, input).await;
@@ -937,6 +957,10 @@ mod tests {
             bio: None,
             phone: None,
             rekening: None,
+            province_id: None,
+            regency_id: None,
+            district_id: None,
+            village_id: None,
         };
 
         // update_profile hanya ubah full_name/bio/phone/avatar/rekening — NIK tidak disentuh.
@@ -944,6 +968,132 @@ mod tests {
         assert!(
             result.is_ok(),
             "update_profile harus sukses meski NIK sudah ada"
+        );
+    }
+
+    // ── W3C-11: Region chain validation di update_profile ──────────────────────
+
+    /// Update profile dengan region chain valid → sukses.
+    #[tokio::test]
+    async fn test_update_profile_given_valid_region_chain_when_update_then_ok() {
+        set_test_crypto_key();
+        let repo = MockUserRepository::new();
+        let uid = Uuid::now_v7();
+        let profile = make_profile(uid);
+        repo.seed_profile(profile.clone());
+
+        // MockRegionClient default = validate returns true.
+        let svc = UserService::new(
+            Arc::new(repo),
+            Arc::new(MockAuthClient::new()),
+            Arc::new(MockRegionClient::new()),
+            None,
+            None,
+        );
+
+        let input = crate::application::dto::UpdateProfileInput {
+            full_name: None,
+            avatar: None,
+            bio: None,
+            phone: None,
+            rekening: None,
+            province_id: Some("11".into()),
+            regency_id: Some("1101".into()),
+            district_id: Some("110101".into()),
+            village_id: Some("1101012001".into()),
+        };
+
+        let result = svc.update_profile(profile.id, input).await;
+        assert!(
+            result.is_ok(),
+            "update dengan region valid harus sukses: {result:?}"
+        );
+
+        let resp = result.unwrap();
+        assert_eq!(resp.province_id, Some("11".into()));
+        assert_eq!(resp.regency_id, Some("1101".into()));
+        assert_eq!(resp.district_id, Some("110101".into()));
+        assert_eq!(resp.village_id, Some("1101012001".into()));
+    }
+
+    /// Update profile dengan region chain invalid (parent_id mismatch) → ditolak.
+    #[tokio::test]
+    async fn test_update_profile_given_invalid_region_chain_when_update_then_rejected() {
+        set_test_crypto_key();
+        let repo = MockUserRepository::new();
+        let uid = Uuid::now_v7();
+        let profile = make_profile(uid);
+        repo.seed_profile(profile.clone());
+
+        // MockRegionClient dengan validate_result=false.
+        let region_client = MockRegionClient::new();
+        region_client.set_validate_result(false);
+
+        let svc = UserService::new(
+            Arc::new(repo),
+            Arc::new(MockAuthClient::new()),
+            Arc::new(region_client),
+            None,
+            None,
+        );
+
+        let input = crate::application::dto::UpdateProfileInput {
+            full_name: None,
+            avatar: None,
+            bio: None,
+            phone: None,
+            rekening: None,
+            province_id: Some("11".into()),
+            regency_id: Some("9999".into()), // invalid — tidak ada di bawah provinsi 11
+            district_id: Some("999901".into()),
+            village_id: Some("9999012001".into()),
+        };
+
+        let result = svc.update_profile(profile.id, input).await;
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("tidak konsisten"),
+            "error harus menyebut rantai tidak konsisten: {err}"
+        );
+    }
+
+    /// Update profile dengan region fields tidak lengkap (setengah) → ditolak.
+    #[tokio::test]
+    async fn test_update_profile_given_partial_region_fields_when_update_then_rejected() {
+        set_test_crypto_key();
+        let repo = MockUserRepository::new();
+        let uid = Uuid::now_v7();
+        let profile = make_profile(uid);
+        repo.seed_profile(profile.clone());
+
+        let svc = UserService::new(
+            Arc::new(repo),
+            Arc::new(MockAuthClient::new()),
+            Arc::new(MockRegionClient::new()),
+            None,
+            None,
+        );
+
+        // Hanya province_id diisi, lainnya None.
+        let input = crate::application::dto::UpdateProfileInput {
+            full_name: None,
+            avatar: None,
+            bio: None,
+            phone: None,
+            rekening: None,
+            province_id: Some("11".into()),
+            regency_id: None,
+            district_id: None,
+            village_id: None,
+        };
+
+        let result = svc.update_profile(profile.id, input).await;
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("lengkap") || err.contains("kosong"),
+            "error harus menyebut region harus lengkap atau kosong: {err}"
         );
     }
 

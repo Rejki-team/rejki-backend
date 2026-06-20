@@ -46,7 +46,7 @@ pub async fn build_test_app(pool: PgPool) -> Router {
 
     // UserClient in-process — wajib agar jalur purge dokumen saat suspend permanen
     // (extend-user-suspension-bulk-purge D4) ter-cover di integration test.
-    let user_client: Arc<dyn user_service_client::UserClient> = {
+    let user_client: Arc<dyn user_service::UserClient> = {
         let user_repo = Arc::new(user_service::PgUserRepository::new(pool.clone()));
         let user_svc = Arc::new(user_service::UserService::new(
             user_repo,

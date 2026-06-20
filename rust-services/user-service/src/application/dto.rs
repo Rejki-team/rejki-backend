@@ -30,6 +30,19 @@ pub struct UserProfileResponse {
     /// Nama pemilik rekening ter-mask (J***e).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rekening_holder_masked: Option<String>,
+    // ── Region fields (W3C-11) ────────────────────────────────────────────
+    /// ID provinsi.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub province_id: Option<String>,
+    /// ID kabupaten/kota.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub regency_id: Option<String>,
+    /// ID kecamatan.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub district_id: Option<String>,
+    /// ID kelurahan/desa.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub village_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Validate)]
@@ -43,6 +56,15 @@ pub struct UpdateProfileInput {
     /// Informasi rekening bank — akan di-encrypt AES-256-GCM sebelum disimpan.
     /// Validasi: bank non-empty, number digit-only, holder non-empty dilakukan di service layer.
     pub rekening: Option<RekeningInfo>,
+    // ── Region fields (W3C-11) ────────────────────────────────────────────
+    /// ID provinsi (kode BPS). Wajib diverifikasi chain sebelum save.
+    pub province_id: Option<String>,
+    /// ID kabupaten/kota. parent_id harus sama dengan province_id.
+    pub regency_id: Option<String>,
+    /// ID kecamatan. parent_id harus sama dengan regency_id.
+    pub district_id: Option<String>,
+    /// ID kelurahan/desa. parent_id harus sama dengan district_id.
+    pub village_id: Option<String>,
 }
 
 // ── KYC data diri (US-04) ───────────────────────────────────────────────────

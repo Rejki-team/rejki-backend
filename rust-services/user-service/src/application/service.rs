@@ -98,6 +98,34 @@ impl<R: UserRepository> UserService<R> {
         profile_id: Uuid,
         input: UpdateProfileInput,
     ) -> Result<UserProfileResponse, anyhow::Error> {
+        // ── Region chain validation (W3C-11) ────────────────────────────────
+        // Jika semua 4 region fields diisi → validasi chain konsistensi.
+        // Jika sebagian diisi → tolak (partial region update tidak bermakna).
+        // Jika tidak ada → skip (tidak update region).
+        match (
+            input.province_id.as_ref(),
+            input.regency_id.as_ref(),
+            input.district_id.as_ref(),
+            input.village_id.as_ref(),
+        ) {
+            (Some(p), Some(r), Some(d), Some(v)) => {
+                let valid = self
+                    .region_client
+                    .validate_chain(p, r, d, v)
+                    .await
+                    .map_err(|e| anyhow::anyhow!("gagal validasi wilayah: {e}"))?;
+                if !valid {
+                    return Err(anyhow::anyhow!("rantai wilayah tidak konsisten"));
+                }
+            }
+            (None, None, None, None) => { /* tidak ada perubahan region */ }
+            _ => {
+                return Err(anyhow::anyhow!(
+                    "region_id harus diisi lengkap (provinsi hingga kelurahan) atau kosong semua"
+                ));
+            }
+        }
+
         let profile = self
             .repo
             .update(UpdateProfileParams {
@@ -107,6 +135,10 @@ impl<R: UserRepository> UserService<R> {
                 bio: input.bio,
                 phone: input.phone,
                 rekening: input.rekening,
+                province_id: input.province_id,
+                regency_id: input.regency_id,
+                district_id: input.district_id,
+                village_id: input.village_id,
             })
             .await?;
         let kyc = self.repo.get_latest_submission(profile.id).await?;
@@ -701,6 +733,10 @@ impl<R: UserRepository> UserService<R> {
             rekening_bank,
             rekening_masked,
             rekening_holder_masked,
+            province_id: p.province_id.clone(),
+            regency_id: p.regency_id.clone(),
+            district_id: p.district_id.clone(),
+            village_id: p.village_id.clone(),
         }
     }
 }
