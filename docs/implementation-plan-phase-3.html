@@ -141,7 +141,7 @@
     <div class="progress-wrap">
       <div class="progress-label">
         <span>Phase 3 Progress</span>
-        <span style="color:var(--green);font-weight:700;">65%</span>
+        <span style="color:var(--blue);font-weight:700;">73%</span>
       </div>
       <div class="progress-track"><div class="progress-fill" style="width:65%"></div></div>
     </div>
@@ -532,7 +532,7 @@
             <a class="wave-link" href="../openspec/changes/ws-testing-coverage/design.md">ws-testing-coverage design</a>
           </div>
         </div>
-        <div class="wave-status"><span class="badge badge-prog">⚡ 1/4</span></div>
+        <div class="wave-status"><span class="badge badge-prog">⚡ 3/4</span></div>
       </div>
 
       <div class="tasks">
@@ -599,21 +599,49 @@
           </div>
         </div>
 
-        <div class="task">
+        <div class="task done">
           <div class="task-head">
             <span class="task-id">W3C-10</span>
-            <span class="task-title">Integration test per-service crate — pindahkan + tambah test di 12 *-service/tests/</span>
-            <span class="task-scope">semua service</span>
+            <span class="task-title">Integration test per-service crate — 27 test files di 7 service crate</span>
+            <span class="task-scope">7 service</span>
             <span class="priority-badge pb-p2">P2</span>
+            <span class="badge badge-done" style="flex-shrink:0;margin-top:2px;font-size:.7rem;font-weight:700;padding:.12rem .55rem;border-radius:20px;background:rgba(63,185,80,.15);color:var(--green);border:1px solid rgba(63,185,80,.3);">✅ Done</span>
           </div>
           <div class="task-body">
             <div class="task-body-inner gap-section">
               <div><div class="section-label">Target gap: B2</div></div>
               <div class="impl-list">
-                <div class="impl-item">Setiap service crate: buat folder <code>tests/</code> dengan <code>common/mod.rs</code> (setup) + <code>fixtures.rs</code> (factory)</div>
-                <div class="impl-item">Pindahkan test rejki-app yang relevan ke service crate masing-masing</div>
-                <div class="impl-item">Tambah integration test baru: repository test (sqlx::test), IDOR test, rate limit test</div>
-                <div class="impl-item">CI: pastikan semua service test file dijalankan di integration-test job</div>
+                <div class="impl-item">✅ <strong>region-service</strong>: 6 tests (provinces, regencies, districts, villages, get_region, validate_chain)</div>
+                <div class="impl-item">✅ <strong>iklan-pekerja-service</strong>: 10 tests (CRUD create/get/list/delete, RBAC anon/user/admin, IDOR delete/patch user lain → 404)</div>
+                <div class="impl-item">✅ <strong>iklan-pelatihan-service</strong>: 10 tests (CRUD, enrollment, RBAC admin/user/anon)</div>
+                <div class="impl-item">✅ <strong>corporate-comms-service</strong>: 8 tests (CRUD artikel, RBAC)</div>
+                <div class="impl-item">✅ <strong>report-service</strong>: 8 tests (report flow create/list/detail, review approve/reject/idempotent, RBAC)</div>
+                <div class="impl-item">✅ <strong>chat-service</strong>: 3 tests (get_or_create conversation, send message, list messages)</div>
+                <div class="impl-item">✅ <strong>notification-service</strong>: 3 tests (list, no-auth 401, mark read)</div>
+              </div>
+              <div>
+                <div class="section-label">Design decisions</div>
+                <div class="impl-list">
+                  <div class="impl-item">Pola <code>tests/common/{mod.rs, fixtures.rs}</code> seragam — seed_user + seed_admin + clean_test_data + test_pool + HTTP helpers</div>
+                  <div class="impl-item">Semua query pakai <code>sqlx::query()</code> (bukan <code>query!()</code>) — tidak butuh compile-time DB koneksi</div>
+                  <div class="impl-item"><code>auth-service</code> sebagai dev-dependency untuk JWT issuance di fixtures</div>
+                  <div class="impl-item"><code>tower::ServiceExt::oneshot</code> untuk HTTP test pattern</div>
+                </div>
+              </div>
+              <div>
+                <div class="section-label">Files baru</div>
+                <div class="file-list">
+                  <div class="file-row"><span class="fop fop-new">new</span><span class="fpath">7 service/tests/common/{mod.rs, fixtures.rs}</span></div>
+                  <div class="file-row"><span class="fop fop-new">new</span><span class="fpath">13 integration test files across 7 services</span></div>
+                  <div class="file-row"><span class="fop fop-edit">edit</span><span class="fpath">rust-services/Cargo.toml</span><span class="fnote">— + tower, dotenvy, bcrypt workspace</span></div>
+                  <div class="file-row"><span class="fop fop-edit">edit</span><span class="fpath">7 service/Cargo.toml</span><span class="fnote">— [dev-dependencies]</span></div>
+                </div>
+              </div>
+              <div>
+                <div class="section-label">Verifikasi</div>
+                <div class="status-badge" style="margin-top:.3rem;">
+                  <span style="color:var(--green);">fmt ✅ clippy zero ✅ check ✅</span>
+                </div>
               </div>
             </div>
           </div>

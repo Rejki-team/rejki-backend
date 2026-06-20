@@ -68,5 +68,5 @@ pub fn router(
             require_auth,
         ));
 
-    Router::new().nest("/", user).nest("/admin", admin)
+    user.merge(Router::new().nest("/admin", admin))
 }

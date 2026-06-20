@@ -45,7 +45,7 @@ pub fn router(
 
     // ── Admin routes ─────────────────────────────────────────────────────
     // Semua endpoint corporate comms diproteksi require_admin.
-    let admin = Router::new()
+    Router::new()
         .route("/", get(handlers::admin_list))
         .route("/", post(handlers::admin_create))
         .route("/photo-upload", post(handlers::request_photo_upload))
@@ -57,7 +57,5 @@ pub fn router(
         .layer(axum::middleware::from_fn_with_state(
             auth_client.clone(),
             require_auth,
-        ));
-
-    Router::new().nest("/", admin)
+        ))
 }
