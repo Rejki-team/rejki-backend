@@ -141,9 +141,9 @@
     <div class="progress-wrap">
       <div class="progress-label">
         <span>Phase 3 Progress</span>
-        <span style="color:var(--blue);font-weight:700;">87%</span>
+        <span style="color:var(--blue);font-weight:700;">93%</span>
       </div>
-      <div class="progress-track"><div class="progress-fill" style="width:87%"></div></div>
+      <div class="progress-track"><div class="progress-fill" style="width:93%"></div></div>
     </div>
     <div class="nav-divider"></div>
     <div class="nav-section">Navigasi</div>
@@ -153,7 +153,7 @@
     <a class="nav-item" href="#w3a">W3A — Security Core & Foundation <span class="nav-badge nb-done">3/3</span></a>
     <a class="nav-item" href="#w3b">W3B — Compliance & Access <span class="nav-badge nb-done">4/4</span></a>
     <a class="nav-item" href="#w3c">W3C — Production Polish <span class="nav-badge nb-done">4/4</span></a>
-    <a class="nav-item" href="#w3d">W3D — Analytics & Infra <span class="nav-badge nb-prog">2/4</span></a>
+    <a class="nav-item" href="#w3d">W3D — Analytics & Infra <span class="nav-badge nb-prog">3/4</span></a>
     <a class="nav-item" href="#summary">Ringkasan</a>
     <div class="nav-divider"></div>
     <div class="nav-section">Referensi</div>
@@ -687,7 +687,7 @@
             <a class="wave-link" href="prd/prd-ceo.md">prd-ceo.md</a>
           </div>
         </div>
-        <div class="wave-status"><span class="badge badge-done">✅ 2/4 Done</span></div>
+        <div class="wave-status"><span class="badge badge-done">✅ 3/4 Done</span></div>
       </div>
 
       <div class="tasks">
@@ -781,20 +781,49 @@
           </div>
         </div>
 
-        <div class="task">
+        <div class="task done">
           <div class="task-head">
             <span class="task-id">W3D-14</span>
             <span class="task-title">Device token verification + Idempotency-Key + argon2</span>
             <span class="task-scope">notification + auth service</span>
             <span class="priority-badge pb-p3">P3</span>
+            <span class="badge badge-done" style="flex-shrink:0;margin-top:2px;">Done</span>
           </div>
           <div class="task-body">
             <div class="task-body-inner gap-section">
-              <div><div class="section-label">Target gap: D3, D4, D5</div></div>
-              <div class="impl-list">
-                <div class="impl-item">Verifikasi endpoint device token register/unregister — pastikan sudah berfungsi</div>
-                <div class="impl-item">Tabel <code>idempotency_keys</code> + middleware/handler check — 24 jam TTL</div>
-                <div class="impl-item">argon2 sebagai alternatif bcrypt — column <code>password_algorithm</code> di users table untuk dual-support</div>
+              <div>
+                <div class="section-label">Target gap: D3, D4, D5</div>
+                <div class="done-tag" style="display:inline-block;background:rgba(63,185,80,.15);color:var(--green);border:1px solid rgba(63,185,80,.3);border-radius:20px;padding:.15rem .65rem;font-size:.7rem;font-weight:700;margin-top:.3rem;">✅ DONE 22 Jun 2026</div>
+              </div>
+              <div>
+                <div class="section-label">Hasil final</div>
+                <div class="impl-list">
+                  <div class="impl-item"><strong>D3</strong> — Device token endpoint register/unregister/list sudah terverifikasi berfungsi (no code change)</div>
+                  <div class="impl-item"><strong>D4</strong> — <code>common/idempotency</code> crate baru: <code>IdempotencyStore</code> trait + <code>PgIdempotencyStore</code> (sqlx) + <code>idempotency_middleware</code> Axum</div>
+                  <div class="impl-item"><strong>D4</strong> — Migration <code>auth.idempotency_keys</code> (key TEXT UNIQUE, request_hash SHA-256, response_body JSONB, TTL 24 jam auto-cleanup)</div>
+                  <div class="impl-item"><strong>D4</strong> — Middleware dipasang opt-in per route: POST <code>/register</code> &amp; <code>/login</code> — 409 IdempotencyConflict jika key sama tapi body berbeda</div>
+                  <div class="impl-item"><strong>D5</strong> — Migration <code>password_algorithm TEXT NOT NULL DEFAULT 'bcrypt'</code> di <code>auth.users</code></div>
+                  <div class="impl-item"><strong>D5</strong> — Helper <code>hash_password(algo)</code> + <code>verify_password(hash, algo)</code> — argon2 OWASP params (m=19456, t=2, p=1) + bcrypt backward-compatible</div>
+                  <div class="impl-item"><strong>D5</strong> — register: default argon2 (env <code>USE_ARGON2</code>); login/admin_login: dual-verify sesuai <code>password_algorithm</code> per-user</div>
+                  <div class="impl-item"><strong>Swagger</strong> — register/login docs: Idempotency-Key header param + 409 response terdokumentasi</div>
+                </div>
+              </div>
+              <div>
+                <div class="section-label">File yang disentuh</div>
+                <div class="file-list">
+                  <div class="file-row"><span class="fop fop-migr">migrate</span><span class="fpath">auth-service/migrations/</span><span class="fnote">— 4 files (idempotency_keys + password_algorithm up/down)</span></div>
+                  <div class="file-row"><span class="fop fop-new">new</span><span class="fpath">common/idempotency/</span><span class="fnote">— new crate (IdempotencyStore, PgIdempotencyStore, middleware)</span></div>
+                  <div class="file-row"><span class="fop fop-edit">edit</span><span class="fpath">auth-service/src/application/service.rs</span><span class="fnote">— + argon2 helpers, dual-verify, update register/login</span></div>
+                  <div class="file-row"><span class="fop fop-edit">edit</span><span class="fpath">auth-service/src/infrastructure/pg_repository.rs</span><span class="fnote">— + read/write password_algorithm</span></div>
+                  <div class="file-row"><span class="fop fop-edit">edit</span><span class="fpath">auth-service/src/interface/mod.rs</span><span class="fnote">— + idempotency middleware wiring</span></div>
+                  <div class="file-row"><span class="fop fop-edit">edit</span><span class="fpath">rejki-app/src/openapi.rs</span><span class="fnote">— + Idempotency-Key header docs</span></div>
+                </div>
+              </div>
+              <div>
+                <div class="section-label">Verifikasi</div>
+                <div class="status-badge" style="margin-top:.3rem;">
+                  <span style="color:var(--green);">fmt ✅ clippy zero ✅ check ✅ unit 74/74 PASS ✅</span>
+                </div>
               </div>
             </div>
           </div>
@@ -865,7 +894,7 @@
 
     <footer>
       <span>rejki-backend · Phase 3 Implementation Plan · 22 Juni 2026</span>
-      <span>15 task · 4 waves · Wave 3A ✅ · Wave 3B ✅ · Wave 3C ✅ · Wave 3D 2/4 ✅ · 13/15 complete</span>
+      <span>15 task · 4 waves · Wave 3A ✅ · Wave 3B ✅ · Wave 3C ✅ · Wave 3D 3/4 ✅ · 14/15 complete</span>
     </footer>
 
   </main>
