@@ -3,7 +3,15 @@
 //! Dipakai oleh semua service yang butuh rate limiting (auth, iklan, report, chat, notification).
 //! Pola: fixed-window atomik via Lua script. Fail-open: bila Redis tidak tersedia, semua request diizinkan.
 //!
+//! ## Connection Management
+//! Menggunakan `redis::aio::ConnectionManager` untuk koneksi Redis yang reused (tidak per request).
+//! ConnectionManager dibuat lazy pada panggilan `allow_raw` pertama, di-cache via `tokio::sync::Mutex`.
+//!
 //! Key format: `rl:{service}:{purpose}:{user_id}` (atau custom key via `allow_raw`)
+
+use redis::aio::ConnectionManager;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 /// Trait rate limiter — bisa di-inject via `Arc<dyn RateLimiter>`.
 #[async_trait::async_trait]
@@ -43,42 +51,62 @@ pub const BISNIS_CREATE_TIGHT: i64 = 10;
 /// Rate limit key prefix untuk endpoint bisnis.
 pub const BISNIS_KEY_PREFIX: &str = "rl";
 
+/// Inner struct — ConnectionManager lazy-init, di-Arc agar bisa Clone.
+struct LimiterInner {
+    client: redis::Client,
+    conn: Mutex<Option<ConnectionManager>>,
+}
+
 #[derive(Clone)]
 pub struct OtpRateLimiter {
-    client: Option<redis::Client>,
+    inner: Option<Arc<LimiterInner>>,
 }
 
 impl OtpRateLimiter {
     /// Bangun dari REDIS_URL; bila tidak diset/invalid → limiter non-aktif (fail-open).
+    /// ConnectionManager dibuat lazy (async) pada panggilan `allow_raw` pertama.
     pub fn from_env() -> Self {
-        let client =
+        let inner =
             std::env::var("REDIS_URL")
                 .ok()
                 .and_then(|url| match redis::Client::open(url) {
-                    Ok(c) => Some(c),
+                    Ok(c) => Some(Arc::new(LimiterInner {
+                        client: c,
+                        conn: Mutex::new(None),
+                    })),
                     Err(e) => {
                         tracing::warn!(error = ?e, "REDIS_URL invalid — rate limiter non-aktif");
                         None
                     }
                 });
-        Self { client }
+        Self { inner }
     }
 
-    /// Kembalikan true bila permintaan diizinkan; false bila melampaui batas.
-    /// Format key: `rl:{service}:{purpose}:{user_key}`
+    /// Dapatkan atau buat ConnectionManager (lazy init — sekali saja).
+    async fn conn(&self) -> Result<ConnectionManager, anyhow::Error> {
+        let inner = self
+            .inner
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("Redis tidak dikonfigurasi"))?;
+        let mut guard = inner.conn.lock().await;
+        if guard.is_none() {
+            *guard = Some(inner.client.get_connection_manager().await?);
+            tracing::debug!("rate-limiter: ConnectionManager initialized");
+        }
+        Ok(guard.as_ref().unwrap().clone())
+    }
+
     pub async fn allow(&self, purpose: &str, user_key: &str) -> bool {
         let key = format!("{BISNIS_KEY_PREFIX}:{purpose}:{user_key}");
         self.allow_raw(&key, BISNIS_CREATE_MAX, BISNIS_WINDOW_SECS)
             .await
     }
 
-    /// Versi raw — menerima key dan parameter rate limit kustom.
     pub async fn allow_raw(&self, key: &str, max_requests: i64, window_secs: i64) -> bool {
-        let Some(client) = &self.client else {
+        if self.inner.is_none() {
             return true; // fail-open: Redis tidak dikonfigurasi
-        };
-
-        match self.eval_lua(client, key, max_requests, window_secs).await {
+        }
+        match self.eval_lua(key, max_requests, window_secs).await {
             Ok(allowed) => allowed,
             Err(e) => {
                 tracing::warn!(error = ?e, "rate limit check gagal — fail-open");
@@ -87,15 +115,14 @@ impl OtpRateLimiter {
         }
     }
 
-    /// Evaluasi Lua script atomik via EVALSHA (dengan fallback ke EVAL).
+    /// Evaluasi Lua script via ConnectionManager (reused connection).
     async fn eval_lua(
         &self,
-        client: &redis::Client,
         key: &str,
         max_requests: i64,
         window_secs: i64,
     ) -> Result<bool, anyhow::Error> {
-        let mut conn = client.get_multiplexed_async_connection().await?;
+        let mut conn = self.conn().await?;
         let script = redis::Script::new(RATE_LIMIT_LUA);
         let result: i32 = script
             .key(key)
@@ -128,15 +155,15 @@ mod tests {
     }
 
     #[test]
-    fn from_env_no_redis_url_returns_no_client() {
+    fn from_env_no_redis_url_returns_no_inner() {
         std::env::remove_var("REDIS_URL");
         let limiter = OtpRateLimiter::from_env();
-        assert!(limiter.client.is_none());
+        assert!(limiter.inner.is_none());
     }
 
     #[tokio::test]
     async fn allow_returns_true_when_no_client() {
-        let limiter = OtpRateLimiter { client: None };
+        let limiter = OtpRateLimiter { inner: None };
         assert!(
             limiter
                 .allow("iklan_pekerjaan:create", "test-user-id")
@@ -146,7 +173,7 @@ mod tests {
 
     #[tokio::test]
     async fn allow_raw_returns_true_when_no_client() {
-        let limiter = OtpRateLimiter { client: None };
+        let limiter = OtpRateLimiter { inner: None };
         assert!(limiter.allow_raw("test_key", 5, 900).await);
     }
 

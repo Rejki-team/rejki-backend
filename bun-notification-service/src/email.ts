@@ -3,6 +3,8 @@ import { config } from "./config";
 
 let transporter: Transporter | null = null;
 
+export { transporter };
+
 function get_transporter(): Transporter {
   if (!config.smtp_host) {
     throw new Error("SMTP_HOST tidak di-set — pengiriman email tidak dikonfigurasi");

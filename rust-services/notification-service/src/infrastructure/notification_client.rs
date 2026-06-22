@@ -5,8 +5,11 @@
 //! Saat domain notification kelak diekstrak jadi microservice, implementasi ini
 //! diganti HTTP client tanpa mengubah konsumen.
 
+use redis::aio::ConnectionManager;
 use redis::AsyncCommands;
 use serde::Serialize;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 use uuid::Uuid;
 
 use notification_service_client::{
@@ -35,22 +38,40 @@ struct EmailEvent {
     body: String,
 }
 
+/// Channel yang sudah dibuatkan ConnectionManager — reusable.
+struct ManagedChannel {
+    client: redis::Client,
+    conn: Mutex<Option<ConnectionManager>>,
+}
+
 /// Publisher Redis Stream sebagai implementasi NotificationClient.
 pub struct NotificationPublisher {
-    client: redis::Client,
+    channel: Arc<ManagedChannel>,
 }
 
 impl NotificationPublisher {
     pub fn new(redis_url: &str) -> Result<Self, anyhow::Error> {
+        let client = redis::Client::open(redis_url)?;
         Ok(Self {
-            client: redis::Client::open(redis_url)?,
+            channel: Arc::new(ManagedChannel {
+                client,
+                conn: Mutex::new(None),
+            }),
         })
+    }
+
+    /// Dapatkan atau buat ConnectionManager (lazy init).
+    async fn conn(&self) -> Result<ConnectionManager, anyhow::Error> {
+        let mut guard = self.channel.conn.lock().await;
+        if guard.is_none() {
+            *guard = Some(self.channel.client.get_connection_manager().await?);
+        }
+        Ok(guard.as_ref().unwrap().clone())
     }
 
     async fn xadd(&self, payload: String) -> Result<(), NotificationClientError> {
         let mut conn = self
-            .client
-            .get_multiplexed_async_connection()
+            .conn()
             .await
             .map_err(|_| NotificationClientError::Unavailable)?;
         let _: String = conn
@@ -94,8 +115,21 @@ impl NotificationClient for NotificationPublisher {
         recipient_ids: Vec<Uuid>,
         payload: NotificationPayload,
     ) -> Result<(), NotificationClientError> {
+        // Concurrent batch processing via tokio::spawn
+        let mut handles = Vec::with_capacity(recipient_ids.len());
         for id in recipient_ids {
-            self.send(id, payload.clone()).await?;
+            let payload = payload.clone();
+            let this = self.channel.clone();
+            let publisher = NotificationPublisher { channel: this };
+            handles.push(tokio::spawn(
+                async move { publisher.send(id, payload).await },
+            ));
+        }
+        for handle in handles {
+            handle
+                .await
+                .map_err(|_| NotificationClientError::Unavailable)?
+                .map_err(|_| NotificationClientError::Unavailable)?;
         }
         Ok(())
     }
@@ -117,7 +151,6 @@ impl NotificationClient for NotificationPublisher {
         _user_id: Uuid,
         _input: DeviceTokenInput,
     ) -> Result<DeviceToken, NotificationClientError> {
-        // Device token registration happens via REST API, not Redis Stream.
         Err(NotificationClientError::Unavailable)
     }
 
@@ -126,7 +159,6 @@ impl NotificationClient for NotificationPublisher {
         _user_id: Uuid,
         _token: &str,
     ) -> Result<(), NotificationClientError> {
-        // Device token deletion happens via REST API, not Redis Stream.
         Err(NotificationClientError::Unavailable)
     }
 }
