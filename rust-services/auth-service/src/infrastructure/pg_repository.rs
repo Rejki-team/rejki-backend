@@ -65,6 +65,7 @@ impl PgAuthRepository {
             id: row.try_get("id")?,
             email: row.try_get("email")?,
             password_hash: row.try_get("password_hash")?,
+            password_algorithm: row.try_get("password_algorithm")?,
             status: parse_status(row.try_get::<&str, _>("status")?)?,
             role: parse_role(row.try_get::<&str, _>("role")?),
             phone,
@@ -98,7 +99,7 @@ impl AuthRepository for PgAuthRepository {
     async fn find_by_email(&self, email: &str) -> Result<Option<AuthUser>, anyhow::Error> {
         let t = Instant::now();
         let row = sqlx::query(
-            "SELECT id, email, password_hash, status, role, phone, tos_accepted_at, tos_version, created_at, updated_at
+            "SELECT id, email, password_hash, password_algorithm, status, role, phone, tos_accepted_at, tos_version, created_at, updated_at
              FROM auth.users WHERE email = $1",
         )
         .bind(email)
@@ -112,7 +113,7 @@ impl AuthRepository for PgAuthRepository {
     async fn find_by_id(&self, id: Uuid) -> Result<Option<AuthUser>, anyhow::Error> {
         let t = Instant::now();
         let row = sqlx::query(
-            "SELECT id, email, password_hash, status, role, phone, tos_accepted_at, tos_version, created_at, updated_at
+            "SELECT id, email, password_hash, password_algorithm, status, role, phone, tos_accepted_at, tos_version, created_at, updated_at
              FROM auth.users WHERE id = $1",
         )
         .bind(id)
@@ -127,17 +128,19 @@ impl AuthRepository for PgAuthRepository {
         &self,
         email: &str,
         password_hash: &str,
+        password_algorithm: &str,
         phone_encrypted: Option<&str>,
         tos_version: &str,
     ) -> Result<AuthUser, anyhow::Error> {
         let t = Instant::now();
         let row = sqlx::query(
-            "INSERT INTO auth.users (id, email, password_hash, phone, tos_accepted_at, tos_version)
-             VALUES (gen_random_uuid(), $1, $2, $3, now(), $4)
-             RETURNING id, email, password_hash, status, role, phone, tos_accepted_at, tos_version, created_at, updated_at",
+            "INSERT INTO auth.users (id, email, password_hash, password_algorithm, phone, tos_accepted_at, tos_version)
+             VALUES (gen_random_uuid(), $1, $2, $3, $4, now(), $5)
+             RETURNING id, email, password_hash, password_algorithm, status, role, phone, tos_accepted_at, tos_version, created_at, updated_at",
         )
         .bind(email)
         .bind(password_hash)
+        .bind(password_algorithm)
         .bind(phone_encrypted)
         .bind(tos_version)
         .fetch_one(&self.pool)

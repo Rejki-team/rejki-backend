@@ -1,0 +1,23 @@
+[package]
+name = "common-idempotency"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "common_idempotency"
+path = "src/lib.rs"
+
+[dependencies]
+common-errors  = { workspace = true }
+sqlx           = { workspace = true }
+serde          = { workspace = true }
+serde_json     = { workspace = true }
+uuid           = { workspace = true }
+chrono         = { workspace = true }
+tracing        = { workspace = true }
+axum           = { workspace = true }
+sha2           = { workspace = true }
+hex            = { workspace = true }
+anyhow          = { workspace = true }
+async-trait     = { workspace = true }
+thiserror       = { workspace = true }

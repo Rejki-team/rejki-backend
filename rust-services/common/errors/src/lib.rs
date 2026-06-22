@@ -48,6 +48,10 @@ pub enum AppError {
     #[error("insufficient role")]
     InsufficientRole,
 
+    /// Idempotency-Key sudah dipakai dengan payload berbeda.
+    #[error("idempotency conflict")]
+    IdempotencyConflict(String),
+
     #[error("internal server error")]
     Internal(#[from] anyhow::Error),
 }
@@ -112,6 +116,7 @@ impl IntoResponse for AppError {
                 "INSUFFICIENT_ROLE",
                 "peran anda tidak memiliki akses ke sumber daya ini".into(),
             ),
+            AppError::IdempotencyConflict(m) => (StatusCode::CONFLICT, "IDEMPOTENCY_CONFLICT", m),
             AppError::Internal(e) => {
                 tracing::error!(error = ?e, "internal server error");
                 (
@@ -140,7 +145,8 @@ pub struct ApiResponse<T: Serialize> {
     pub data: T,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub meta: Option<serde_json::Value>,
-    pub request_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_id: Option<String>,
 }
 
 fn new_request_id() -> String {
@@ -154,7 +160,7 @@ impl<T: Serialize> ApiResponse<T> {
             success: true,
             data,
             meta: None,
-            request_id: new_request_id(),
+            request_id: Some(new_request_id()),
         }
     }
 
@@ -163,7 +169,7 @@ impl<T: Serialize> ApiResponse<T> {
             success: true,
             data,
             meta: Some(serde_json::to_value(meta).unwrap_or(serde_json::Value::Null)),
-            request_id: new_request_id(),
+            request_id: Some(new_request_id()),
         }
     }
 }

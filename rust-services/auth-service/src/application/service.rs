@@ -1,7 +1,11 @@
 use std::sync::Arc;
 
 use anyhow::{anyhow, Context};
-use bcrypt::{hash, verify, DEFAULT_COST};
+use argon2::{
+    password_hash::{rand_core::OsRng, SaltString},
+    Argon2, PasswordHash, PasswordHasher, PasswordVerifier,
+};
+use bcrypt::{hash as bcrypt_hash, verify as bcrypt_verify, DEFAULT_COST};
 use chrono::Utc;
 use uuid::Uuid;
 
@@ -48,6 +52,59 @@ mod suspend_notice {
     pub const TAIL_PERMANENT: &str = "Silakan hubungi admin untuk informasi lebih lanjut.";
     pub const TAIL_TEMP: &str =
         "Anda akan dapat mengakses kembali setelah masa penangguhan berakhir.";
+}
+
+/// OWASP-recommended argon2 parameters (m=19456, t=2, p=1).
+/// Dipakai oleh D5 dual-support bcrypt/argon2.
+const ARGON2_MEMORY_COST: u32 = 19456;
+const ARGON2_TIME_COST: u32 = 2;
+const ARGON2_PARALLELISM: u32 = 1;
+
+/// Hash password menggunakan algoritma yang ditentukan.
+/// - `"argon2"` → argon2id dengan params OWASP
+/// - `"bcrypt"` (default fallback) → bcrypt dengan DEFAULT_COST
+///
+/// Mengembalikan tuple (password_hash, algorithm).
+fn hash_password(password: &str, algorithm: &str) -> Result<(String, String), anyhow::Error> {
+    match algorithm {
+        "argon2" => {
+            let salt = SaltString::generate(&mut OsRng);
+            let params = argon2::Params::new(
+                ARGON2_MEMORY_COST,
+                ARGON2_TIME_COST,
+                ARGON2_PARALLELISM,
+                Some(32),
+            )
+            .map_err(|e| anyhow::anyhow!("gagal inisialisasi argon2 params: {e}"))?;
+            let argon2 = Argon2::new(argon2::Algorithm::Argon2id, argon2::Version::V0x13, params);
+            let hash = argon2
+                .hash_password(password.as_bytes(), &salt)
+                .map_err(|e| anyhow::anyhow!("gagal hash password dengan argon2: {e}"))?
+                .to_string();
+            Ok((hash, "argon2".into()))
+        }
+        _ => {
+            let hash =
+                bcrypt_hash(password, DEFAULT_COST).context("gagal hash password dengan bcrypt")?;
+            Ok((hash, "bcrypt".into()))
+        }
+    }
+}
+
+/// Verifikasi password terhadap hash yang disimpan, dengan algoritma yang sesuai.
+/// - `"argon2"` → argon2id verify
+/// - `"bcrypt"` → bcrypt verify
+fn verify_password(password: &str, hash: &str, algorithm: &str) -> Result<bool, anyhow::Error> {
+    match algorithm {
+        "argon2" => {
+            let parsed_hash = PasswordHash::new(hash)
+                .map_err(|e| anyhow::anyhow!("gagal parse argon2 hash: {e}"))?;
+            Ok(Argon2::default()
+                .verify_password(password.as_bytes(), &parsed_hash)
+                .is_ok())
+        }
+        _ => bcrypt_verify(password, hash).context("gagal verifikasi password"),
+    }
 }
 
 /// Domain error type untuk AuthService — memungkinkan handler membedakan
@@ -231,7 +288,15 @@ impl<R: AuthRepository> AuthService<R> {
             return Ok(());
         }
 
-        let password_hash = hash(&input.password, DEFAULT_COST).context("gagal hash password")?;
+        // D5: Tentukan algoritma hash berdasarkan env USE_ARGON2.
+        // Default bcrypt untuk backward compatibility.
+        let algorithm = if std::env::var("USE_ARGON2").as_deref() == Ok("true") {
+            "argon2"
+        } else {
+            "bcrypt"
+        };
+        let (password_hash, password_algorithm) =
+            hash_password(&input.password, algorithm).context("gagal hash password")?;
 
         // phone dienkripsi at-rest (AES-256-GCM, K14) sebelum disimpan.
         let phone_encrypted = match input.phone.as_deref() {
@@ -245,6 +310,7 @@ impl<R: AuthRepository> AuthService<R> {
             .create_user(
                 &input.email,
                 &password_hash,
+                &password_algorithm,
                 phone_encrypted.as_deref(),
                 tos_version,
             )
@@ -379,9 +445,14 @@ impl<R: AuthRepository> AuthService<R> {
 
         // Verifikasi password DAHULU sebelum mutasi status apapun.
         // Mencegah account state mutation tanpa authentication success.
-        if !verify(&input.password, &user.password_hash)
-            .context("gagal verifikasi password")
-            .map_err(ServiceError::Other)?
+        // D5: Gunakan password_algorithm user untuk menentukan verifier.
+        if !verify_password(
+            &input.password,
+            &user.password_hash,
+            &user.password_algorithm,
+        )
+        .context("gagal verifikasi password")
+        .map_err(ServiceError::Other)?
         {
             tracing::warn!(
                 email_hash = %sha256_hex(&input.email),
@@ -505,13 +576,23 @@ impl<R: AuthRepository> AuthService<R> {
             .find_by_email(&input.email)
             .await
             .map_err(ServiceError::Other)?;
-        let (is_admin, status, password_hash) = match &user_opt {
-            Some(u) => (u.role.rank() >= 80, u.status, u.password_hash.clone()),
-            None => (false, AccountStatus::Active, DUMMY_BCRYPT_HASH.to_owned()),
+        let (is_admin, status, password_hash, password_algorithm) = match &user_opt {
+            Some(u) => (
+                u.role.rank() >= 80,
+                u.status,
+                u.password_hash.clone(),
+                u.password_algorithm.clone(),
+            ),
+            None => (
+                false,
+                AccountStatus::Active,
+                DUMMY_BCRYPT_HASH.to_owned(),
+                "bcrypt".into(),
+            ),
         };
 
-        // bcrypt verify SELALU dijalankan — ~250ms untuk semua jalur.
-        let password_ok = verify(&input.password, &password_hash)
+        // D5: Dual-algorithm verify — SELALU dijalankan untuk semua jalur.
+        let password_ok = verify_password(&input.password, &password_hash, &password_algorithm)
             .context("gagal verifikasi password")
             .map_err(ServiceError::Other)?;
 
@@ -782,7 +863,13 @@ impl<R: AuthRepository> AuthService<R> {
             .ok_or_else(|| anyhow!("OTP tidak valid atau sudah expired"))?;
 
         let otp_hash = sha256_hex(&input.otp);
-        let new_hash = hash(&input.new_password, DEFAULT_COST).context("gagal hash password")?;
+        let algorithm = if std::env::var("USE_ARGON2").as_deref() == Ok("true") {
+            "argon2"
+        } else {
+            "bcrypt"
+        };
+        let (new_hash, _) =
+            hash_password(&input.new_password, algorithm).context("gagal hash password")?;
 
         // Atomik: consume OTP + revoke token + update password dalam satu transaction.
         let consumed = self
@@ -826,7 +913,13 @@ impl<R: AuthRepository> AuthService<R> {
         ctx: AuditContext,
     ) -> Result<(), anyhow::Error> {
         let otp_hash = sha256_hex(&input.otp);
-        let new_hash = hash(&input.new_password, DEFAULT_COST).context("gagal hash password")?;
+        let algorithm = if std::env::var("USE_ARGON2").as_deref() == Ok("true") {
+            "argon2"
+        } else {
+            "bcrypt"
+        };
+        let (new_hash, _) =
+            hash_password(&input.new_password, algorithm).context("gagal hash password")?;
 
         // Atomik: consume OTP + revoke token + update password dalam satu transaction.
         let consumed = self
@@ -1207,6 +1300,7 @@ mod tests {
             &self,
             email: &str,
             password_hash: &str,
+            password_algorithm: &str,
             _phone_encrypted: Option<&str>,
             _tos_version: &str,
         ) -> Result<AuthUser, anyhow::Error> {
@@ -1214,6 +1308,7 @@ mod tests {
                 id: Uuid::now_v7(),
                 email: email.to_owned(),
                 password_hash: password_hash.to_owned(),
+                password_algorithm: password_algorithm.to_owned(),
                 status: AccountStatus::PendingVerification,
                 role: Role::User,
                 phone: None,
@@ -1468,6 +1563,7 @@ mod tests {
             id: Uuid::now_v7(),
             email: "test@rejki.id".into(),
             password_hash: pw_hash,
+            password_algorithm: "bcrypt".into(),
             status: AccountStatus::Active,
             role: Role::User,
             phone: None,
@@ -1498,6 +1594,7 @@ mod tests {
             id: Uuid::now_v7(),
             email: "test@rejki.id".into(),
             password_hash: hash_test_password("Strong1!"),
+            password_algorithm: "bcrypt".into(),
             status: AccountStatus::Active,
             role: Role::User,
             phone: None,
@@ -1525,6 +1622,7 @@ mod tests {
             id: Uuid::now_v7(),
             email: "pending@rejki.id".into(),
             password_hash: hash_test_password("Strong1!"),
+            password_algorithm: "bcrypt".into(),
             status: AccountStatus::PendingVerification,
             role: Role::User,
             phone: None,
@@ -1552,6 +1650,7 @@ mod tests {
             id: Uuid::now_v7(),
             email: "banned@rejki.id".into(),
             password_hash: hash_test_password("Strong1!"),
+            password_algorithm: "bcrypt".into(),
             status: AccountStatus::SuspendedPermanent,
             role: Role::User,
             phone: None,
@@ -1579,6 +1678,7 @@ mod tests {
             id: Uuid::now_v7(),
             email: "refresh@rejki.id".into(),
             password_hash: "any".into(),
+            password_algorithm: "bcrypt".into(),
             status: AccountStatus::Active,
             role: Role::User,
             phone: None,
@@ -1648,6 +1748,7 @@ mod tests {
             id: Uuid::now_v7(),
             email: "suspend@rejki.id".into(),
             password_hash: "hash".into(),
+            password_algorithm: "bcrypt".into(),
             status: AccountStatus::PendingVerification,
             role: Role::User,
             phone: None,
@@ -1684,6 +1785,7 @@ mod tests {
             id: Uuid::now_v7(),
             email: "active-suspend@rejki.id".into(),
             password_hash: "hash".into(),
+            password_algorithm: "bcrypt".into(),
             status: AccountStatus::Active,
             role: Role::User,
             phone: None,
@@ -1858,6 +1960,7 @@ mod tests {
             id: Uuid::now_v7(),
             email: "pending@rejki.id".into(),
             password_hash: hash_test_password("Strong1!"),
+            password_algorithm: "bcrypt".into(),
             status: AccountStatus::PendingVerification,
             role: Role::User,
             phone: None,
@@ -1885,6 +1988,7 @@ mod tests {
             id: Uuid::now_v7(),
             email: "active@rejki.id".into(),
             password_hash: hash_test_password("Strong1!"),
+            password_algorithm: "bcrypt".into(),
             status: AccountStatus::Active,
             role: Role::User,
             phone: None,
@@ -1915,6 +2019,7 @@ mod tests {
             id: Uuid::now_v7(),
             email: "admin@rejki.id".into(),
             password_hash: pw_hash,
+            password_algorithm: "bcrypt".into(),
             status: AccountStatus::Active,
             role: Role::SuperAdmin,
             phone: None,
@@ -1949,6 +2054,7 @@ mod tests {
             id: Uuid::now_v7(),
             email: "user@rejki.id".into(),
             password_hash: hash_test_password("Strong1!"),
+            password_algorithm: "bcrypt".into(),
             status: AccountStatus::Active,
             role: Role::User, // NOT admin
             phone: None,
@@ -1980,6 +2086,7 @@ mod tests {
             id: Uuid::now_v7(),
             email: "admin@rejki.id".into(),
             password_hash: hash_test_password("Admin1!"),
+            password_algorithm: "bcrypt".into(),
             status: AccountStatus::Active,
             role: Role::SuperAdmin,
             phone: None,
@@ -2029,6 +2136,7 @@ mod tests {
             id: user_id,
             email: "otp-valid@rejki.id".into(),
             password_hash: hash_test_password("Strong1!"),
+            password_algorithm: "bcrypt".into(),
             status: AccountStatus::PendingVerification,
             role: Role::User,
             phone: None,
@@ -2073,6 +2181,7 @@ mod tests {
             id: user_id,
             email: "otp-wrong@rejki.id".into(),
             password_hash: hash_test_password("Strong1!"),
+            password_algorithm: "bcrypt".into(),
             status: AccountStatus::PendingVerification,
             role: Role::User,
             phone: None,
@@ -2135,6 +2244,7 @@ mod tests {
             id: Uuid::now_v7(),
             email: "ratelimited@rejki.id".into(),
             password_hash: hash_test_password("Strong1!"),
+            password_algorithm: "bcrypt".into(),
             status: AccountStatus::Active,
             role: Role::User,
             phone: None,
@@ -2170,6 +2280,7 @@ mod tests {
             id: user_id,
             email: "resend@rejki.id".into(),
             password_hash: hash_test_password("Strong1!"),
+            password_algorithm: "bcrypt".into(),
             status: AccountStatus::PendingVerification,
             role: Role::User,
             phone: None,
@@ -2259,5 +2370,89 @@ mod tests {
         assert_eq!("admin_user".parse::<Role>().unwrap(), Role::AdminUser);
         assert_eq!("super_admin".parse::<Role>().unwrap(), Role::SuperAdmin);
         assert!("unknown_role".parse::<Role>().is_err());
+    }
+
+    // ── D5: Argon2 dual-algorithm tests ────────────────────────────────────────
+
+    #[test]
+    fn hash_password_bcrypt_produces_bcrypt_hash() {
+        let (hash, algo) = hash_password("StrongPass1!", "bcrypt").unwrap();
+        assert!(hash.starts_with("$2"));
+        assert_eq!(algo, "bcrypt");
+    }
+
+    #[test]
+    fn hash_password_argon2_produces_argon2_hash() {
+        let (hash, algo) = hash_password("StrongPass1!", "argon2").unwrap();
+        assert!(hash.starts_with("$argon2id"));
+        assert_eq!(algo, "argon2");
+    }
+
+    #[test]
+    fn verify_password_bcrypt_matches_correct_password() {
+        let (hash, algo) = hash_password("StrongPass1!", "bcrypt").unwrap();
+        assert!(verify_password("StrongPass1!", &hash, &algo).unwrap());
+        assert!(!verify_password("WrongPass1!", &hash, &algo).unwrap());
+    }
+
+    #[test]
+    fn verify_password_argon2_matches_correct_password() {
+        let (hash, algo) = hash_password("StrongPass1!", "argon2").unwrap();
+        assert!(verify_password("StrongPass1!", &hash, &algo).unwrap());
+        assert!(!verify_password("WrongPass1!", &hash, &algo).unwrap());
+    }
+
+    #[test]
+    fn verify_password_cross_algorithm_rejects() {
+        let (bcrypt_hash, _) = hash_password("StrongPass1!", "bcrypt").unwrap();
+        // Verify bcrypt hash dengan algoritma argon2 — seharusnya Err karena
+        // format hash tidak cocok dengan parser argon2.
+        let result = verify_password("StrongPass1!", &bcrypt_hash, "argon2");
+        assert!(
+            result.is_err(),
+            "cross-algorithm verify harus gagal dengan error"
+        );
+    }
+
+    #[test]
+    fn hash_password_unknown_algo_falls_back_to_bcrypt() {
+        let (hash, algo) = hash_password("StrongPass1!", "unknown").unwrap();
+        assert!(hash.starts_with("$2"));
+        assert_eq!(algo, "bcrypt");
+    }
+
+    // ── D5: Login dual-algorithm test ────────────────────────────────────────
+
+    #[tokio::test]
+    async fn login_succeeds_with_argon2_hashed_password() {
+        let svc = test_auth_service();
+        let (pw_hash, algo) = hash_password("Strong1!", "argon2").unwrap();
+        svc.repo.insert_user(AuthUser {
+            id: Uuid::now_v7(),
+            email: "argon2@rejki.id".into(),
+            password_hash: pw_hash,
+            password_algorithm: algo,
+            status: AccountStatus::Active,
+            role: Role::User,
+            phone: None,
+            tos_accepted_at: Some(chrono::Utc::now()),
+            tos_version: Some("v1".into()),
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+        });
+        let result = svc
+            .login(
+                LoginInput {
+                    email: "argon2@rejki.id".into(),
+                    password: "Strong1!".into(),
+                },
+                empty_audit_ctx(),
+            )
+            .await;
+        assert!(
+            result.is_ok(),
+            "login dengan argon2 hash seharusnya sukses: {:?}",
+            result.err()
+        );
     }
 }

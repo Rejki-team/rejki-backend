@@ -372,10 +372,20 @@ pub struct RegionDocItem {
 fn health_doc() {}
 
 /// POST /api/v1/auth/register — daftar akun baru.
+/// Password di-hash menggunakan argon2 (default) atau bcrypt (legacy, jika env USE_ARGON2
+/// tidak diset). Kolom `password_algorithm` otomatis disimpan.
+///
+/// **Idempotency-Key** (header, opsional): UUID v4. Jika disertakan, request
+/// duplikat dalam 24 jam akan mengembalikan respons yang sama (cached).
+/// Jika key sama tapi body berbeda → 409 Conflict.
 #[utoipa::path(post, path = "/api/v1/auth/register", tag = "auth",
     request_body = RegisterDocRequest,
+    params(
+        ("Idempotency-Key" = Option<String>, Header, description = "UUID v4 unik per request — cegah duplikasi (TTL 24 jam)")
+    ),
     responses(
         (status = 201, description = "Akun dibuat; OTP email dikirim"),
+        (status = 409, description = "Idempotency-Key conflict — key sama tapi body berbeda"),
         (status = 422, description = "Validasi gagal (password lemah, email invalid, T&C belum disetujui)")
     )
 )]
@@ -384,11 +394,20 @@ fn register_doc() {}
 
 /// POST /api/v1/auth/login — login email+password.
 /// Rate-limited (5 percobaan/15 menit per email). Anti-enumeration: semua kegagalan → 401.
+/// Password diverifikasi sesuai kolom `password_algorithm` user (bcrypt atau argon2).
+///
+/// **Idempotency-Key** (header, opsional): UUID v4. Jika disertakan, request
+/// duplikat dalam 24 jam akan mengembalikan respons yang sama (cached).
+/// Jika key sama tapi body berbeda → 409 Conflict.
 #[utoipa::path(post, path = "/api/v1/auth/login", tag = "auth",
     request_body = LoginDocRequest,
+    params(
+        ("Idempotency-Key" = Option<String>, Header, description = "UUID v4 unik per request — cegah duplikasi (TTL 24 jam)")
+    ),
     responses(
         (status = 200, description = "Login berhasil", body = LoginDocResponse),
         (status = 401, description = "Kredensial tidak valid / akun belum aktif / akun ditangguhkan (anti-enumeration)"),
+        (status = 409, description = "Idempotency-Key conflict — key sama tapi body berbeda"),
         (status = 429, description = "Terlalu banyak percobaan — coba lagi nanti")
     )
 )]

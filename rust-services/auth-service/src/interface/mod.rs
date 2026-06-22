@@ -7,9 +7,11 @@ use std::sync::Arc;
 
 use axum::{
     extract::DefaultBodyLimit,
+    middleware,
     routing::{get, post},
     Router,
 };
+use common_idempotency::{idempotency_middleware, IdempotencyState, PgIdempotencyStore};
 use sqlx::PgPool;
 
 use crate::application::service::{self, AuthService};
@@ -94,8 +96,8 @@ pub fn router_with_deps_ex(
         notifier: notifier_for_state,
         audit_log_repo: Some(audit_log_repo),
     };
-
-    build_router(state, auth_client)
+    let pool = repo.pool();
+    build_router(state, auth_client, pool)
 }
 
 /// Inisiasi JwtService dari env vars, lalu panggil router_with_jwt.
@@ -127,7 +129,12 @@ pub fn router(pool: PgPool) -> Router {
 /// Cukup untuk seluruh DTO (LoginInput, RegisterInput, BulkSuspendInput, dsb).
 const MAX_BODY_SIZE: usize = 16 * 1024; // 16 KB
 
-fn build_router(state: AppState, auth_client: Arc<dyn AuthClient>) -> Router {
+fn build_router(state: AppState, auth_client: Arc<dyn AuthClient>, pool: PgPool) -> Router {
+    // Idempotency-Key middleware (W3D-14 D4): pasang per route untuk POST kritis.
+    let idempotency_state: IdempotencyState<PgIdempotencyStore> = IdempotencyState {
+        store: Arc::new(PgIdempotencyStore::new(pool)),
+    };
+
     // Admin router: require_auth + require_admin + require_active_account (default-deny).
     // require_active_account memastikan hanya admin dengan status Active yang bisa
     // mengakses endpoint admin — suspended admin ditolak dengan 403 ACCOUNT_NOT_ACTIVE.
@@ -168,10 +175,19 @@ fn build_router(state: AppState, auth_client: Arc<dyn AuthClient>) -> Router {
             require_auth,
         ));
 
-    let public = Router::new()
-        .route("/health", get(handlers::health))
+    // D4: Idempotency-Key middleware untuk endpoint POST kritis.
+    // register dan login: cegah double-submit akibat retry/network issue.
+    let idempotent_routes = Router::new()
         .route("/register", post(handlers::register))
         .route("/login", post(handlers::login))
+        .with_state(state.clone())
+        .route_layer(middleware::from_fn_with_state(
+            idempotency_state.clone(),
+            idempotency_middleware::<PgIdempotencyStore>,
+        ));
+
+    let public = Router::new()
+        .route("/health", get(handlers::health))
         .route("/admin/login", post(handlers::admin_login))
         .route("/verify-otp", post(handlers::verify_otp))
         .route("/resend-otp", post(handlers::resend_otp))
@@ -181,7 +197,8 @@ fn build_router(state: AppState, auth_client: Arc<dyn AuthClient>) -> Router {
         .route("/reset-password", post(handlers::reset_password))
         .with_state(state);
 
-    public
+    idempotent_routes
+        .merge(public)
         .merge(protected)
         .merge(admin)
         .layer(DefaultBodyLimit::max(MAX_BODY_SIZE))

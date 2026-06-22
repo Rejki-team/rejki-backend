@@ -23,6 +23,7 @@ auth-service-client = { path = "../auth-service-client" }
 notification-service-client = { path = "../notification-service-client" }
 storage-service-client = { path = "../storage-service-client" }
 user-service-client = { path = "../user-service-client" }
+common-idempotency = { workspace = true }
 
 axum        = { workspace = true }
 tokio       = { workspace = true }
@@ -37,6 +38,7 @@ thiserror   = { workspace = true }
 validator   = { workspace = true }
 jsonwebtoken = { workspace = true }
 bcrypt      = { workspace = true }
+argon2      = { workspace = true }
 rand        = { workspace = true }
 dotenvy     = { workspace = true }
 anyhow       = { workspace = true }

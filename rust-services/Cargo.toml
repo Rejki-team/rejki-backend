@@ -41,6 +41,7 @@ members = [
     "common/tracing-setup",
     "common/auth-middleware",
     "common/rate-limit",
+    "common/idempotency",
 ]
 
 # ── Shared dependency versions (semua member pakai ini) ───
@@ -61,6 +62,7 @@ validator          = { version = "0.20", features = ["derive"] }
 # (default aws-lc-rs memicu panic "Could not determine CryptoProvider" saat sign).
 jsonwebtoken       = { version = "10", default-features = false, features = ["rust_crypto", "use_pem"] }
 bcrypt             = "0.19"
+argon2             = "0.5"
 rand               = "0.9"
 dotenvy            = "0.15"
 anyhow             = "1"
@@ -88,6 +90,7 @@ common-errors      = { path = "common/errors" }
 common-tracing     = { path = "common/tracing-setup" }
 common-auth-mw     = { path = "common/auth-middleware" }
 common-rate-limit  = { path = "common/rate-limit" }
+common-idempotency = { path = "common/idempotency" }
 
 [profile.release]
 opt-level = 3

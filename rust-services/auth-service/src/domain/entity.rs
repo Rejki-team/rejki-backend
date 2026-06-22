@@ -13,6 +13,7 @@ pub struct AuthUser {
     pub id: Uuid,
     pub email: String,
     pub password_hash: String,
+    pub password_algorithm: String, // "bcrypt" | "argon2"
     pub status: AccountStatus,
     pub role: Role,
     pub phone: Option<String>, // ciphertext saat dari DB; plaintext setelah didekripsi

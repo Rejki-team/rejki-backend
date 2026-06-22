@@ -16,6 +16,7 @@ pub trait AuthRepository: Send + Sync {
         &self,
         email: &str,
         password_hash: &str,
+        password_algorithm: &str,
         phone_encrypted: Option<&str>,
         tos_version: &str,
     ) -> Result<AuthUser, anyhow::Error>;
