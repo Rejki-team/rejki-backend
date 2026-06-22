@@ -832,18 +832,22 @@
         <div class="task">
           <div class="task-head">
             <span class="task-id">W3D-15</span>
-            <span class="task-title">Infra polish — backup cron + virus scan + webhook + metrics</span>
-            <span class="task-scope">root / infra</span>
+            <span class="task-title">Code Review Full — 17 Rust Crates + 1 Bun Service</span>
+            <span class="task-scope">rust-services + bun-notification-service</span>
             <span class="priority-badge pb-p3">P3</span>
           </div>
           <div class="task-body">
             <div class="task-body-inner gap-section">
-              <div><div class="section-label">Target gap: F1, F2, F3, B3</div></div>
+              <div><div class="section-label">Target gap: F1–F6 (memory leak, connection leak, race condition, N+1, security, circular dependency)</div></div>
               <div class="impl-list">
-                <div class="impl-item">DB backup: pg_dump cron job (docker compose atau VPS cron) + upload ke R2/S3</div>
-                <div class="impl-item">Virus scan: ClamAV container atau API-based scan untuk file upload (presigned upload hook)</div>
-                <div class="impl-item">Webhook standard: dokumentasi signature (HMAC-SHA256), retry policy, payload format</div>
-                <div class="impl-item">Metrics: GET /metrics endpoint (Prometheus format) — request count, latency, error rate</div>
+                <div class="impl-item">Analisa 17 crate Rust + 1 Bun: 13 findings (4 HIGH, 2 MEDIUM, 2 LOW)</div>
+                <div class="impl-item">Connection leak fix: rate-limit (Arc&lt;LimiterInner&gt;), RedisPublisher (lazy ConnectionManager), NotificationClient (Arc&lt;Channel&gt;)</div>
+                <div class="impl-item">Memory leak fix: chat ws_handler cleanup HashMap(dash_map) saat receiver_count() == 0</div>
+                <div class="impl-item">Security fix: scan_worker ganti plaintext HMAC-SHA1 → aws-sdk-s3 SigV4 signing + connection pooling</div>
+                <div class="impl-item">N+1 fix: region-service get_by_id 4 sequential queries → 1 UNION ALL</div>
+                <div class="impl-item">Graceful shutdown: Bun notification service SIGTERM handler + drain connections</div>
+                <div class="impl-item">Build/lint/test: cargo check, fmt, clippy (zero warnings), 40+ unit tests PASS</div>
+                <div class="impl-item">Dokumentasi: <a href="code-review-standards.html">code-review-standards.html</a> (HTML interaktif, sidebar nav, checklist developer)</div>
               </div>
             </div>
           </div>
@@ -874,7 +878,7 @@
             <tr><td>W3D-12</td><td>CEO analytics endpoints — Executive role (rank 90) + 4 MV + insights-service (domain/application/infrastructure/interface) + cache + refresh scheduler + 8 unit test + 12 integration test (via Podman PostgreSQL) + Swagger docs + openspec</td><td>3D</td><td>P2</td><td><code>ws-ceo-analytics</code></td><td>W3A-03 (C1), W3B-05 (A2)</td><td><span class="badge badge-done">✅ Done</span></td></tr>
             <tr><td>W3D-13</td><td>cargo audit + cargo deny CI</td><td>3D</td><td>P3</td><td>Langsung ke ci.yml</td><td>—</td><td><span class="badge badge-done">✅ Done</span></td></tr>
             <tr><td>W3D-14</td><td>Device token (D3) + Idempotency-Key (D4) + argon2 dual-support (D5)</td><td>3D</td><td>P3</td><td><code>ws-p3-nice-to-haves</code></td><td>—</td><td><span class="badge badge-done">✅ Done</span></td></tr>
-            <tr><td>W3D-15</td><td>Infra polish — backup + virus scan + webhook + metrics</td><td>3D</td><td>P3</td><td><code>ws-infra-polish</code> (NEW)</td><td>—</td><td><span class="badge badge-done">✅ Done</span></td></tr>
+            <tr><td>W3D-15</td><td>Code Review Full — 17 Rust crates + 1 Bun: 13 findings (4 HIGH, 2 MEDIUM, 2 LOW) · Connection leak fix · Memory leak fix · SigV4 MinIO · N+1 → UNION ALL · Graceful shutdown Bun · Build/lint/test PASS · <a href="code-review-standards.html" style="color:var(--green);">code-review-standards.html</a> · PR #18 merged</td><td>3D</td><td>P3</td><td><code>fix/ws-code-review-findings</code></td><td>—</td><td><span class="badge badge-done">✅ Done</span></td></tr>
           </tbody>
         </table>
       </div>

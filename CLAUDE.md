@@ -355,6 +355,7 @@ terimplementasi & terverifikasi.
 | JWT, bcrypt, input sanitization, secret | `docs/security-baseline.html` |
 | WebSocket envelope & close codes | `docs/websocket-contract.html` |
 | Kontrak notifikasi (Redis Streams/FCM) | `docs/notification-contract.html` |
+| Code Review (connection leaks, memory, N+1, security) | `docs/code-review-standards.html` |
 | Workspace & versi crate | `rust-services/Cargo.toml` |
 | Composition Root & wiring | `rust-services/rejki-app/src/main.rs` |
 | Contoh service rujukan (4 layer + atomik) | `rust-services/auth-service/src/` |

@@ -232,6 +232,7 @@
       <a class="nav-link accent" href="health-check.html">🏥 Phase 1.5 — Health Check</a>
       <a class="nav-link accent" href="api-versioning.html">🔢 Phase 1.5 — API Versioning</a>
       <a class="nav-link accent" href="authorization-pattern.html">🔐 Phase 1.5 — Authorization</a>
+      <a class="nav-link accent" href="code-review-standards.html" style="color:var(--green);">📋 Code Review Standards <span style="font-size:0.65rem;opacity:0.6;">NEW</span></a>
       <a class="nav-link accent" href="implementation-plan-phase-3.html" style="color:var(--yellow);">🛡️ Phase 3 — Implementation Plan</a>
       <a class="nav-link accent" href="brainstorm/phase-3-hardening-analysis.html" style="color:var(--yellow);">🧠 Phase 3 — Brainstorm</a>
       <a class="nav-link" href="#roadmap">Roadmap</a>
@@ -842,10 +843,27 @@
             <div class="rm-phase">Phase 3 — Hardening</div>
             <div class="rm-title">Security · Observability · Testing</div>
             <div class="rm-desc">Rate limiting (tower-governor) · OTP brute-force protection · request ID per request · structured JSON logging production · integration test dengan DB real (schema <code>rejki_test</code>, bukan mock).</div>
+            <div class="rm-done">✓ Selesai</div>
             <div class="rm-pills">
               <span class="rm-pill">rate limiting</span>
               <span class="rm-pill">request ID</span>
               <span class="rm-pill">integration tests</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="rm ph3">
+          <div class="rm-left"><div class="rm-dot"></div><div class="rm-line"></div></div>
+          <div class="rm-body">
+            <div class="rm-phase">Phase 3 — Hardening</div>
+            <div class="rm-title">W3D-15: Code Review Full — 17 Rust Crates + 1 Bun Service</div>
+            <div class="rm-desc">Full code review seluruh service: 13 findings (4 HIGH, 2 MEDIUM, 2 LOW) · Fix connection leaks (Redis, gRPC, HTTP) · Memory leak cleanup · SigV4 auth untuk MinIO · N+1 query → UNION ALL · Graceful shutdown Bun · 40+ unit tests PASS · Dokumentasi <a href="code-review-standards.html" style="color:var(--green);">code-review-standards.html</a>.</div>
+            <div class="rm-done">✓ Selesai</div>
+            <div class="rm-pills">
+              <span class="rm-pill">13 findings fixed</span>
+              <span class="rm-pill">connection leaks</span>
+              <span class="rm-pill">N+1 queries</span>
+              <span class="rm-pill">SigV4 MinIO</span>
             </div>
           </div>
         </div>
@@ -1223,6 +1241,11 @@
               <td><span class="cl-status-done">✅ Done</span></td>
             </tr>
             <tr class="cl-3">
+              <td><strong>ws-code-review-full</strong> — Full code review 17 Rust crates + 1 Bun: 13 findings (4 HIGH, 2 MEDIUM, 2 LOW) · Connection leak fix (rate-limit, RedisPublisher, NotificationClient) · Memory leak fix (chat channel cleanup) · Security fix (MinIO SigV4 auth) · N+1 fix (region UNION ALL) · Graceful shutdown Bun · Build/lint/test all PASS · Dokumentasi <code>docs/code-review-standards.html</code> · PR #18 merged <br><small><a href="code-review-standards.html" style="color:var(--green);">code-review-standards.html</a> · <a href="implementation-plan-phase-3.html#w3d" style="color:var(--green);">W3D-15 · P3 · 22 Jun 2026</a></small></td>
+              <td style="text-align:center;">3</td>
+              <td><span class="cl-status-done">✅ Done</span></td>
+            </tr>
+            <tr class="cl-3">
               <td><strong>Phase 3 plan</strong> — brainstorm + implementation plan (15 task, 4 wave, 8-12 minggu) <br><small><a href="brainstorm/phase-3-hardening-analysis.html" style="color:var(--yellow);">brainstorm</a> · <a href="implementation-plan-phase-3.html" style="color:var(--yellow);">implementation plan</a></small></td>
               <td style="text-align:center;">3</td>
               <td><span class="cl-status-done">✓ 17 Juni 2026</span></td>
@@ -1233,7 +1256,7 @@
     </section>
 
     <footer>
-      <p>Rejki Backend Architecture Document · Terakhir diperbarui: 22 Juni 2026 · Phase 2 selesai ✓ · Wave 3A COMPLETE ✓ · W3B 4/4 ✅ · W3C 4/4 ✅ · W3D 1/1 ✅</p>
+      <p>Rejki Backend Architecture Document · Terakhir diperbarui: 22 Juni 2026 · Phase 2 selesai ✓ · Wave 3A COMPLETE ✓ · W3B 4/4 ✅ · W3C 4/4 ✅ · W3D 1/1 ✅ · W3D-15 Code Review ✅</p>
       <p style="margin-top:.3rem;">Stack: Rust · Axum 0.8 · sqlx 0.9 · PostgreSQL · Modular Monolith → Extraction-Ready</p>
     </footer>
 
