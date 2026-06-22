@@ -868,12 +868,13 @@
           </div>
         </div>
 
-        <div class="rm ph3">
+        <div class="rm ph1">
           <div class="rm-left"><div class="rm-dot"></div><div class="rm-line"></div></div>
           <div class="rm-body">
-            <div class="rm-phase">Phase 3 — Hardening</div>
+            <div class="rm-phase">Phase 1.5 — Standardisasi</div>
             <div class="rm-title">CI/CD · Docker · Deployment</div>
-            <div class="rm-desc">Multi-stage Dockerfile (image &lt;30MB) · GitHub Actions: fmt → clippy → test → build → push · nginx.prod.conf lengkap (WebSocket proxy, rate limit) · Cloudflare Tunnel zero-trust · PostgreSQL managed DB + backup cron.</div>
+            <div class="rm-desc">Fondasi infrastructure yang dikerjakan di Phase 1.5, <strong>bukan bagian dari Phase 3</strong>. Multi-stage Dockerfile (image &lt;30MB) · GitHub Actions: <code>ci.yml</code> (fmt → clippy → test → build), <code>deploy.yml</code> (SSH ke prod), <code>deploy-dev.yml</code> (SSH ke dev) · nginx.prod.conf (WebSocket proxy, rate limit, security headers) · Cloudflare Tunnel zero-trust · <code>docker-compose.yml</code> (postgres:17, redis:7, nginx, bun, cloudflare-tunnel). <br><small>Lihat: <a href="infrastructure-setup.html" style="color:var(--blue);">infrastructure-setup.html</a> · <a href="vps-deployment.html" style="color:var(--blue);">vps-deployment.html</a> · <a href="cicd-setup.html" style="color:var(--blue);">cicd-setup.html</a></small></div>
+            <div class="rm-done">✓ Selesai (Phase 1.5)</div>
             <div class="rm-pills">
               <span class="rm-pill">Dockerfile</span>
               <span class="rm-pill">GitHub Actions</span>
