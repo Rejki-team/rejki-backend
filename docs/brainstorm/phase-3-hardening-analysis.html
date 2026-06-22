@@ -122,7 +122,7 @@
         <span class="badge b-y">Phase 3</span>
         <span class="badge b-g">22 Gap Teridentifikasi</span>
         <span class="badge b-r">6 Kategori</span>
-        <span class="badge b-b">1 Active Change</span>
+        <span class="badge b-b">8 Active Change</span>
       </div>
     </div>
 
@@ -184,8 +184,8 @@
             <tr>
               <td><strong>Phase 3 — Hardening</strong></td>
               <td>⚡ In Progress</td>
-              <td>1 active change (ws-testing-coverage). 2 checklist items Partial. 1 Deferred. 22 gap nyata.</td>
-              <td>1</td>
+              <td>8 active change (ws-testing-coverage, ws-rate-limiting, ws-region-id-iklan, ws-audit-log, ws-multi-tier-rbac, ws-patch-iklan, ws-password-reset, ws-cors-production, ws-encryption-at-rest, ws-ceo-analytics, ws-cargo-audit-deny). 12/22 gaps closed. Sisa 10 gap: 4 P3 (W3D-14, W3D-15) + 6 Phase 3 deferred.</td>
+              <td>8</td>
             </tr>
           </tbody>
         </table>
@@ -241,10 +241,10 @@
           <p>✅ AES-256-GCM via common-crypto. Phone di auth-service sekarang didekripsi di repository layer. User-service: kolom baru <code>phone_encrypted</code> + <code>rekening_encrypted</code> (JSON: bank, number, holder). Decrypt transparan di repo, masking di response (****1234). Key rotation strategy didokumentasikan di security-baseline.</p>
           <p class="evidence">Evidence: common/crypto/src/lib.rs — encrypt/decrypt AES-256-GCM. auth-service/pg_repository.rs — row_to_user decrypt phone. user-service: encrypt di INSERT/UPDATE, decrypt di SELECT. Rekening sebagai JSON terenkripsi + parsial masking.</p>
         </div>
-        <div class="gap-card p3">
-          <h4><span class="id-tag">A6</span> Dependency audit (cargo audit/deny) <span class="priority-badge pb-p3">P3</span></h4>
-          <p>CI pipeline belum punya job cargo audit (CVE check) atau cargo deny (license compliance). Disebut di security-baseline.html §Phase 3.</p>
-          <p class="evidence">Evidence: .github/workflows/ci.yml — tidak ada job audit/deny.</p>
+        <div class="gap-card done">
+          <h4><span class="id-tag">A6</span> Dependency audit (cargo audit/deny) <span class="priority-badge pb-done">✅ W3D-13 selesai 22 Jun 2026</span></h4>
+          <p>✅ Dua job baru di CI pipeline (schedule mingguan, bukan setiap PR): <code>cargo-audit</code> — CVE scan fail on CRITICAL/HIGH via <code>cargo audit --deny warnings</code>. <code>cargo-deny</code> — license compliance reject GPL/AGPL via <code>cargo deny check licenses</code>. Konfigurasi di <code>rust-services/deny.toml</code>.</p>
+          <p class="evidence">Evidence: .github/workflows/ci.yml — +schedule cron 0 6 * * 1, +cargo-audit job, +cargo-deny job. rust-services/deny.toml — license allow/deny list + advisory config.</p>
         </div>
       </div>
 

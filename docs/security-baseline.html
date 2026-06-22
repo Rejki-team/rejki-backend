@@ -289,10 +289,10 @@
           <p>NIK (BYTEA, write-only), phone (TEXT, AES-256-GCM), dan rekening (JSON terenkripsi: bank+number+holder) dilindungi AES-256-GCM via <code>common-crypto</code>. Key dari env <code>DATA_ENCRYPTION_KEY</code>.</p>
         </div>
 
-        <div class="sec-card ph3">
-          <div class="card-phase"><span class="ph-tag ph-3">◌ Phase 3 — Hardening</span></div>
+        <div class="sec-card done">
+          <div class="card-phase"><span class="ph-tag ph-done">✅ W3D-13 — 22 Jun 2026</span></div>
           <h4>Dependency Audit</h4>
-          <p><code>cargo audit</code> di CI/CD untuk cek CVE di dependencies. <code>cargo deny</code> untuk license compliance.</p>
+          <p><code>cargo audit</code> di CI/CD untuk cek CVE di dependencies (fail on CRITICAL/HIGH, weekly schedule). <code>cargo deny</code> untuk license compliance (reject GPL/AGPL).</p>
         </div>
 
       </div>
@@ -1081,8 +1081,8 @@ location /api/v1/auth/ {
             <tr><td>Audit log tabel append-only</td><td><span class="ph-tag ph-3">Phase 3</span></td></tr>
             <tr><td>Enkripsi at rest kolom sensitif (AES-256-GCM)</td><td><span class="ph-tag ph-done">✓ W3C-09 — 20 Jun 2026</span></td></tr>
             <tr><td>Virus scan file upload (ClamAV / cloud)</td><td><span class="ph-tag ph-3">Phase 3</span></td></tr>
-            <tr><td><code>cargo audit</code> di CI/CD pipeline</td><td><span class="ph-tag ph-3">Phase 3</span></td></tr>
-            <tr><td>Dependency license compliance (<code>cargo deny</code>)</td><td><span class="ph-tag ph-3">Phase 3</span></td></tr>
+            <tr><td><code>cargo audit</code> di CI/CD pipeline</td><td><span class="ph-tag ph-done">✅ W3D-13 — 22 Jun 2026</span></td></tr>
+            <tr><td>Dependency license compliance (<code>cargo deny</code>)</td><td><span class="ph-tag ph-done">✅ W3D-13 — 22 Jun 2026</span></td></tr>
           </tbody>
         </table>
       </div>
