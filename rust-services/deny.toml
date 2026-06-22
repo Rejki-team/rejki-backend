@@ -1,0 +1,98 @@
+# Rejki Backend — cargo-deny configuration
+# ===========================================
+# W3D-13: Audit + License compliance untuk CI pipeline
+# Schedule: weekly (see .github/workflows/ci.yml)
+#
+# Referensi: https://embarkstudios.github.io/cargo-deny/
+
+[graph]
+# Cargo workspace root — semua crate di bawah rust-services/ akan di-scan
+targets = [
+    { triple = "x86_64-unknown-linux-gnu" },
+]
+all-features = true
+
+[advisories]
+# Fail on: CRITICAL, HIGH (UNMAINTAINED, UNSOUND, NOT_FOR_DISTRIBUTION juga fail)
+severity-threshold = "high"
+# Ignore advisories dengan justifikasi — HARUS ada reason & expiry
+# Format: { id = "RUSTSEC-XXXX-XXXX", reason = "...", expiry = "YYYY-MM-DD" }
+ignore = []
+
+[licenses]
+# Kebijakan lisensi: hanya allow list — sisanya reject
+confidence-threshold = 0.8
+unlicensed = "reject"
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-DFS-2016",
+    "CC0-1.0",
+    "Zlib",
+    "Python-2.0",
+    "MPL-2.0",
+    "OpenSSL",
+    "BSL-1.0",
+    "NCSA",
+    # ICU4X / Unicode — banyak crate Rust internasionalisasi
+    "Unicode-3.0",
+]
+deny = [
+    # GPL variant — komersial tidak kompatibel
+    "GPL-2.0",
+    "GPL-2.0-only",
+    "GPL-2.0-or-later",
+    "GPL-3.0",
+    "GPL-3.0-only",
+    "GPL-3.0-or-later",
+    "AGPL-1.0",
+    "AGPL-1.0-only",
+    "AGPL-1.0-or-later",
+    "AGPL-3.0",
+    "AGPL-3.0-only",
+    "AGPL-3.0-or-later",
+    # Lisensi yang tidak jelas / non-standard
+    "WTFPL",
+    "Unlicense",
+    "BSL-1.0 WITH LLVM-exception",
+    # CC-NC — non-commercial tidak cocok dengan proyek
+    "CC-BY-NC-1.0",
+    "CC-BY-NC-2.0",
+    "CC-BY-NC-2.5",
+    "CC-BY-NC-3.0",
+    "CC-BY-NC-4.0",
+    "CC-BY-NC-ND-1.0",
+    "CC-BY-NC-ND-2.0",
+    "CC-BY-NC-ND-2.5",
+    "CC-BY-NC-ND-3.0",
+    "CC-BY-NC-ND-4.0",
+    # Proprietary — reject semua
+    "proprietary",
+]
+
+# Exception untuk beberapa crate yang butuh pengecualian — HARUS ada note
+exceptions = [
+    # Contoh: netrc crate menggunakan lisensi yang ambiguous
+    # { name = "netrc", allow = ["MIT"] },
+]
+
+[[licenses.clarify]]
+# Clarify license for crates that use a custom license file instead of standard SPDX
+name = "ring"
+version = "*"
+expression = "MIT AND ISC AND OpenSSL"
+license-files = [
+    { path = "LICENSE", hash = 0xbd0eed23 },
+]
+
+[ban]
+# Deteksi crate yang di-ban — jangan sampai masuk
+deny = []
+
+[sources]
+# Only allow crates from crates.io — no git/path dependencies in production
+allow-git = []

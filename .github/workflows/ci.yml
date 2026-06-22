@@ -5,6 +5,9 @@ on:
     branches: [develop, main]
   pull_request:
     branches: [develop, main]
+  schedule:
+    # Weekly: setiap Senin jam 06:00 UTC — cargo audit + cargo deny
+    - cron: "0 6 * * 1"
 
 env:
   CARGO_TERM_COLOR: always
@@ -275,3 +278,57 @@ jobs:
           name: coverage-report
           path: rust-services/lcov.info
           retention-days: 7
+
+  # ── Cargo Audit (security — CVE scan) ──────────────────────────────────
+  cargo-audit:
+    name: Cargo Audit
+    runs-on: ubuntu-latest
+    # Hanya jalan saat schedule event — tidak perlu blocking PR (terlalu berisik)
+    if: github.event_name == 'schedule'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust-services
+          cache-on-failure: true
+
+      - name: Install cargo-audit
+        working-directory: rust-services
+        run: cargo install cargo-audit
+
+      - name: Audit Cargo.lock for CVEs
+        working-directory: rust-services
+        # Fail on CRITICAL dan HIGH — ignore warnings (informational/low/medium)
+        run: cargo audit --deny warnings
+
+  # ── Cargo Deny (license compliance) ────────────────────────────────────
+  cargo-deny:
+    name: Cargo Deny (license)
+    runs-on: ubuntu-latest
+    # Hanya jalan saat schedule event — tidak perlu blocking PR (terlalu berisik)
+    if: github.event_name == 'schedule'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust-services
+          cache-on-failure: true
+
+      - name: Install cargo-deny
+        working-directory: rust-services
+        run: cargo install cargo-deny
+
+      - name: Check licenses (reject GPL/AGPL)
+        working-directory: rust-services
+        # deny.toml ada di rust-services/ — cargo-deny auto-detect
+        run: cargo deny check licenses

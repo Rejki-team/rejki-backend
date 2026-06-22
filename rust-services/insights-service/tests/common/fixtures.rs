@@ -18,7 +18,12 @@ pub async fn user_token(pool: &PgPool, suffix: &str) -> String {
 }
 
 /// Internal: seed user di auth.users dan generate JWT.
-async fn token_for_role(pool: &PgPool, suffix: &str, role_str: &str, role: auth_service::Role) -> String {
+async fn token_for_role(
+    pool: &PgPool,
+    suffix: &str,
+    role_str: &str,
+    role: auth_service::Role,
+) -> String {
     let id = Uuid::now_v7();
     let email = format!("ceo-test-{suffix}@test.rejki.internal");
     let pw_hash = bcrypt::hash("Test1234!", 4).expect("bcrypt failed");
@@ -66,13 +71,8 @@ async fn token_for_role(pool: &PgPool, suffix: &str, role_str: &str, role: auth_
     let jwt = auth_service::JwtService::from_files(&private_pem, &public_pem, 900)
         .expect("JwtService init failed");
 
-    jwt.issue_access_token(
-        id,
-        &email,
-        auth_service::AccountStatus::Active,
-        role,
-    )
-    .expect("issue_access_token failed")
+    jwt.issue_access_token(id, &email, auth_service::AccountStatus::Active, role)
+        .expect("issue_access_token failed")
 }
 
 /// Hapus data test (email domain @test.rejki.internal).
@@ -103,10 +103,8 @@ pub async fn clean_test_data(pool: &PgPool) {
     .await
     .expect("clean: profiles failed");
 
-    sqlx::query(
-        "DELETE FROM auth.users WHERE email LIKE '%@test.rejki.internal'",
-    )
-    .execute(pool)
-    .await
-    .expect("clean: users failed");
+    sqlx::query("DELETE FROM auth.users WHERE email LIKE '%@test.rejki.internal'")
+        .execute(pool)
+        .await
+        .expect("clean: users failed");
 }

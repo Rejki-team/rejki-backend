@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
-    use crate::domain::entity::UserStats;
     use crate::application::dto::UserStatsResponse;
+    use crate::domain::entity::UserStats;
 
     #[test]
     fn test_user_stats_conversion_mom_positive() {
@@ -69,8 +69,8 @@ mod tests {
 
     #[test]
     fn test_iklan_stats_barang_bekas_persen_terjual() {
-        use crate::domain::entity::IklanStats;
         use crate::application::dto::IklanStatsResponse;
+        use crate::domain::entity::IklanStats;
 
         let stats = IklanStats {
             vertikal: "barang_bekas".into(),
@@ -88,8 +88,8 @@ mod tests {
 
     #[test]
     fn test_iklan_stats_non_barang_no_persen() {
-        use crate::domain::entity::IklanStats;
         use crate::application::dto::IklanStatsResponse;
+        use crate::domain::entity::IklanStats;
 
         let stats = IklanStats {
             vertikal: "pekerjaan".into(),
@@ -107,8 +107,8 @@ mod tests {
 
     #[test]
     fn test_geo_stats_priority_tier() {
-        use crate::domain::entity::GeoStats;
         use crate::application::dto::GeoStatsResponse;
+        use crate::domain::entity::GeoStats;
 
         let make = |score: i32, name: &str| -> GeoStatsResponse {
             GeoStatsResponse::from(GeoStats {
@@ -133,8 +133,8 @@ mod tests {
 
     #[test]
     fn test_engagement_stats_read_ratio() {
-        use crate::domain::entity::EngagementStats;
         use crate::application::dto::EngagementStatsResponse;
+        use crate::domain::entity::EngagementStats;
 
         let stats = EngagementStats {
             messages_7d: 1000,
@@ -152,8 +152,8 @@ mod tests {
 
     #[test]
     fn test_engagement_stats_zero_sent() {
-        use crate::domain::entity::EngagementStats;
         use crate::application::dto::EngagementStatsResponse;
+        use crate::domain::entity::EngagementStats;
 
         let stats = EngagementStats {
             messages_7d: 0,

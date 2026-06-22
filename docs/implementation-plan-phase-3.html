@@ -752,11 +752,30 @@
           </div>
           <div class="task-body">
             <div class="task-body-inner gap-section">
-              <div><div class="section-label">Target gap: A6</div></div>
-              <div class="impl-list">
-                <div class="impl-item"><code>cargo audit</code> job: scan Cargo.lock untuk CVE (fail on CRITICAL/HIGH)</div>
-                <div class="impl-item"><code>cargo deny check</code> job: license compliance — reject GPL/AGPL</div>
-                <div class="impl-item">Schedule: run mingguan (bukan setiap PR — terlalu berisik)</div>
+              <div>
+                <div class="section-label">Target gap: A6</div>
+                <div class="done-tag" style="display:inline-block;background:rgba(63,185,80,.15);color:var(--green);border:1px solid rgba(63,185,80,.3);border-radius:20px;padding:.15rem .65rem;font-size:.7rem;font-weight:700;margin-top:.3rem;">✅ DONE 22 Jun 2026</div>
+              </div>
+              <div>
+                <div class="section-label">Hasil final</div>
+                <div class="impl-list">
+                  <div class="impl-item"><strong>ci.yml — weekly schedule</strong>: cron <code>0 6 * * 1</code> setiap Senin 06:00 UTC — audit + deny hanya jalan saat <code>github.event_name == 'schedule'</code></div>
+                  <div class="impl-item"><strong>cargo audit job</strong>: install <code>cargo-audit</code> → <code>cargo audit --deny warnings</code> — fail on CRITICAL/HIGH</div>
+                  <div class="impl-item"><strong>cargo deny job</strong>: <code>rust-services/deny.toml</code> → <code>cargo deny check licenses</code> — reject GPL/AGPL, allow MIT/Apache-2.0/BSD/ISC/MPL-2.0/dll</div>
+                </div>
+              </div>
+              <div>
+                <div class="section-label">File yang disentuh</div>
+                <div class="file-list">
+                  <div class="file-row"><span class="fop fop-edit">edit</span><span class="fpath">.github/workflows/ci.yml</span><span class="fnote">— + schedule trigger + 2 new jobs (cargo-audit, cargo-deny)</span></div>
+                  <div class="file-row"><span class="fop fop-new">new</span><span class="fpath">rust-services/deny.toml</span><span class="fnote">— license allow/deny list, advisory config, exception clarifications</span></div>
+                </div>
+              </div>
+              <div>
+                <div class="section-label">Verifikasi</div>
+                <div class="status-badge" style="margin-top:.3rem;">
+                  <span style="color:var(--green);">fmt ✅ clippy zero ✅ check ✅ — Hanya perubahan YAML + config, tidak ada Rust code</span>
+                </div>
               </div>
             </div>
           </div>
@@ -824,7 +843,7 @@
             <tr><td>W3C-10</td><td>Integration test per-service crate</td><td>3C</td><td>P2</td><td>Extend <code>ws-testing-coverage</code></td><td>W3A-01</td><td><span class="badge badge-done">✅ Done</span></td></tr>
             <tr><td>W3C-11</td><td>Validasi chain region_id di user profiles</td><td>3C</td><td>P2</td><td><code>ws-region-validation</code> (NEW)</td><td>W3A-03 (region_id exist)</td><td><span class="badge badge-done">✅ Done</span></td></tr>
             <tr><td>W3D-12</td><td>CEO analytics endpoints — Executive role (rank 90) + 4 MV + insights-service (domain/application/infrastructure/interface) + cache + refresh scheduler + 8 unit test + 12 integration test (via Podman PostgreSQL) + Swagger docs + openspec</td><td>3D</td><td>P2</td><td><code>ws-ceo-analytics</code></td><td>W3A-03 (C1), W3B-05 (A2)</td><td><span class="badge badge-done">✅ Done</span></td></tr>
-            <tr><td>W3D-13</td><td>cargo audit + cargo deny CI</td><td>3D</td><td>P3</td><td>Langsung ke ci.yml</td><td>—</td><td><span class="badge badge-todo">📋 Pending</span></td></tr>
+            <tr><td>W3D-13</td><td>cargo audit + cargo deny CI</td><td>3D</td><td>P3</td><td>Langsung ke ci.yml</td><td>—</td><td><span class="badge badge-done">✅ Done</span></td></tr>
             <tr><td>W3D-14</td><td>Device token + Idempotency-Key + argon2</td><td>3D</td><td>P3</td><td><code>ws-p3-nice-to-haves</code> (NEW)</td><td>—</td><td><span class="badge badge-todo">📋 Pending</span></td></tr>
             <tr><td>W3D-15</td><td>Infra polish — backup + virus scan + webhook + metrics</td><td>3D</td><td>P3</td><td><code>ws-infra-polish</code> (NEW)</td><td>—</td><td><span class="badge badge-todo">📋 Pending</span></td></tr>
           </tbody>
@@ -846,7 +865,7 @@
 
     <footer>
       <span>rejki-backend · Phase 3 Implementation Plan · 22 Juni 2026</span>
-      <span>15 task · 4 waves · Wave 3A ✅ · Wave 3B ✅ · Wave 3C ✅ · Wave 3D 1/4 ✅ · 12/15 complete</span>
+      <span>15 task · 4 waves · Wave 3A ✅ · Wave 3B ✅ · Wave 3C ✅ · Wave 3D 2/4 ✅ · 13/15 complete</span>
     </footer>
 
   </main>

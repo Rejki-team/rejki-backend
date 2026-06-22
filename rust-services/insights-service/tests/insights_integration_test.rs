@@ -16,8 +16,8 @@ mod common;
 
 use axum::http::StatusCode;
 use common::{
-    body_json, build_test_app, clean_test_data, executive_token, get_anon, get_authed,
-    post_authed, super_admin_token, test_pool, user_token,
+    body_json, build_test_app, clean_test_data, executive_token, get_anon, get_authed, post_authed,
+    super_admin_token, test_pool, user_token,
 };
 use tower::ServiceExt;
 
@@ -45,7 +45,10 @@ async fn test_user_stats_given_executive_when_get_then_200() {
     let body = body_json(resp).await;
     assert!(body["success"].as_bool().unwrap_or(false));
     let data = &body["data"];
-    assert!(data["total_users"].is_i64(), "total_users should be integer");
+    assert!(
+        data["total_users"].is_i64(),
+        "total_users should be integer"
+    );
     assert!(data["conversion_funnel"]["registered"].is_i64());
 }
 
@@ -168,7 +171,9 @@ async fn test_canvassing_given_executive_when_get_then_200() {
     let body = body_json(resp).await;
     assert!(body["success"].as_bool().unwrap_or(false));
 
-    let provinces = body["data"]["provinces"].as_array().expect("provinces array");
+    let provinces = body["data"]["provinces"]
+        .as_array()
+        .expect("provinces array");
     assert!(!provinces.is_empty());
 
     let summary = &body["data"]["summary"];
