@@ -207,6 +207,10 @@ async fn main() {
                 notifier.clone(),
                 rate_limiter.clone(),
             ),
+        )
+        .nest(
+            "/insights",
+            insights_service::router(pool.clone(), auth_client.clone()),
         );
 
     let mut app = Router::new()

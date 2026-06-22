@@ -1,0 +1,1 @@
+DROP MATERIALIZED VIEW IF EXISTS analytics.mv_user_stats CASCADE;

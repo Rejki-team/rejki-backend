@@ -95,6 +95,7 @@ fn extract_bearer(headers: &axum::http::HeaderMap) -> Option<&str> {
 /// ```ignore
 /// .layer(axum::middleware::from_fn_with_state(80u8, require_role)) // admin iklan ke atas
 /// .layer(axum::middleware::from_fn_with_state(60u8, require_role)) // moderator ke atas
+/// .layer(axum::middleware::from_fn_with_state(90u8, require_role)) // executive ke atas
 /// ```
 pub async fn require_role(
     State(min_rank): State<u8>,
@@ -109,6 +110,28 @@ pub async fn require_role(
 
     match claims.role {
         Some(ref role) if role.rank() >= min_rank => Ok(next.run(req).await),
+        _ => Err(AppError::InsufficientRole),
+    }
+}
+
+/// Axum middleware — otorisasi ketat untuk operator admin saja.
+/// Hanya SuperAdmin/AdminIklan/AdminUser yang lolos (Executive rank 90 ditolak).
+///
+/// Gunakan dengan `axum::middleware::from_fn_with_state(auth_client, require_admin_operator)`.
+/// Harus dipasang SETELAH `require_auth` (yang sudah meng-inject `AuthClaims`).
+pub async fn require_admin_operator(
+    State(_auth): State<Arc<dyn AuthClient>>,
+    req: Request,
+    next: Next,
+) -> Result<Response, AppError> {
+    let claims = req
+        .extensions()
+        .get::<AuthClaims>()
+        .cloned()
+        .ok_or(AppError::Unauthorized)?;
+
+    match claims.role {
+        Some(ref role) if role.is_admin_operator() => Ok(next.run(req).await),
         _ => Err(AppError::InsufficientRole),
     }
 }

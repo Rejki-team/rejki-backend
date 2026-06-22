@@ -18,6 +18,9 @@ pub enum Role {
     AdminIklan,
     /// Admin user — akses admin endpoint user/KYC + suspend. Rank 80.
     AdminUser,
+    /// Executive — akses read-only analytics/insights. Rank 90.
+    /// TIDAK bisa mengakses admin endpoints (hanya operator: SuperAdmin/AdminIklan/AdminUser).
+    Executive,
     /// Super admin — akses semua endpoint. Rank 100.
     SuperAdmin,
 }
@@ -31,6 +34,7 @@ impl Role {
             Role::Moderator => 60,
             Role::AdminIklan => 80,
             Role::AdminUser => 80,
+            Role::Executive => 90,
             Role::SuperAdmin => 100,
         }
     }
@@ -42,6 +46,7 @@ impl Role {
             Role::Moderator => "moderator",
             Role::AdminIklan => "admin_iklan",
             Role::AdminUser => "admin_user",
+            Role::Executive => "executive",
             Role::SuperAdmin => "super_admin",
         }
     }
@@ -49,6 +54,12 @@ impl Role {
     /// Apakah role ini memiliki akses admin (rank >= moderator/60).
     pub fn is_admin(&self) -> bool {
         self.rank() >= 60
+    }
+
+    /// Apakah role ini adalah operator admin (SuperAdmin/AdminIklan/AdminUser).
+    /// Executive (rank 90) TIDAK termasuk — hanya bisa akses insights, bukan admin endpoints.
+    pub fn is_admin_operator(&self) -> bool {
+        matches!(self, Role::SuperAdmin | Role::AdminIklan | Role::AdminUser)
     }
 }
 
@@ -62,6 +73,7 @@ impl std::str::FromStr for Role {
             "moderator" => Ok(Role::Moderator),
             "admin_iklan" => Ok(Role::AdminIklan),
             "admin_user" => Ok(Role::AdminUser),
+            "executive" => Ok(Role::Executive),
             "super_admin" => Ok(Role::SuperAdmin),
             _ => Err(()),
         }
