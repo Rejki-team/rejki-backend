@@ -42,6 +42,7 @@ members = [
     "common/auth-middleware",
     "common/rate-limit",
     "common/idempotency",
+    "common/clamav",
 ]
 
 # ── Shared dependency versions (semua member pakai ini) ───
@@ -71,7 +72,7 @@ hex                = "0.4"
 ammonia            = "4"
 async-trait        = "0.1"
 tower              = { version = "0.5",  features = ["util"] }
-redis              = { version = "0.27", features = ["tokio-comp", "connection-manager"] }
+redis              = { version = "0.27", features = ["tokio-comp", "connection-manager", "aio", "streams"] }
 aes-gcm            = "0.10"
 base64             = "0.22"
 aws-config         = { version = "1", features = ["behavior-version-latest"] }
@@ -80,6 +81,14 @@ aws-credential-types = "1"
 # OpenAPI / Swagger UI — hanya disajikan saat APP_ENV=development (gated di rejki-app).
 utoipa             = { version = "5", features = ["axum_extras", "uuid", "chrono"] }
 utoipa-swagger-ui  = { version = "9", features = ["axum"] }
+
+# OpenTelemetry → Grafana Cloud (OTLP gRPC)
+opentelemetry            = { version = "0.28", features = ["trace"] }
+opentelemetry_sdk        = { version = "0.28", features = ["rt-tokio", "trace"] }
+opentelemetry-otlp       = { version = "0.28", features = ["grpc-tonic"] }
+tracing-opentelemetry    = "0.29"
+tonic                    = "0.12"
+prost                    = "0.13"
 
 # Internal shared crates
 common-crypto      = { path = "common/crypto" }

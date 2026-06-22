@@ -19,8 +19,25 @@ async fn main() {
     // ── 2. Load semua env var dari .env (development only) + validasi ─────────
     let cfg = common_config::AppConfig::from_env(app_env);
 
-    // ── 3. Init tracing ───────────────────────────────────────────────────────
-    common_tracing::init_tracing();
+    // ── 3. Init tracing & OpenTelemetry ─────────────────────────────────────
+    // Jika OTEL_EXPORTER_OTLP_ENDPOINT diset, pakai OTel mode (→ Grafana Cloud)
+    // Jika tidak, pakai standard tracing (development pretty / production JSON)
+    let _otel_handle = if std::env::var("OTEL_EXPORTER_OTLP_ENDPOINT").is_ok() {
+        match common_tracing::init_otel().await {
+            Some(handle) => {
+                tracing::info!("OpenTelemetry mode: spans → Grafana Cloud");
+                Some(handle)
+            }
+            None => {
+                tracing::warn!("OTEL_EXPORTER_OTLP_ENDPOINT diset tapi init_otel gagal — fallback ke standard tracing");
+                common_tracing::init_tracing();
+                None
+            }
+        }
+    } else {
+        common_tracing::init_tracing();
+        None
+    };
 
     tracing::info!(
         service = %cfg.service_name,
@@ -299,6 +316,9 @@ async fn main() {
         }
 
         tracing::info!("shutdown signal received — draining connections (30s)");
+
+        // Shutdown OpenTelemetry tracer (flush spans)
+        common_tracing::shutdown_otel(_otel_handle).await;
     };
 
     axum::serve(listener, app)

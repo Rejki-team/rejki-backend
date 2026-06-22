@@ -12,7 +12,7 @@ path = "src/main.rs"
 [dependencies]
 common-config  = { workspace = true }
 common-errors  = { workspace = true }
-common-tracing = { workspace = true }
+common-tracing = { workspace = true, features = ["otel"] }
 common-rate-limit = { workspace = true }
 
 # Import SERVICE (implementasi), bukan client (trait/kontrak).

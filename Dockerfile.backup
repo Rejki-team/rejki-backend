@@ -1,0 +1,31 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# rejki-backend — DB Backup Dockerfile
+# Multi-stage: runtime image dengan aws-cli + postgresql-client untuk pg_dump.
+# Backup dijadwalkan via cron (busybox crond) di dalam container.
+#
+# Env vars:
+#   BACKUP_SCHEDULE — cron expression (default: "0 3 * * *")
+#   PGUSER, PGPASSWORD, PGDATABASE, PGHOST
+#   MINIO_ENDPOINT, MINIO_ACCESS_KEY, MINIO_SECRET_KEY
+#   S3_BACKUP_BUCKET, LOCAL_BACKUP_DIR
+# ─────────────────────────────────────────────────────────────────────────────
+FROM alpine:3.21
+
+# Install runtime dependencies
+RUN apk add --no-cache \
+    aws-cli \
+    postgresql17-client \
+    bash \
+    curl \
+    busybox-suid
+
+# Copy scripts
+COPY scripts/backup-db.sh       /usr/local/bin/backup-db.sh
+COPY scripts/entrypoint-backup.sh /entrypoint.sh
+
+RUN chmod +x /usr/local/bin/backup-db.sh /entrypoint.sh
+
+# Backup log
+RUN mkdir -p /var/log && touch /var/log/backup.log
+
+ENTRYPOINT ["/entrypoint.sh"]
