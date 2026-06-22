@@ -138,6 +138,83 @@ services:
     networks:
       - internal
 
+  # ── MinIO (S3-compatible object storage, self-hosted) ─────────────────────
+  # AGPLv3 — gratis untuk self-hosted. Digunakan untuk:
+  #   1. Presigned URL file upload (rejki-dokumen bucket)
+  #   2. DB backup storage (rejki-backups bucket)
+  minio:
+    image: minio/minio:latest
+    container_name: rejki-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER:     ${MINIO_ACCESS_KEY:-rejkiadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-rejkiadmin123}
+    volumes:
+      - miniodata:/data
+    ports:
+      - "9000:9000"   # S3 API — untuk development (presigned URL via app)
+      - "9001:9001"   # Console UI — development only
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - internal
+
+  # ── DB Backup (pg_dump → MinIO + host lokal) ──────────────────────────────
+  # Dual destination: host-mounted volume (safety net 7 hari) + MinIO (30 hari)
+  # Jadwal: BACKUP_SCHEDULE env var (default: 0 3 * * * = setiap hari jam 3 pagi)
+  db-backup:
+    build:
+      context: .
+      dockerfile: Dockerfile.backup
+    container_name: rejki-db-backup
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    environment:
+      PGUSER:               rejki
+      PGPASSWORD:           ${POSTGRES_PASSWORD:-secret}
+      PGDATABASE:           rejki_db
+      PGHOST:               postgres
+      MINIO_ENDPOINT:       http://minio:9000
+      MINIO_ACCESS_KEY:     ${MINIO_ACCESS_KEY:-rejkiadmin}
+      MINIO_SECRET_KEY:     ${MINIO_SECRET_KEY:-rejkiadmin123}
+      S3_BACKUP_BUCKET:     rejki-backups
+      BACKUP_SCHEDULE:      ${BACKUP_SCHEDULE:-0 3 * * *}
+    volumes:
+      - backup-data:/backups
+    networks:
+      - internal
+
+  # ── ClamAV (Virus scan engine, GPLv2) ─────────────────────────────────────
+  # File upload di-scan via Rust worker (storage-service) menggunakan TCP INSTREAM
+  # Signature database auto-update via freshclam (built-in)
+  clamav-daemon:
+    image: clamav/clamav:stable
+    container_name: rejki-clamav
+    restart: unless-stopped
+    environment:
+      CLAMAV_NO_FRESHCLAMD: "false"
+    volumes:
+      - clamav-db:/var/lib/clamav
+    expose:
+      - "3310"   # ClamAV daemon TCP — hanya akses dari container lain
+    healthcheck:
+      test: ["CMD-SHELL", "test -S /run/clamav/clamd.ctl || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s   # signature DB download pertama butuh waktu
+    networks:
+      - internal
+
   # ── Cloudflare Tunnel (production only) ────────────────────────────────────
   cloudflare-tunnel:
     image: cloudflare/cloudflared:latest
@@ -157,6 +234,9 @@ services:
 volumes:
   pgdata:
   redisdata:
+  miniodata:
+  clamav-db:
+  backup-data:
 
 # ── Networks ───────────────────────────────────────────────────────────────
 networks:
