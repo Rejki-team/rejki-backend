@@ -563,50 +563,24 @@
       <p style="color:var(--muted);font-size:.88rem;margin-bottom:1rem;">Satu-satunya tempat yang tahu semua implementasi konkret. Prinsip ini disebut <strong>Composition Root pattern</strong>.</p>
 
       <div class="code">
-        <pre><span class="cc">// rejki-app/src/main.rs — implementasi nyata (Phase 1 selesai)</span>
-<span class="ck">use</span> std::sync::Arc;
-<span class="ck">use</span> tower_http::{cors::{Any, CorsLayer}, trace::TraceLayer, compression::CompressionLayer};
+        <pre><span class="cc">// rejki-app/src/main.rs — implementasi nyata (ringkasan)</span>
+<span class="ck">let</span> api_v1 = Router::new()
+    .<span class="cfn">nest</span>(<span class="cs">"/auth"</span>,      auth_service::<span class="cfn">router_with_deps_ex</span>(...))
+    .<span class="cfn">nest</span>(<span class="cs">"/users"</span>,     user_service::<span class="cfn">router</span>(...))
+    .<span class="cfn">nest</span>(<span class="cs">"/regions"</span>,  region_service::<span class="cfn">router</span>(pool))
+    .<span class="cfn">nest</span>(<span class="cs">"/chat"</span>,      chat_service::<span class="cfn">router</span>(...))
+    .<span class="cfn">nest</span>(<span class="cs">"/notif"</span>,     notification_service::<span class="cfn">router</span>(...))
+    .<span class="cfn">nest</span>(<span class="cs">"/pekerjaan"</span>, iklan_pekerjaan_service::<span class="cfn">router</span>(...))
+    .<span class="cfn">nest</span>(<span class="cs">"/pekerja"</span>,   iklan_pekerja_service::<span class="cfn">router</span>(...))
+    .<span class="cfn">nest</span>(<span class="cs">"/barang"</span>,    iklan_barang_bekas_service::<span class="cfn">router</span>(...))
+    .<span class="cfn">nest</span>(<span class="cs">"/pelatihan"</span>, iklan_pelatihan_service::<span class="cfn">router</span>(...))
+    .<span class="cfn">nest</span>(<span class="cs">"/admin/articles"</span>, corporate_comms_service::<span class="cfn">router</span>(...))
+    .<span class="cfn">nest</span>(<span class="cs">"/reports"</span>,   report_service::<span class="cfn">router</span>(...))
+    .<span class="cfn">nest</span>(<span class="cs">"/insights"</span>,  insights_service::<span class="cfn">router</span>(...));
 
-<span class="ck">#[tokio::main]</span>
-<span class="ck">async fn</span> <span class="cfn">main</span>() {
-    dotenvy::<span class="cfn">dotenv</span>().ok();
-    common_tracing::<span class="cfn">init_tracing</span>();
-
-    <span class="cc">// 1. Shared DB pool — schema terisolasi per service</span>
-    <span class="ck">let</span> pool = sqlx::<span class="ct">PgPool</span>::<span class="cfn">connect</span>(&env::<span class="cfn">var</span>(<span class="cs">"DATABASE_URL"</span>).<span class="cfn">expect</span>(<span class="cs">"DATABASE_URL tidak di-set"</span>))
-        .await.<span class="cfn">expect</span>(<span class="cs">"gagal connect ke PostgreSQL"</span>);
-
-    <span class="cc">// 2. JwtService — inisiasi sekali, di-share via Arc ke auth-service</span>
-    <span class="ck">let</span> jwt = Arc::new(auth_service::<span class="ct">JwtService</span>::<span class="cfn">from_files</span>(
-        &std::fs::<span class="cfn">read_to_string</span>(<span class="cs">"./keys/private.pem"</span>).<span class="cfn">unwrap</span>(),
-        &std::fs::<span class="cfn">read_to_string</span>(<span class="cs">"./keys/public.pem"</span>).<span class="cfn">unwrap</span>(),
-        <span class="cn">900</span>,
-    ).<span class="cfn">unwrap</span>());
-
-    <span class="cc">// 3. AuthClient in-process — di-inject ke middleware semua service berproteksi</span>
-    <span class="cc">//    Saat diekstrak ke microservice: ganti dengan HttpAuthClient, tidak ada perubahan lain</span>
-    <span class="ck">let</span> auth_client: Arc&lt;<span class="ck">dyn</span> auth_service_client::<span class="ct">AuthClient</span>&gt; =
-        Arc::new(auth_service::<span class="ct">AuthInProcessClient</span>::<span class="cfn">new</span>(jwt.<span class="cfn">clone</span>()));
-
-    <span class="cc">// 4. Wire semua router + cross-cutting layers</span>
-    <span class="ck">let</span> app = Router::new()
-        .<span class="cfn">nest</span>(<span class="cs">"/api/auth"</span>,      auth_service::<span class="cfn">router_with_jwt</span>(pool.<span class="cfn">clone</span>(), jwt))
-        .<span class="cfn">nest</span>(<span class="cs">"/api/users"</span>,     user_service::<span class="cfn">router</span>(pool.<span class="cfn">clone</span>()))
-        .<span class="cfn">nest</span>(<span class="cs">"/api/chat"</span>,      chat_service::<span class="cfn">router</span>(pool.<span class="cfn">clone</span>()))
-        .<span class="cfn">nest</span>(<span class="cs">"/api/notif"</span>,     notification_service::<span class="cfn">router</span>(pool.<span class="cfn">clone</span>()))
-        .<span class="cfn">nest</span>(<span class="cs">"/api/pekerjaan"</span>, iklan_pekerjaan_service::<span class="cfn">router</span>(pool.<span class="cfn">clone</span>()))
-        .<span class="cfn">nest</span>(<span class="cs">"/api/pekerja"</span>,   iklan_pekerja_service::<span class="cfn">router</span>(pool.<span class="cfn">clone</span>()))
-        .<span class="cfn">nest</span>(<span class="cs">"/api/barang"</span>,    iklan_barang_bekas_service::<span class="cfn">router</span>(pool.<span class="cfn">clone</span>()))
-        .<span class="cfn">nest</span>(<span class="cs">"/api/pelatihan"</span>, iklan_pelatihan_service::<span class="cfn">router</span>(pool))
-        .<span class="cfn">layer</span>(<span class="ct">CompressionLayer</span>::<span class="cfn">new</span>())
-        .<span class="cfn">layer</span>(<span class="ct">TraceLayer</span>::<span class="cfn">new_for_http</span>())
-        .<span class="cfn">layer</span>(<span class="ct">CorsLayer</span>::<span class="cfn">new</span>().<span class="cfn">allow_origin</span>(<span class="ct">Any</span>).<span class="cfn">allow_methods</span>(<span class="ct">Any</span>).<span class="cfn">allow_headers</span>(<span class="ct">Any</span>));
-
-    <span class="ck">let</span> port     = env::<span class="cfn">var</span>(<span class="cs">"APP_PORT"</span>).<span class="cfn">unwrap_or</span>(<span class="cs">"8080"</span>.<span class="cfn">into</span>());
-    <span class="ck">let</span> listener = tokio::net::<span class="ct">TcpListener</span>::<span class="cfn">bind</span>(<span class="cfn">format!</span>(<span class="cs">"0.0.0.0:{port}"</span>)).await.<span class="cfn">unwrap</span>();
-    tracing::<span class="cfn">info!</span>(port = %port, <span class="cs">"rejki-app listening"</span>);
-    axum::<span class="cfn">serve</span>(listener, app).await.<span class="cfn">unwrap</span>();
-}</pre>
+<span class="cc">// Cross-cutting: common-config (fail-fast) · common/crypto · common/rate-limit ·</span>
+<span class="cc">// CorsLayer env-aware · TraceLayer · CompressionLayer · request_id_layer ·</span>
+<span class="cc">// graceful shutdown SIGTERM 30s · Swagger UI (development only)</span></pre>
       </div>
 
       <div class="comp-callouts">
@@ -643,6 +617,21 @@
           <div class="card-icon" style="font-size:1rem;background:rgba(86,211,100,.1);border-radius:6px;padding:.4rem .7rem;display:inline-block;margin-bottom:.6rem;">notification-service-client</div>
           <h3>Expose</h3>
           <p><code>trait NotificationClient</code><br/><code>NotificationPayload</code><br/><code>fn send(recipient_id, payload)</code><br/><code>fn send_bulk(ids, payload)</code></p>
+        </div>
+        <div class="card">
+          <div class="card-icon" style="font-size:1rem;background:rgba(227,179,65,.1);border-radius:6px;padding:.4rem .7rem;display:inline-block;margin-bottom:.6rem;">region-service-client</div>
+          <h3>Expose</h3>
+          <p><code>trait RegionClient</code><br/><code>Region { id, name, type }</code><br/><code>fn get_region(id)</code><br/><code>fn validate_chain(ids)</code></p>
+        </div>
+        <div class="card">
+          <div class="card-icon" style="font-size:1rem;background:rgba(121,192,255,.1);border-radius:6px;padding:.4rem .7rem;display:inline-block;margin-bottom:.6rem;">storage-service-client</div>
+          <h3>Expose</h3>
+          <p><code>trait StorageClient</code><br/><code>fn request_upload(filename, mime)</code><br/><code>fn get_download_url(path)</code></p>
+        </div>
+        <div class="card">
+          <div class="card-icon" style="font-size:1rem;background:rgba(247,129,102,.1);border-radius:6px;padding:.4rem .7rem;display:inline-block;margin-bottom:.6rem;">corporate-comms-client</div>
+          <h3>Expose</h3>
+          <p><code>trait CommsClient</code><br/><code>ArticleSummary { id, title }</code><br/><code>fn broadcast(article_id)</code></p>
         </div>
         <div class="card">
           <div class="card-icon" style="font-size:1rem;background:rgba(227,179,65,.1);border-radius:6px;padding:.4rem .7rem;display:inline-block;margin-bottom:.6rem;">iklan-*-service-client</div>
@@ -723,7 +712,7 @@
           <div class="rm-body">
             <div class="rm-phase">Phase 1 — Foundation</div>
             <div class="rm-title">Workspace, Shared Crates, Toolchain</div>
-            <div class="rm-desc">Cargo workspace 20 members · common/errors (JSON body) · common/tracing-setup · common/auth-middleware (DI via AuthClient trait) · Docker Compose PostgreSQL · 8 schema DB terisolasi · scripts/init-schemas.sql · .env.example · .gitignore.</div>
+            <div class="rm-desc">Cargo workspace 32 members · common/errors (JSON body + ApiResponse) · common/tracing-setup · common/auth-middleware (DI via AuthClient trait) · common/config (AppConfig fail-fast) · common/crypto (AES-256-GCM) · common/rate-limit · Docker Compose PostgreSQL · 8+ schema DB terisolasi (init + migration) · scripts/init-schemas.sql · .env.example · .gitignore.</div>
             <div class="rm-done">✓ Selesai</div>
             <div class="rm-pills">
               <span class="rm-pill">common/errors</span>
@@ -748,7 +737,7 @@
               <span class="rm-pill">auth-service-client</span>
               <span class="rm-pill">JwtService</span>
               <span class="rm-pill">AuthInProcessClient</span>
-              <span class="rm-pill">8 service skeleton</span>
+              <span class="rm-pill">13 service skeleton</span>
               <span class="rm-pill">rejki-app wiring</span>
             </div>
           </div>
@@ -792,13 +781,41 @@
           <div class="rm-left"><div class="rm-dot"></div><div class="rm-line"></div></div>
           <div class="rm-body">
             <div class="rm-phase">Phase 2 — Core Services</div>
+            <div class="rm-title">Infrastructure Services: region-service · storage-service</div>
+            <div class="rm-desc">region-service: data wilayah 4-level (provinsi/kabupaten/kecamatan/desa), cascading API, RegionClient trait untuk validasi chain · storage-service: presigned URL upload/download, MinIO/S3 abstraction via StorageClient trait.</div>
+            <div class="rm-done">✓ Selesai</div>
+            <div class="rm-pills">
+              <span class="rm-pill">region-service</span>
+              <span class="rm-pill">storage-service</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="rm ph2">
+          <div class="rm-left"><div class="rm-dot"></div><div class="rm-line"></div></div>
+          <div class="rm-body">
+            <div class="rm-phase">Phase 2 — Core Services</div>
             <div class="rm-title">user-service · notification-service · chat-service</div>
-            <div class="rm-desc">user-service CRUD profil lengkap · notification-service Rust jadi publisher Redis Stream + REST API in-app + device token management · bun-notification-service consumer FCM HTTP v1 + DB write · chat-service (WebSocket + cursor pagination bidirectional + broadcast) · <code>UserClient</code>, <code>NotificationClient</code>, <code>ChatClient</code> trait.</div>
+            <div class="rm-desc">user-service CRUD profil lengkap + RBAC admin · notification-service Rust jadi publisher Redis Stream + REST API in-app + device token management · bun-notification-service consumer FCM HTTP v1 + DB write · chat-service (WebSocket + cursor pagination bidirectional + broadcast) · <code>UserClient</code>, <code>NotificationClient</code>, <code>ChatClient</code> trait.</div>
             <div class="rm-done">✓ Selesai</div>
             <div class="rm-pills">
               <span class="rm-pill">user-service</span>
               <span class="rm-pill">notification-service</span>
               <span class="rm-pill">chat-service WebSocket</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="rm ph2">
+          <div class="rm-left"><div class="rm-dot"></div><div class="rm-line"></div></div>
+          <div class="rm-body">
+            <div class="rm-phase">Phase 2 — Core Services</div>
+            <div class="rm-title">corporate-comms-service · report-service</div>
+            <div class="rm-desc">corporate-comms-service: artikel, soft-delete, foto, broadcast notifikasi · report-service: content reports, review system, CSV export.</div>
+            <div class="rm-done">✓ Selesai</div>
+            <div class="rm-pills">
+              <span class="rm-pill">corporate-comms-service</span>
+              <span class="rm-pill">report-service</span>
             </div>
           </div>
         </div>
@@ -901,7 +918,7 @@
               <td><span class="cl-status-done">✓ Selesai</span></td>
             </tr>
             <tr class="cl-1">
-              <td>Cargo workspace 20 members + struktur folder</td>
+              <td>Cargo workspace 32 members + struktur folder</td>
               <td style="text-align:center;">1</td>
               <td><span class="cl-status-done">✓ Selesai</span></td>
             </tr>
@@ -1117,7 +1134,7 @@
               <td><span class="cl-status-done">✓ Selesai</span></td>
             </tr>
             <tr class="cl-3">
-              <td>Integration test dengan DB real (schema <code>rejki_test</code>) — <em>partial: 52 test di rejki-app/tests/, CI pakai Postgres container, 0 test di 12 *-service crate</em></td>
+              <td>Integration test dengan DB real (schema <code>rejki_test</code>) — <em>partial: 52 integration test di rejki-app/tests/ + 12 test di insights-service (CEO analytics)</em></td>
               <td style="text-align:center;">3</td>
               <td><span class="cl-status-done" style="background:rgba(227,179,65,.15);color:var(--yellow);border-color:rgba(227,179,65,.3);">⚡ Partial</span></td>
             </tr>

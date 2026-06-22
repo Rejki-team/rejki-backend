@@ -141,9 +141,9 @@
     <div class="progress-wrap">
       <div class="progress-label">
         <span>Phase 3 Progress</span>
-        <span style="color:var(--blue);font-weight:700;">73%</span>
+        <span style="color:var(--blue);font-weight:700;">80%</span>
       </div>
-      <div class="progress-track"><div class="progress-fill" style="width:65%"></div></div>
+      <div class="progress-track"><div class="progress-fill" style="width:80%"></div></div>
     </div>
     <div class="nav-divider"></div>
     <div class="nav-section">Navigasi</div>
@@ -153,7 +153,7 @@
     <a class="nav-item" href="#w3a">W3A — Security Core & Foundation <span class="nav-badge nb-done">3/3</span></a>
     <a class="nav-item" href="#w3b">W3B — Compliance & Access <span class="nav-badge nb-done">4/4</span></a>
     <a class="nav-item" href="#w3c">W3C — Production Polish <span class="nav-badge nb-done">4/4</span></a>
-    <a class="nav-item" href="#w3d">W3D — Analytics & Infra <span class="nav-badge nb-todo">0/4</span></a>
+    <a class="nav-item" href="#w3d">W3D — Analytics & Infra <span class="nav-badge nb-prog">1/4</span></a>
     <a class="nav-item" href="#summary">Ringkasan</a>
     <div class="nav-divider"></div>
     <div class="nav-section">Referensi</div>
@@ -692,7 +692,7 @@
 
       <div class="tasks">
 
-        <div class="task">
+        <div class="task done">
           <div class="task-head">
             <span class="task-id">W3D-12</span>
             <span class="task-title">CEO analytics endpoints — /api/v1/insights/* + materialized view + RBAC-gated</span>
@@ -701,15 +701,43 @@
           </div>
           <div class="task-body">
             <div class="task-body-inner gap-section">
-              <div><div class="section-label">Target gap: E1, E2, E3, E4</div></div>
-              <div class="impl-list">
-                <div class="impl-item">Endpoint: <code>GET /insights/users</code> — total, baru (harian/mingguan/bulanan), aktif, terverifikasi</div>
-                <div class="impl-item">Endpoint: <code>GET /insights/iklan</code> — per vertikal, aktif, baru, barang terjual ( %)</div>
-                <div class="impl-item">Endpoint: <code>GET /insights/geo</code> — sebaran per wilayah (bergantung C1 — region_id sudah ada)</div>
-                <div class="impl-item">Endpoint: <code>GET /insights/engagement</code> — volume chat, notif terkirim/dibaca</div>
-                <div class="impl-item">Auth: RBAC role <code>executive</code> (read-only) — via W3B-05</div>
-                <div class="impl-item">Strategi agregasi: materialized view + refresh cron (setiap 1 jam) — hindari beban DB transaksional</div>
-                <div class="impl-item">Cache: response di-cache 5 menit (Redis atau in-memory)</div>
+              <div>
+                <div class="section-label">OpenSpec change: <code>ws-ceo-analytics</code></div>
+                <div class="done-tag" style="display:inline-block;background:rgba(63,185,80,.15);color:var(--green);border:1px solid rgba(63,185,80,.3);border-radius:20px;padding:.15rem .65rem;font-size:.7rem;font-weight:700;margin-top:.3rem;">✅ DONE 22 Jun 2026</div>
+              </div>
+              <div>
+                <div class="section-label">Hasil final</div>
+                <div class="impl-list">
+                  <div class="impl-item"><strong>Role Executive (rank 90)</strong>: tambah <code>Executive</code> variant di auth-service-client, migration alter CHECK constraint, <code>is_admin_strict()</code> guard</div>
+                  <div class="impl-item"><strong>6 migration files</strong>: schema analytics + 4 materialized views (user_stats, iklan_stats, geo_stats, engagement_stats) + unique indexes + down migrations</div>
+                  <div class="impl-item"><strong>4-layer Clean Architecture</strong>: domain (entity + repo trait) → application (DTO + service + cache) → infrastructure (PgInsightsRepository) → interface (router + 6 handlers)</div>
+                  <div class="impl-item"><strong>Refresh scheduler</strong>: RefreshCoordinator tokio interval 30 menit — REFRESH MATERIALIZED VIEW CONCURRENTLY</div>
+                  <div class="impl-item"><strong>6 REST endpoints</strong>: GET /insights/users, /insights/iklan, /insights/geo, /insights/engagement, /insights/canvassing, POST /insights/refresh</div>
+                  <div class="impl-item"><strong>In-memory cache</strong>: Arc/RwLock/HashMap with TTL 300 detik + auto-invalidasi pada refresh</div>
+                  <div class="impl-item"><strong>Filter parameter</strong>: vertikal (iklan), province_id (geo), period (semua endpoint)</div>
+                  <div class="impl-item"><strong>Swagger mirror</strong>: openapi.rs dengan tag insights + DTO response annotations</div>
+                </div>
+              </div>
+              <div>
+                <div class="section-label">File yang disentuh</div>
+                <div class="file-list">
+                  <div class="file-row"><span class="fop fop-migr">migrate</span><span class="fpath">insights-service/migrations/</span><span class="fnote">— 6 migration files (schema + 4 MV + indexes)</span></div>
+                  <div class="file-row"><span class="fop fop-new">new</span><span class="fpath">insights-service/src/domain/</span><span class="fnote">— entity.rs + repository.rs</span></div>
+                  <div class="file-row"><span class="fop fop-new">new</span><span class="fpath">insights-service/src/application/</span><span class="fnote">— dto.rs + service.rs + dto_test.rs</span></div>
+                  <div class="file-row"><span class="fop fop-new">new</span><span class="fpath">insights-service/src/infrastructure/</span><span class="fnote">— pg_repository.rs + mod.rs</span></div>
+                  <div class="file-row"><span class="fop fop-new">new</span><span class="fpath">insights-service/src/interface/</span><span class="fnote">— mod.rs (router) + handlers.rs</span></div>
+                  <div class="file-row"><span class="fop fop-new">new</span><span class="fpath">insights-service/src/refresh.rs</span><span class="fnote">— RefreshCoordinator</span></div>
+                  <div class="file-row"><span class="fop fop-edit">edit</span><span class="fpath">auth-service-client/src/lib.rs</span><span class="fnote">— Role::Executive (90)</span></div>
+                  <div class="file-row"><span class="fop fop-edit">edit</span><span class="fpath">rejki-app/src/main.rs</span><span class="fnote">— + nest insights + spawn scheduler</span></div>
+                  <div class="file-row"><span class="fop fop-edit">edit</span><span class="fpath">rejki-app/src/openapi.rs</span><span class="fnote">— + tag insights + 6 endpoint annotations</span></div>
+                  <div class="file-row"><span class="fop fop-new">new</span><span class="fpath">insights-service/tests/</span><span class="fnote">— common/mod.rs + common/fixtures.rs + insights_integration_test.rs</span></div>
+                </div>
+              </div>
+              <div>
+                <div class="section-label">Verifikasi</div>
+                <div class="status-badge" style="margin-top:.3rem;">
+                  <span style="color:var(--green);">fmt ✅ clippy zero ✅ check ✅ unit 8/8 PASS ✅ integration 12/12 PASS (Podman PostgreSQL) ✅ sqlx prepare ✅</span>
+                </div>
               </div>
             </div>
           </div>
