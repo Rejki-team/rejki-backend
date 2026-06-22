@@ -72,6 +72,6 @@
 - [x] `cargo clippy --workspace -- -D warnings`
 - [x] `cargo check --workspace`
 - [x] `cargo test -p insights-service` (8 unit test + integration test)
-- [ ] `cargo sqlx prepare --workspace`
+- [x] `cargo sqlx prepare --workspace`
 - [x] Update `implementation-plan-phase-3.html` status W3D-12
 - [x] Update dokumentasi openspec & /docs

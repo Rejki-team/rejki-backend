@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="id">
 <head>
   <meta charset="UTF-8" />
@@ -291,6 +291,7 @@
             <div class="arch-box ab-app">iklan-pekerja-service<small>/api/pekerja/*</small></div>
             <div class="arch-box ab-app">iklan-barang-bekas-service<small>/api/barang/*</small></div>
             <div class="arch-box ab-app">iklan-pelatihan-service<small>/api/pelatihan/*</small></div>
+            <div class="arch-box ab-app">**insights-service**<small>/insights/* · CEO analytics</small></div>
           </div>
         </div>
         <div class="arch-arrow">↓</div>
@@ -308,7 +309,7 @@
       <h2 class="sec-title"><span class="sec-icon ic-y">🗂️</span>Struktur Proyek</h2>
       <div class="filetree">
 <span class="ft-dir">rejki-backend/</span>
-├── <span class="ft-hi">Cargo.toml</span>                        <span class="ft-note"># Workspace root — 20 members</span>
+├── <span class="ft-hi">Cargo.toml</span>                        <span class="ft-note"># Workspace root — 32 members</span>
 ├── <span class="ft-hi">Cargo.lock</span>                        <span class="ft-note"># Commit ini — reproducible builds</span>
 ├── .gitignore
 ├── docker-compose.yml
@@ -320,9 +321,12 @@
 │   └── src/main.rs                   <span class="ft-note"># wire deps → gabung router → serve</span>
 │
 ├── <span class="ft-dir">common/</span>                           <span class="ft-note"># Shared library crates</span>
-│   ├── errors/src/lib.rs             <span class="ft-note"># AppError + IntoResponse</span>
-│   ├── tracing-setup/src/lib.rs      <span class="ft-note"># init_tracing()</span>
-│   └── auth-middleware/src/lib.rs    <span class="ft-note"># Tower JWT layer (diisi setelah auth-service)</span>
+│   ├── crypto/src/lib.rs            <span class="ft-note"># AES-256-GCM encryption</span>
+│   ├── config/src/lib.rs            <span class="ft-note"># AppConfig::from_env() fail-fast</span>
+│   ├── errors/src/lib.rs            <span class="ft-note"># AppError + IntoResponse + ApiResponse</span>
+│   ├── rate-limit/src/lib.rs        <span class="ft-note"># Rate limit tower layer</span>
+│   ├── tracing-setup/src/lib.rs     <span class="ft-note"># init_tracing()</span>
+│   └── auth-middleware/src/lib.rs   <span class="ft-note"># Tower JWT layer</span>
 │
 ├── <span class="ft-dir">auth-service/</span>                     <span class="ft-note"># [lib] + [[bin]]</span>
 │   ├── rust-services/Cargo.toml
@@ -340,13 +344,21 @@
 │   └── src/lib.rs                    <span class="ft-note"># trait AuthClient · AuthClaims</span>
 │
 <span class="ft-note"># ... pola [lib]+[[bin]] dan *-client identik untuk semua service lain</span>
-├── user-service/          user-service-client/
-├── chat-service/          chat-service-client/
-├── notification-service/  notification-service-client/
+├── region-service/           region-service-client/
+├── storage-service/          storage-service-client/
+├── user-service/             user-service-client/
+├── chat-service/             chat-service-client/
+├── notification-service/     notification-service-client/
+├── corporate-comms-service/  corporate-comms-service-client/
+├── report-service/           report-service-client/
 ├── iklan-pekerjaan-service/  iklan-pekerjaan-service-client/
 ├── iklan-pekerja-service/    iklan-pekerja-service-client/
 ├── iklan-barang-bekas-service/  iklan-barang-bekas-service-client/
-└── iklan-pelatihan-service/     iklan-pelatihan-service-client/</div>
+├── iklan-pelatihan-service/     iklan-pelatihan-service-client/
+├── <span class="ft-hi">insights-service/</span>             <span class="ft-note"># CEO analytics · 4 MV · Executive role</span>
+└── ...
+
+
     </section>
 
     <!-- DEPENDENCY GRAPH -->
@@ -395,6 +407,14 @@
           <span class="dep-arrow">imports</span>
           <div class="dep-node dn-g">common-errors</div>
           <div class="dep-node dn-g">common-tracing</div>
+          <div class="dep-node dn-m">tidak import service lain</div>
+        </div>
+
+        <div class="dep-flow">
+          <span style="font-size:.75rem;font-weight:700;color:var(--muted);min-width:110px;">insights-service</span>
+          <span class="dep-arrow">imports</span>
+          <div class="dep-node dn-b">auth-service-client</div>
+          <div class="dep-node dn-g">common-errors</div>
           <div class="dep-node dn-m">tidak import service lain</div>
         </div>
 
@@ -828,6 +848,22 @@
           </div>
         </div>
 
+        <div class="rm ph3">
+          <div class="rm-left"><div class="rm-dot"></div><div class="rm-line"></div></div>
+          <div class="rm-body">
+            <div class="rm-phase">Phase 3 — Hardening</div>
+            <div class="rm-title">W3D-12: CEO Analytics Endpoints</div>
+            <div class="rm-desc">Insights-service: 4 materialized view (user_stats, iklan_stats, geo_stats, engagement_stats) &#183; refresh scheduler &#183; Executive role (rank 90) &#183; RBAC endpoint filtering &#183; canvassing endpoint &#183; filter vertikal+provinsi &#183; integration test 12 PASS.</div>
+            <div class="rm-done">✓ Selesai</div>
+            <div class="rm-pills">
+              <span class="rm-pill">insights-service</span>
+              <span class="rm-pill">4 MV</span>
+              <span class="rm-pill">Executive role</span>
+              <span class="rm-pill">canvassing</span>
+            </div>
+          </div>
+        </div>
+
         <div class="rm ph4">
           <div class="rm-left"><div class="rm-dot"></div><div class="rm-line"></div></div>
           <div class="rm-body">
@@ -1165,6 +1201,11 @@
               <td><span class="cl-status-done">✅ Done</span></td>
             </tr>
             <tr class="cl-3">
+              <td><strong>ws-ceo-analytics</strong> — insights-service: 4 MV (user_stats, iklan_stats, geo_stats, engagement_stats) ✅, refresh scheduler ✅, Executive role (rank 90) ✅, RBAC endpoint filtering ✅, canvassing endpoint ✅, filter vertikal+provinsi ✅, unit test 8 PASS ✅, integration test 12 PASS ✅ <br><small><a href="implementation-plan-phase-3.html#w3d" style="color:var(--yellow);">W3D-12 &#183; P2 &#183; 22 Jun 2026</a></small></td>
+              <td style="text-align:center;">3</td>
+              <td><span class="cl-status-done">✅ Done</span></td>
+            </tr>
+            <tr class="cl-3">
               <td><strong>Phase 3 plan</strong> — brainstorm + implementation plan (15 task, 4 wave, 8-12 minggu) <br><small><a href="brainstorm/phase-3-hardening-analysis.html" style="color:var(--yellow);">brainstorm</a> · <a href="implementation-plan-phase-3.html" style="color:var(--yellow);">implementation plan</a></small></td>
               <td style="text-align:center;">3</td>
               <td><span class="cl-status-done">✓ 17 Juni 2026</span></td>
@@ -1175,7 +1216,7 @@
     </section>
 
     <footer>
-      <p>Rejki Backend Architecture Document · Terakhir diperbarui: 20 Juni 2026 · Phase 2 selesai ✓ · Wave 3A COMPLETE ✓ · W3B 4/4 ✅ · W3C 4/4 ✅</p>
+      <p>Rejki Backend Architecture Document · Terakhir diperbarui: 22 Juni 2026 · Phase 2 selesai ✓ · Wave 3A COMPLETE ✓ · W3B 4/4 ✅ · W3C 4/4 ✅ · W3D 1/1 ✅</p>
       <p style="margin-top:.3rem;">Stack: Rust · Axum 0.8 · sqlx 0.9 · PostgreSQL · Modular Monolith → Extraction-Ready</p>
     </footer>
 

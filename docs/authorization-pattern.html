@@ -274,7 +274,7 @@
     <!-- PHASE 3: RBAC LAPISAN 4 -->
     <section id="rbac">
       <h2 class="sec-title"><span class="sec-icon ic-o">🎭</span>Role-Based Access Control (Lapisan 4 — Phase 3)</h2>
-      <p style="color:var(--muted);font-size:.85rem;margin-bottom:1rem;">Setelah autentikasi (Lapisan 1) dan ownership check (Lapisan 2), ada lapisan tambahan untuk membedakan akses berdasarkan role pengguna. ✅ <strong>Sudah diimplementasi</strong> — W3B-05 <code>ws-multi-tier-rbac</code>.</p>
+      <p style="color:var(--muted);font-size:.85rem;margin-bottom:1rem;">Setelah autentikasi (Lapisan 1) dan ownership check (Lapisan 2), ada lapisan tambahan untuk membedakan akses berdasarkan role pengguna. ✅ <strong>Sudah diimplementasi</strong> — W3B-05 <code>ws-multi-tier-rbac</code> + W3D-12 <code>ws-ceo-analytics</code> (Executive role).</p>
 
       <div class="sub-title">Role Hierarchy (Rank-based)</div>
       <p style="color:var(--muted);font-size:.83rem;">Setiap role memiliki rank numerik. Otorisasi = <code>request.role.rank() >= endpoint.min_rank</code>.</p>
@@ -282,6 +282,7 @@
         <thead><tr><th>Role</th><th>Rank</th><th>Akses</th></tr></thead>
         <tbody>
           <tr><td><code>super_admin</code></td><td>100</td><td>Semua endpoint (ALL)</td></tr>
+          <tr><td><code>executive</code></td><td>90</td><td>CEO Analytics dashboard + iklan view + user view</td></tr>
           <tr><td><code>admin_iklan</code> / <code>admin_user</code></td><td>80</td><td>Admin endpoint iklan/user + moderator + user</td></tr>
           <tr><td><code>moderator</code></td><td>60</td><td>Report + corporate-comms + user</td></tr>
           <tr><td><code>user_verified</code></td><td>40</td><td>Post iklan, chat, create reports</td></tr>
@@ -327,7 +328,7 @@
     </section>
 
     <footer>
-      <p>Rejki Backend — Authorization Pattern · 19 Juni 2026 · Phase 1.5 + W3B-05 RBAC</p>
+      <p>Rejki Backend — Authorization Pattern · 22 Juni 2026 · Phase 1.5 + W3B-05 RBAC + W3D-12 Executive</p>
       <p style="margin-top:.3rem;">Stack: Rust · Axum · sqlx · JWT</p>
     </footer>
   </main>
