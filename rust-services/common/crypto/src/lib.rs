@@ -78,9 +78,8 @@ mod tests {
 
     fn set_test_key() {
         let key = B64.encode([7u8; 32]);
-        // SAFETY: tes ini dijalankan secara serial (cargo test -- --test-threads=1
-        // atau memang satu-satunya pengguna env var ini di test suite).
-        unsafe { std::env::set_var(KEY_ENV, key) };
+        // Gunakan std::env::set_var — aman karena test dijalankan serial (--test-threads=1)
+        std::env::set_var(KEY_ENV, key);
     }
 
     #[test]

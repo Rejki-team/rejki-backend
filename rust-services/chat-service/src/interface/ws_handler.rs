@@ -66,9 +66,18 @@ pub async fn ws_handler(
     };
 
     Ok(ws.on_upgrade(move |socket| {
-        handle_socket(socket, user_id, conv_id, rx, Arc::clone(&s.auth_client))
+        handle_socket(
+            socket,
+            user_id,
+            conv_id,
+            rx,
+            Arc::clone(&s.auth_client),
+            s.conversation_rooms.clone(),
+        )
     }))
 }
+
+use super::ConversationRooms;
 
 async fn handle_socket(
     mut socket: WebSocket,
@@ -76,10 +85,12 @@ async fn handle_socket(
     conv_id: Uuid,
     mut broadcast_rx: broadcast::Receiver<WsEnvelope>,
     _auth: Arc<dyn AuthClient>,
+    conversation_rooms: ConversationRooms,
 ) {
     let keepalive = Duration::from_secs(KEEPALIVE_SECS);
 
-    loop {
+    let result: Result<(), ()> = loop {
+        // Use tokio::select to handle broadcast and recv simultaneously
         tokio::select! {
             // Broadcast: relay message dari participant lain ke client ini
             broadcast_msg = broadcast_rx.recv() => {
@@ -87,7 +98,7 @@ async fn handle_socket(
                     Ok(envelope) => {
                         let payload = serde_json::to_string(&envelope).unwrap_or_default();
                         if socket.send(Message::Text(payload.into())).await.is_err() {
-                            return;
+                            break Err(());
                         }
                     }
                     Err(broadcast::error::RecvError::Lagged(n)) => {
@@ -95,7 +106,7 @@ async fn handle_socket(
                             "ws client lagged — beberapa pesan hilang");
                     }
                     Err(broadcast::error::RecvError::Closed) => {
-                        return;
+                        break Err(());
                     }
                 }
             }
@@ -107,19 +118,19 @@ async fn handle_socket(
                     Err(_) => {
                         if socket.send(Message::Ping(vec![].into())).await.is_err() {
                             tracing::info!(user_id = %user_id, "ws client disconnected (ping failed)");
-                            return;
+                            break Err(());
                         }
                     }
 
                     // Connection closed cleanly
                     Ok(None) => {
                         tracing::info!(user_id = %user_id, conv_id = %conv_id, "ws client disconnected");
-                        return;
+                        break Ok(());
                     }
 
                     Ok(Some(Err(e))) => {
                         tracing::warn!(user_id = %user_id, error = ?e, "ws error");
-                        return;
+                        break Err(());
                     }
 
                     Ok(Some(Ok(msg))) => {
@@ -156,7 +167,7 @@ async fn handle_socket(
                                         reason: "server shutting down".into(),
                                     })))
                                     .await;
-                                return;
+                                break Ok(());
                             }
 
                             Message::Pong(_) => {}
@@ -167,5 +178,17 @@ async fn handle_socket(
                 }
             }
         }
+    };
+
+    // ── Cleanup: hapus entry dari HashMap jika tidak ada subscriber lagi ──
+    let mut rooms = conversation_rooms.lock().await;
+    if let Some(tx) = rooms.get(&conv_id) {
+        if tx.receiver_count() == 0 {
+            rooms.remove(&conv_id);
+            tracing::debug!(conv_id = %conv_id, "rooms: removed empty channel");
+        }
     }
+    drop(rooms);
+
+    let _ = result; // suppress unused warning
 }

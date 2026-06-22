@@ -39,7 +39,7 @@ const CHUNK_SIZE: usize = 4096;
 
 // ── Error ───────────────────────────────────────────────────────────────────
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, PartialEq, thiserror::Error)]
 pub enum ClamavError {
     #[error("ClamAV connection timeout: {0}")]
     ConnectionTimeout(String),

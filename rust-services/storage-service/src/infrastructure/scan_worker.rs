@@ -6,15 +6,24 @@
 //! ## Flow
 //! 1. MinIO bucket notification → XADD ke Redis Stream `scan-queue`
 //! 2. Worker XREADGROUP dari `scan-queue` (consumer group: `scan-workers`)
-//! 3. Download file dari MinIO (HTTP GET)
+//! 3. Download file dari MinIO (via aws-sdk-s3 SigV4)
 //! 4. Stream bytes ke ClamAV TCP (INSTREAM protocol)
 //! 5. CLEAN: log info
 //! 6. INFECTED: push notifikasi ke Redis `notifications:push`
+//!
+//! ## Connection Management
+//! - Redis: `ConnectionManager` (reused connection, lazy init)
+//! - MinIO: `aws-sdk-s3` client dengan SigV4 signing (connection pool via hyper)
+//! - ClamAV: TCP connection per scan (short-lived, proper timeout)
 //!
 //! ## Graceful degradation
 //! Jika ClamAV atau Redis tidak tersedia, worker akan log warning dan skip scan.
 //! File upload tetap berjalan (fail-open) — scan adalah enhancement, bukan blocker.
 
+use aws_config::BehaviorVersion;
+use aws_sdk_s3::config::Credentials;
+use aws_sdk_s3::operation::get_object::GetObjectOutput;
+use aws_sdk_s3::Client as S3Client;
 use common_clamav::{ClamavClient, ScanResult};
 use redis::aio::ConnectionManager;
 use redis::AsyncCommands;
@@ -29,61 +38,13 @@ const SCAN_GROUP: &str = "scan-workers";
 /// Prefix Redis Stream untuk push notification
 const NOTIFICATION_STREAM: &str = "notifications:push";
 
-/// Struct yang menyimpan koneksi Redis + ClamAV client
+/// Struct yang menyimpan koneksi Redis + ClamAV client + S3 client
 pub struct ScanWorker {
     redis: ConnectionManager,
     clamav: ClamavClient,
-    minio: MinioClient,
+    s3: S3Client,
+    bucket: String,
     shutdown: watch::Receiver<bool>,
-}
-
-/// Client untuk download dari MinIO via HTTP GET
-struct MinioClient {
-    base_url: String,
-    access_key: String,
-    secret_key: String,
-}
-
-impl MinioClient {
-    fn from_env() -> Option<Self> {
-        let endpoint = std::env::var("MINIO_ENDPOINT").ok()?;
-        let access_key = std::env::var("MINIO_ACCESS_KEY").ok()?;
-        let secret_key = std::env::var("MINIO_SECRET_KEY").ok()?;
-        let bucket = std::env::var("MINIO_BUCKET").unwrap_or_else(|_| "rejki-dokumen".into());
-        let base_url = format!("{}/{}", endpoint.trim_end_matches('/'), bucket);
-        Some(Self {
-            base_url,
-            access_key,
-            secret_key,
-        })
-    }
-
-    async fn download_object(&self, object_key: &str) -> Result<Vec<u8>, String> {
-        let url = format!("{}/{}", self.base_url, object_key);
-        let client = reqwest::Client::builder()
-            .danger_accept_invalid_certs(false)
-            .build()
-            .map_err(|e| format!("reqwest: {e}"))?;
-
-        let resp = client
-            .get(&url)
-            .header(
-                "Authorization",
-                format!("AWS {}:{}", self.access_key, self.secret_key),
-            )
-            .send()
-            .await
-            .map_err(|e| format!("download: {e}"))?;
-
-        if !resp.status().is_success() {
-            return Err(format!("HTTP {}", resp.status()));
-        }
-
-        resp.bytes()
-            .await
-            .map(|b| b.to_vec())
-            .map_err(|e| format!("read: {e}"))
-    }
 }
 
 impl ScanWorker {
@@ -93,13 +54,18 @@ impl ScanWorker {
         let redis_url = std::env::var("REDIS_URL").ok()?;
         let redis_client = redis::Client::open(redis_url.as_str()).ok()?;
         let redis = redis_client.get_connection_manager().await.ok()?;
+
         let clamav = ClamavClient::from_env();
-        let minio = MinioClient::from_env()?;
+
+        // Inisialisasi S3 client untuk MinIO (SigV4 signing)
+        let s3 = init_s3_client().await?;
+        let bucket = std::env::var("MINIO_BUCKET").unwrap_or_else(|_| "rejki-dokumen".into());
 
         Some(Self {
             redis,
             clamav,
-            minio,
+            s3,
+            bucket,
             shutdown,
         })
     }
@@ -186,7 +152,7 @@ impl ScanWorker {
             .and_then(|(_stream, entries)| entries.into_iter().next()))
     }
 
-    /// Process satu event upload.
+    /// Process satu event upload — download file dari MinIO via S3 SigV4, scan via ClamAV.
     async fn process_event(&self, entry_id: &str, fields: &[(String, String)]) {
         let fields_map: std::collections::HashMap<&str, &str> = fields
             .iter()
@@ -203,7 +169,7 @@ impl ScanWorker {
 
         tracing::info!("scan worker: processing {object_key}");
 
-        let file_bytes = match self.minio.download_object(object_key).await {
+        let file_bytes = match self.download_from_minio(object_key).await {
             Ok(b) => b,
             Err(e) => {
                 tracing::warn!("scan worker: download failed {object_key}: {e}");
@@ -230,6 +196,26 @@ impl ScanWorker {
         }
     }
 
+    /// Download file dari MinIO via aws-sdk-s3 (SigV4 authentication).
+    async fn download_from_minio(&self, object_key: &str) -> Result<Vec<u8>, String> {
+        let output: GetObjectOutput = self
+            .s3
+            .get_object()
+            .bucket(&self.bucket)
+            .key(object_key)
+            .send()
+            .await
+            .map_err(|e| format!("S3 GetObject: {e}"))?;
+
+        let data = output
+            .body
+            .collect()
+            .await
+            .map_err(|e| format!("S3 read body: {e}"))?;
+
+        Ok(data.to_vec())
+    }
+
     async fn notify_infected(&self, object_key: &str, virus: &str) {
         let payload = format!(
             r#"{{"event":"file.scan.infected","object_key":"{}","virus":"{}","timestamp":"{}"}}"#,
@@ -246,4 +232,29 @@ impl ScanWorker {
 
         tracing::info!("scan worker: notification pushed for {object_key}");
     }
+}
+
+/// Inisialisasi S3 client untuk MinIO dari environment variables.
+/// Menggunakan SigV4 signing untuk autentikasi yang proper.
+async fn init_s3_client() -> Option<S3Client> {
+    let endpoint = std::env::var("MINIO_ENDPOINT").ok()?;
+    let access_key = std::env::var("MINIO_ACCESS_KEY").ok()?;
+    let secret_key = std::env::var("MINIO_SECRET_KEY").ok()?;
+
+    let credentials = Credentials::new(&access_key, &secret_key, None, None, "minio");
+
+    let config = aws_config::defaults(BehaviorVersion::latest())
+        .region("auto") // MinIO tidak peduli region, tapi wajib diisi
+        .credentials_provider(credentials)
+        .endpoint_url(&endpoint)
+        .load()
+        .await;
+
+    // Gunakan force-path-style untuk MinIO (bukan virtual-hosted yang cuma AWS)
+    let s3_config = aws_sdk_s3::Config::from(&config)
+        .to_builder()
+        .force_path_style(true)
+        .build();
+
+    Some(S3Client::from_conf(s3_config))
 }
