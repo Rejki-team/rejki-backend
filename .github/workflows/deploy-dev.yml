@@ -51,6 +51,9 @@ jobs:
             done
             cd ..
 
+            echo "==> Pull base images"
+            docker compose -f docker-compose.dev.yml -p rejki-dev pull
+
             echo "==> Build dev images"
             docker compose -f docker-compose.dev.yml -p rejki-dev build
 
@@ -63,5 +66,8 @@ jobs:
 
             echo "==> Verify /health endpoint"
             curl -sf http://localhost:8081/health || (echo "Dev health check failed!" && exit 1)
+
+            echo "==> Cleanup old images"
+            docker image prune -f
 
             echo "==> Dev deploy complete"

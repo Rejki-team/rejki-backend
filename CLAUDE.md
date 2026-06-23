@@ -228,11 +228,10 @@ Jalankan dari `rust-services/` (manifest: `rust-services/Cargo.toml`):
 cargo fmt --all                       # format (WAJIB, code formatting Rust)
 cargo clippy --workspace -- -D warnings   # zero warning
 cargo check --workspace               # kompilasi lintas service
-cargo test --workspace                # unit + (integration butuh DB + RSA key)
-cargo sqlx prepare --workspace        # bila ada query sqlx baru
+cargo test --workspace --lib          # unit test (tanpa integration test)
 ```
-> Integration test butuh PostgreSQL test DB + migrasi + RSA key di `./keys/`. Bila DB/Podman
-> tak tersedia di environment ini, **laporkan apa adanya** — jangan klaim lulus.
+> Integration test tidak dijalankan di CI — dilakukan manual saat development dan staging.
+> Untuk menjalankan integration test lokal, butuh PostgreSQL + RSA key di `./keys/`.
 
 ---
 
@@ -303,8 +302,7 @@ Untuk `rejki-web`, `rejki-mobile`, atau stack baru lain bila pekerjaan menyentuh
   (`rejki-app`)** — edit [`rust-services/rejki-app/src/openapi.rs`](rust-services/rejki-app/src/openapi.rs)
   (mirror DTO + path), **hanya** untuk environment `development` (di-gate `APP_ENV=development`
   di `main.rs`). `bun-notification-service` tidak punya Swagger (tanpa HTTP server).
-- CI (`.github/workflows/ci.yml`): `fmt` → `clippy` → unit test → integration test (Postgres
-  service container) → docker/podman build check.
+- CI (`.github/workflows/ci.yml`): `fmt` → `clippy` → `build` → `unit test (lib-only)` → `bun check` → `docker build check` → `coverage (lib-only)`.
 
 ---
 
