@@ -328,15 +328,47 @@ Sebelum koding fitur baru: ada **proposal** + **spec** + **tasks**. Setelah sele
 ter-deploy: **archive** perubahannya. Jangan menandai task selesai sebelum benar-benar
 terimplementasi & terverifikasi.
 
-### Git Flow
-1. **1 task = 1 branch.** Setiap pekerjaan dimulai dengan branch baru dari `develop`.
-2. **Nama branch:** `feature/<nama-pekerjaan>` (kebab-case, sesuai nama OpenSpec change).
-   Contoh: `feature/ws-audit-log`, `feature/ws-multi-tier-rbac`, `feature/ws-patch-iklan`.
-3. **Commit** hanya dilakukan ketika satu point pekerjaan selesai (bukan bertahap).
-4. **Push + PR** ke `develop` setelah commit. Jangan merge sendiri.
-5. **Branch dihapus** setelah PR di-merge ke `develop`.
-6. **Tidak menggabungkan multiple task dalam satu branch.** Jika terlanjur, cherry-pick commit
-   ke branch masing-masing.
+### Git Flow — Aturan Ketat (WAJIB diikuti)
+
+**Prinsip: Setiap pekerjaan = 1 branch → 1 PR → merge ke `develop`.**
+
+Langkah-langkah WAJIB yang harus dilakukan agent untuk setiap tugas:
+
+1. **Sync & Start:**
+   ```bash
+   git checkout develop
+   git pull origin develop
+   ```
+
+2. **Buat branch baru** dari `develop`:
+   ```bash
+   git checkout -b feat/ws-<nama-fitur>
+   ```
+   - Nama branch: `feat/ws-<nama-fitur>` (kebab-case)
+   - Contoh: `feat/ws-deployment-observability`, `feat/ws-audit-log`
+
+3. **Kerjakan tugas** → **Commit setelah 1 point pekerjaan selesai** (bukan bertahap per file):
+   ```bash
+   git add -A
+   git commit -m "type: deskripsi singkat"
+   ```
+
+4. **Push + PR ke `develop`**:
+   ```bash
+   git push origin feat/ws-<nama-fitur>
+   ```
+   Kemudian buka GitHub → PR dari branch → `develop`.
+
+5. **Setelah PR di-merge**, hapus branch lokal:
+   ```bash
+   git branch -d feat/ws-<nama-fitur>
+   git checkout develop && git pull origin develop
+   ```
+
+**Aturan tambahan:**
+- **Tidak menggabungkan multiple task dalam satu branch.** Jika terlanjur, cherry-pick commit ke branch masing-masing.
+- **Jangan merge sendiri** — selalu lewat PR.
+- **Branch dihapus** setelah PR di-merge ke `develop`.
 
 ---
 
