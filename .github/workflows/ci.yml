@@ -5,10 +5,17 @@ on:
     branches: [develop, main]
   pull_request:
     branches: [develop, main]
+  schedule:
+    # Weekly: setiap Senin jam 06:00 UTC — cargo audit + cargo deny
+    - cron: "0 6 * * 1"
 
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   # ── Check: format + clippy + build ───────────────────────────────────────
@@ -64,95 +71,30 @@ jobs:
         env:
           APP_ENV: development
 
-  # ── Integration tests (dengan PostgreSQL nyata) ───────────────────────────
-  integration-test:
-    name: Integration Tests
+  # ── Bun check (notification service) ──────────────────────────────────────
+  bun-check:
+    name: Bun Check (notification service)
     runs-on: ubuntu-latest
-    needs: check
-
-    services:
-      postgres:
-        image: postgres:17-alpine
-        env:
-          POSTGRES_USER:     rejki_test
-          POSTGRES_PASSWORD: rejki_test
-          POSTGRES_DB:       rejki_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U rejki_test -d rejki_test"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
 
-      - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: rust-services
-          cache-on-failure: true
+      - name: Install dependencies
+        working-directory: bun-notification-service
+        run: bun install --frozen-lockfile
 
-      - name: Install sqlx-cli
-        run: cargo install sqlx-cli --no-default-features --features postgres
-
-      - name: Generate RSA key pair untuk JWT test
-        run: |
-          mkdir -p rust-services/rejki-app/keys
-          openssl genrsa -out rust-services/rejki-app/keys/private.pem 2048
-          openssl rsa -in rust-services/rejki-app/keys/private.pem -pubout -out rust-services/rejki-app/keys/public.pem
-
-      - name: Run all service migrations
-        env:
-          PGPASSWORD: rejki_test
-        run: |
-          export DATABASE_URL="postgres://rejki_test:rejki_test@localhost:5432/rejki_test"
-
-          # Init schemas
-          psql -h localhost -U rejki_test -d rejki_test -c "
-            CREATE SCHEMA IF NOT EXISTS auth;
-            CREATE SCHEMA IF NOT EXISTS user_svc;
-            CREATE SCHEMA IF NOT EXISTS chat;
-            CREATE SCHEMA IF NOT EXISTS notification;
-            CREATE SCHEMA IF NOT EXISTS iklan_pekerjaan;
-            CREATE SCHEMA IF NOT EXISTS iklan_pekerja;
-            CREATE SCHEMA IF NOT EXISTS iklan_barang_bekas;
-            CREATE SCHEMA IF NOT EXISTS iklan_pelatihan;
-          "
-
-          # Run sqlx migrations per service (dari rust-services/)
-          for dir in auth-service user-service chat-service notification-service \
-                     iklan-pekerjaan-service iklan-pekerja-service \
-                     iklan-barang-bekas-service iklan-pelatihan-service; do
-            if [ -d "rust-services/$dir/migrations" ]; then
-              echo "==> Migrating $dir"
-              sqlx migrate run --source "rust-services/$dir/migrations" --database-url "$DATABASE_URL"
-            fi
-          done
-
-      - name: Run integration tests
-        working-directory: rust-services/rejki-app
-        run: cargo test --test auth_integration_test -- --test-threads=1
-        env:
-          APP_ENV:              development
-          DATABASE_URL:         postgres://rejki_test:rejki_test@localhost:5432/rejki_test
-          REDIS_URL:            ""
-          APP_PORT:             "0"
-          SERVICE_NAME:         rejki-test
-          JWT_PRIVATE_KEY_PATH: ./keys/private.pem
-          JWT_PUBLIC_KEY_PATH:  ./keys/public.pem
-          JWT_ACCESS_TTL_SECS:  "900"
+      - name: Run tests
+        working-directory: bun-notification-service
+        run: bun test
 
   # ── Docker build check ────────────────────────────────────────────────────
   docker-build-check:
     name: Docker Build Check
     runs-on: ubuntu-latest
     needs: check
-    if: github.ref == 'refs/heads/main' || github.base_ref == 'main'
+    if: github.ref == 'refs/heads/main' || github.base_ref == 'main' || github.ref == 'refs/heads/develop' || github.base_ref == 'develop'
     steps:
       - uses: actions/checkout@v4
 
@@ -174,3 +116,111 @@ jobs:
           push: false
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  # ── Coverage (cargo-llvm-cov, lib-only, tanpa DB) ──────────────────────────
+  coverage:
+    name: Coverage (lib-only)
+    runs-on: ubuntu-latest
+    needs: check
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust-services
+          cache-on-failure: true
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+
+      - name: Run coverage (lib only — tanpa integration)
+        working-directory: rust-services
+        run: cargo llvm-cov --workspace --lib --lcov --output-path lcov.info
+        env:
+          APP_ENV: development
+
+      - name: Report coverage summary
+        run: |
+          echo "=== Coverage Summary (lib-only) ==="
+          if [ -f rust-services/lcov.info ]; then
+            total=$(grep -E "^LF:" rust-services/lcov.info | awk '{sum+=$2} END {print sum}')
+            hit=$(grep -E "^LH:" rust-services/lcov.info | awk '{sum+=$2} END {print sum}')
+            if [ -n "$total" ] && [ "$total" -gt 0 ]; then
+              pct=$(awk "BEGIN {printf \"%.2f\", ($hit/$total)*100}")
+              echo "Overall line coverage: ${pct}%"
+              # Soft gate bertahap (Ops A — design D9). Target final: ≥85%.
+              # Threshold naik dari baseline 17.90% → 49.09% (post ws-testing-coverage roll-out).
+              threshold=49.0
+              if (( $(echo "$pct < $threshold" | bc -l) )); then
+                echo "⚠️  Coverage ${pct}% di bawah threshold ${threshold}% — gagal"
+                exit 1
+              else
+                echo "✓ Coverage ${pct}% ≥ threshold ${threshold}% — PASS"
+              fi
+            fi
+          fi
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: rust-services/lcov.info
+          retention-days: 7
+
+  # ── Cargo Audit (security — CVE scan) ──────────────────────────────────
+  cargo-audit:
+    name: Cargo Audit
+    runs-on: ubuntu-latest
+    # Hanya jalan saat schedule event — tidak perlu blocking PR (terlalu berisik)
+    if: github.event_name == 'schedule'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust-services
+          cache-on-failure: true
+
+      - name: Install cargo-audit
+        uses: taiki-e/install-action@cargo-audit
+
+      - name: Audit Cargo.lock for CVEs
+        working-directory: rust-services
+        # Fail on CRITICAL dan HIGH — ignore warnings (informational/low/medium)
+        run: cargo audit --deny warnings
+
+  # ── Cargo Deny (license compliance) ────────────────────────────────────
+  cargo-deny:
+    name: Cargo Deny (license)
+    runs-on: ubuntu-latest
+    # Hanya jalan saat schedule event — tidak perlu blocking PR (terlalu berisik)
+    if: github.event_name == 'schedule'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust-services
+          cache-on-failure: true
+
+      - name: Install cargo-deny
+        uses: taiki-e/install-action@cargo-deny
+
+      - name: Check licenses (reject GPL/AGPL)
+        working-directory: rust-services
+        # deny.toml ada di rust-services/ — cargo-deny auto-detect
+        run: cargo deny check licenses

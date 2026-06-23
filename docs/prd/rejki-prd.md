@@ -4,14 +4,16 @@
 |---|---|
 | **Produk** | Rejki — Platform Marketplace Multi-Vertikal |
 | **Dokumen** | Product Requirements Document (Payung) |
-**Versi** | 0.1 — Draft |
-| **Tanggal** | 2026-06-11 |
-| **Status** | Draft untuk ditinjau |
+**Versi** | 1.0 — Final |
+| **Tanggal** | 2026-06-16 |
+| **Status** | Final — Phase 2 Complete |
 | **Pemilik** | _(belum ditentukan)_ |
 
 > **Catatan akurasi.** Dokumen ini disusun dari dua sumber yang ada di repositori: (1) dokumentasi teknis di `docs/*.html` dan (2) kode sumber di `rust-services/`. Hal yang **tidak tertulis di sumber** (persona, metrik bisnis, KPI, fitur admin & eksekutif) ditandai secara eksplisit sebagai **_(inferensi)_**, **_(USULAN)_**, atau **_(TBD)_**. Tidak ada angka atau target yang dikarang. Asumsi implementasi didokumentasikan di [brainstorm/user-service-phase2.html § Asumsi](../brainstorm/user-service-phase2.html#asumsi).
 
 > **Pembaruan 2026-06-11:** Proposal `extend-auth-service-onboarding` (OpenSpec) selesai diimplementasi dan terverifikasi (build hijau online+offline, 4 unit test + 10 integration test pass, `.sqlx` cache di-generate). Detail asumsi implementasi (parameter OTP, backend kripto, env key, binary standalone) dicatat di dokumen brainstorming dan perlu ditinjau sebelum naik ke produksi.
+
+> **Pembaruan 2026-06-16:** Phase 2 (Core Services) dinyatakan **SELESAI**. Semua 10 item roadmap Phase 2 terverifikasi: user-service CRUD profil + KYC, notification-service publisher + consumer + device token management, chat-service WebSocket + cursor bidirectional + broadcast, 4 iklan services lengkap dengan moderation/suspend/CSV, enrollment/badge, corporate comms, content reports, RBAC admin, region service, web dashboard. 2 pass code review + fix (14 temuan) dan gap analysis + close (5 gap) selesai. 13 OpenSpec changes archived. Roadmap `docs/index.html` dan semua dokumen pendukung telah diperbarui.
 
 ---
 
@@ -21,7 +23,7 @@
 |---|---|---|
 | **rejki-prd.md** _(dokumen ini)_ | Payung: visi, ekosistem, persona, NFR bersama, arsitektur, roadmap | — |
 | [prd-mobile.md](prd-mobile.md) | Rejki Mobile — aplikasi pengguna umum | Sebagian besar **sudah ada** di backend |
-| [prd-dashboard.md](prd-dashboard.md) | Rejki Web Dashboard — admin/moderasi | **Rencana** _(USULAN)_ |
+| [prd-dashboard.md](prd-dashboard.md) | Rejki Web Dashboard — admin/moderasi | **Spesifikasi tersedia (v0.2)** — backend 📋 Rencana per change OpenSpec |
 | [prd-ceo.md](prd-ceo.md) | Rejki CEO Mobile — statistik eksekutif | **Rencana** _(USULAN)_ |
 
 ---
@@ -36,7 +38,7 @@ Ekosistem Rejki terdiri dari **satu backend bersama** (`rejki-backend`) yang mel
 2. **Rejki Web Dashboard** — untuk admin yang memoderasi konten dan mengelola platform.
 3. **Rejki CEO Mobile** — untuk eksekutif yang memantau statistik bisnis sebagai acuan *canvassing*.
 
-Backend dibangun sebagai **modular monolith** Rust yang siap diekstrak menjadi *microservice* tanpa mengubah *business logic*. Per **2026-06-09**, fondasi (Phase 1) dan standardisasi (Phase 1.5) telah selesai 100%, dengan handler fungsional untuk kedelapan domain.
+Backend dibangun sebagai **modular monolith** Rust yang siap diekstrak menjadi *microservice* tanpa mengubah *business logic*. Per **2026-06-16**, fondasi (Phase 1), standardisasi (Phase 1.5), dan Core Services (Phase 2) telah selesai 100%, dengan 16 OpenSpec changes yang terverifikasi dan 13 di antaranya sudah di-archive.
 
 ---
 
@@ -75,7 +77,7 @@ Aktivitas ekonomi mikro di Indonesia tersebar di banyak kanal terpisah — lowon
 | Aplikasi | Pengguna | Teknologi klien | Fungsi inti | Status backend |
 |---|---|---|---|---|
 | **Rejki Mobile** | Pengguna umum (role user biasa) | **Flutter** (Dart) | Pasang/cari iklan (4 vertikal), chat, notifikasi, profil | ✅ Sebagian besar sudah ada |
-| **Rejki Web Dashboard** | Admin / Moderator | **Vue.js + TypeScript + Tailwind CSS** | Moderasi iklan, manajemen pengguna, laporan, broadcast, audit | 📋 Rencana (belum ada) |
+| **Rejki Web Dashboard** | Admin | **Vue.js + TypeScript + Tailwind CSS** (repo `rejki-web/`) | Verifikasi KYC, moderasi 4 iklan, siklus pelatihan (verifikasi/konfirmasi/badge), aduan, corporate comms, suspend, CSV | ✅ Backend selesai — 16 OpenSpec changes terverifikasi; UI `add-rejki-web-dashboard` selesai (spesifikasi SPA Vue.js + 11 page view). Lihat [dashboard-gap-analysis.md](../dashboard-gap-analysis.md) |
 | **Rejki CEO Mobile** | Eksekutif / CEO | **Flutter** (Dart) | Statistik bisnis, sebaran geografis, tren — acuan canvassing | 📋 Rencana (belum ada) |
 
 Ketiganya berbagi satu backend (`rejki-backend`) dan satu basis data PostgreSQL (schema terisolasi per domain).
@@ -188,19 +190,35 @@ Detail lengkap: [index.html](../index.html) dan [infrastructure-setup.html](../i
 |---|---|---|
 | **Phase 1 — Foundation** | Workspace, common crates, auth-service, skeleton 8 domain | ✅ Selesai |
 | **Phase 1.5 — Standardization** | 14 standar wajib (W0–W9): API, security, logging, WebSocket, notifikasi, infra, CI/CD, DB, testing, config, health, versioning, authorization | ✅ Selesai (2026-06-09) |
-| **Phase 2 — Core Services** | Pendalaman fitur per domain (search/filter, update, media, pagination lanjutan) | 📋 Rencana |
-| **Phase 3 — Hardening** | Rate limiting, proteksi brute-force OTP, observability produksi | 📋 Rencana |
+| **Phase 2 — Core Services** | user-service CRUD profil + KYC, notification-service publisher + consumer + device token, chat-service WebSocket + cursor bidirectional + broadcast, 4 iklan services lengkap dengan moderation/badge/enrollment, RBAC admin, region service, corporate comms, content reports, web dashboard | ✅ Selesai (2026-06-16) |
+| **Phase 3 — Hardening** | Rate limiting (tower-governor), structured logging JSON, integration test penuh, production-grade observability | 📋 Rencana |
 | **Phase 4 — Extraction** | Ekstraksi domain ke microservice (bila diperlukan) | 📋 Rencana |
 
-### Kebutuhan backend baru untuk Dashboard & CEO _(Rencana)_
-Karena belum ada di kode, fitur dua aplikasi ini menuntut penambahan berikut (semua **📋 Rencana**):
+### Kebutuhan backend baru untuk Dashboard & CEO _(Status per 2026-06-16)_
 
-- **RBAC / kolom `role`** pada identitas pengguna + middleware otorisasi peran.
-- **Endpoint admin** (moderasi iklan, manajemen pengguna, laporan, broadcast, audit log).
-- **State moderasi** pada entity iklan (mis. status `pending/approved/rejected/taken_down`) + soft-delete.
-- **Layer analytics/reporting** read-only (agregasi, kemungkinan view/materialized view atau service statistik terpisah).
+Untuk **Dashboard**, backend telah selesai diimplementasikan. Seluruh change OpenSpec dashboard (16 changes) terverifikasi, dan gap audit 2026-06-15 telah ditutup:
 
-Rincian ada di [prd-dashboard.md](prd-dashboard.md) dan [prd-ceo.md](prd-ceo.md).
+| # | Change | Status | Review |
+|---|--------|--------|--------|
+| 1 | **`add-admin-rbac`** — kolom `role`, login admin, middleware `require_admin`, seed admin | ✅ Selesai | [review](../code-review/add-admin-rbac-review.md) |
+| 2 | **`extend-auth-service-onboarding`** — state machine 7-status, password policy, OTP, suspend akun, feature gating | ✅ Selesai | [review](../code-review/extend-auth-service-onboarding-review.md) |
+| 3 | **`add-user-service-kyc`** — profil KYC, NIK encrypted, dokumen KTP/swafoto, verifikasi manual, audit trail | ✅ Selesai | [review](../code-review/add-user-service-kyc-review.md) |
+| 4 | **`add-region-service`** — data wilayah 4 tingkat Indonesia, cascading API, validasi rantai | ✅ Selesai | [review](../code-review/add-region-service-review.md) |
+| 5 | **`add-pelatihan-enrollment-badge`** — 7 status, enrollment + bukti transfer, badge + sertifikat | ✅ Selesai | [review](../code-review/add-pelatihan-enrollment-badge-review.md) |
+| 6 | **`add-corporate-comms`** — artikel korporat + broadcast notifikasi via `AuthClient.list_active_user_ids()` | ✅ Selesai | [review](../code-review/add-corporate-comms-review.md) |
+| 7 | **`add-content-reports`** — domain report/aduan + report-service + report-service-client | ✅ Selesai | — |
+| 8 | **`add-storage-service-spec`** — dokumentasi formal kontrak StorageClient + 8 kategori | ✅ Selesai | [review](../code-review/add-storage-service-spec-review.md) |
+| 9 | **`extend-iklan-moderation`** — state moderasi + suspend per-iklan + search/sort + CSV export | ✅ Selesai | — |
+| 10 | **`add-rejki-web-dashboard`** — SPA dashboard (UI/UX) | ✅ Selesai | — |
+| 11 | **`add-user-admin-management`** — listing KYC admin, baca dokumen teraudit, auto-purge saat reject | ✅ Selesai | [review](../code-review/add-user-admin-management-review.md) |
+| 12 | **`extend-user-suspension-bulk-purge`** — bulk suspend pengguna (`POST /auth/admin/users/suspend`) + purge dokumen saat permanen + notif email+in-app | ✅ Selesai | [review](../code-review/extend-user-suspension-bulk-purge-review.md) |
+| 13 | **`extend-barang-bekas-gratis-model`** — model gratis/donasi (jenis/jumlah/lokasi pengambilan/Sudah Diambil) | ✅ Selesai | [review](../code-review/extend-barang-bekas-gratis-model-review.md) |
+
+> **Audit gap 2026-06-15.** Penelusuran kode ulang menemukan 6 gap backend yang sebelumnya keliru ditandai selesai; ditutup oleh change #11–#13. Detail & bukti baris kode: [dashboard-gap-analysis.md](../dashboard-gap-analysis.md).
+
+Untuk **CEO**, masih dibutuhkan **layer analytics/reporting** read-only (agregasi via view/materialized view atau service statistik terpisah); normalisasi wilayah tersedia via `add-region-service`.
+
+Rincian Dashboard ada di [prd-dashboard.md](prd-dashboard.md) (v0.2, dengan keterlacakan FR → change OpenSpec) dan CEO di [prd-ceo.md](prd-ceo.md).
 
 ---
 
@@ -251,10 +269,28 @@ Rincian ada di [prd-dashboard.md](prd-dashboard.md) dan [prd-ceo.md](prd-ceo.md)
 | **IklanPekerjaan** | id, poster_id, judul, perusahaan, deskripsi, lokasi?, gaji_min?, gaji_max?, tipe (full_time/part_time/freelance/internship), is_active, created_at, updated_at |
 | **IklanPekerja** | id, poster_id, nama, keahlian[], deskripsi, lokasi?, tarif_min?, tarif_max?, is_active, created_at, updated_at |
 | **IklanBarangBekas** | id, seller_id, judul, deskripsi, harga, kondisi (baru/sangat_baik/baik/cukup), lokasi?, foto_urls[], is_sold, created_at, updated_at |
-| **IklanPelatihan** | id, poster_id, judul, penyelenggara, deskripsi, lokasi?, harga?, tanggal_mulai?, tanggal_selesai?, is_active, created_at, updated_at |
-| **auth.users** | id, email, password_hash, is_verified, created_at, updated_at — _(tanpa kolom role)_ |
+| **IklanPelatihan** | id, poster_id, judul, penyelenggara, deskripsi, lokasi?, harga?, tanggal_mulai?, tanggal_selesai?, status (7 nilai), created_by_role, jumlah_peserta, reviewed_by, review_note, deleted_at, is_active, moderation_status, foto_urls, created_at, updated_at |
+| **auth.users** | id, email, password_hash, phone (enc), status, role, tos_accepted_at, tos_version, created_at, updated_at |
+| **region.*** | province, regency, district, village (4 tabel dengan kode wilayah TEXT PK + parent_id FK) |
+| **user_svc.profiles** | id, auth_id, username, full_name, avatar, bio, phone, nik_encrypted, nik_last4, education_level, gender, birth_date, address_line, country_code, province_id, regency_id, district_id, village_id, created_at, updated_at |
+| **user_svc.kyc_submission** | id, profile_id, status (pending/approved/rejected), ktp_object_key, selfie_object_key, reviewed_by, review_note, reviewed_at, created_at, updated_at |
+| **user_svc.document_access_log** | actor_id, object_key, action (upload_issued/commit/read_issued), request_id, occurred_at |
 
 _`?` menandai field opsional (`Option<T>`); `[]` menandai array._
+
+### Entity baru Dashboard _(✅ Terimplementasi)_
+
+| Entity | Field inti | Change | Status |
+|---|---|---|---|
+| **auth.users.role** | `role TEXT NOT NULL DEFAULT 'user'` (CHECK `user`/`admin`, extensible) | `add-admin-rbac` | ✅ |
+| **auth.account_suspension** | id, user_id, is_permanent, reason, evidence_object_key, expires_at, created_by, created_at | `extend-auth-service-onboarding` | ✅ |
+| **iklan.\*.moderation** | tambah `moderation_status` (active/suspended_temp/suspended_permanent), `deleted_at` | `extend-iklan-moderation` | ✅ |
+| **iklan_suspension** | id, iklan_id, is_permanent, reason, evidence_object_key, expires_at, created_by, created_at | `extend-iklan-moderation` | ✅ |
+| **pelatihan (moderation)** | tambah `status` (7 nilai), `created_by_role`, `jumlah_peserta`, `reviewed_by`, `review_note` | `add-pelatihan-enrollment-badge` | ✅ |
+| **pelatihan_enrollment** | id, pelatihan_id, user_id, bukti_transfer_object_key, status, reviewed_by, review_note, timestamps + UNIQUE(pelatihan_id, user_id) | `add-pelatihan-enrollment-badge` | ✅ |
+| **pelatihan_badge** | id, pelatihan_id, user_id, sertifikat_object_key, approved_at, status, reviewed_by, review_note, timestamps + UNIQUE(pelatihan_id, user_id) | `add-pelatihan-enrollment-badge` | ✅ |
+| **report** | id, reporter_id, target_type (iklan/user), target_id, keterangan, evidence_object_key, status, action_note, reviewed_by, timestamps | `add-content-reports` | ✅ |
+| **corporate_article** | id, author_id, category, title, body, photo_object_key, deleted_at, created_at, updated_at | `add-corporate-comms` | ✅ |
 
 ---
 

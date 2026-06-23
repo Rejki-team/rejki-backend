@@ -4,8 +4,8 @@
 |---|---|
 | **Aplikasi** | Rejki CEO Mobile (statistik eksekutif) |
 | **Dokumen** | Sub-PRD (bagian dari [rejki-prd.md](rejki-prd.md)) |
-| **Versi** | 0.1 — Draft |
-| **Tanggal** | 2026-06-10 |
+| **Versi** | 0.2 — Draft |
+| **Tanggal** | 2026-06-14 |
 | **Status** | Draft untuk ditinjau |
 | **Pemilik** | _(belum ditentukan)_ |
 
@@ -52,7 +52,7 @@ Rejki CEO Mobile adalah aplikasi **Flutter** (Dart) yang bersifat **read-only** 
 |---|---|---|---|
 | M-CEO-GRW-01 | Pengguna baru | Jumlah registrasi per periode (harian/mingguan/bulanan) | `auth.users.created_at` |
 | M-CEO-GRW-02 | Total pengguna | Akumulasi pengguna terdaftar | `auth.users` |
-| M-CEO-GRW-03 | Pengguna terverifikasi | Proporsi `is_verified = true` | `auth.users.is_verified` |
+| M-CEO-GRW-03 | Pengguna terverifikasi | Proporsi akun aktif/terverifikasi | `auth.users.status = 'active'` _(menggantikan `is_verified` yang sudah dipensiunkan)_ |
 | M-CEO-GRW-04 | Retensi / pengguna aktif | Pengguna dengan aktivitas pada periode | _(perlu definisi "aktif" — **TBD**)_ |
 
 ### 4.2 Konten & Likuiditas Pasar
@@ -118,10 +118,12 @@ Rejki CEO Mobile adalah aplikasi **Flutter** (Dart) yang bersifat **read-only** 
 
 ## 7. Kebutuhan Backend Baru (Tersirat) _(Rencana)_
 
-1. **Layer analytics/reporting** read-only: endpoint agregasi (mis. `/api/v1/insights/...`) dengan proteksi peran eksekutif.
+1. **Layer analytics/reporting** read-only: endpoint agregasi (mis. `/api/v1/insights/...`) dengan proteksi peran eksekutif. Proteksi peran kini dapat memanfaatkan fondasi RBAC dari `add-admin-rbac` (kolom `role` extensible — tambah tier `executive` tanpa breaking change).
 2. **Strategi agregasi**: materialized view / tabel ringkasan terjadwal, atau service statistik terpisah, agar tidak membebani DB transaksional.
-3. **Normalisasi wilayah** (kota/provinsi) agar metrik geografis akurat.
+3. **Normalisasi wilayah** (kota/provinsi) — kini **tersedia** via `add-region-service` (4 tingkat: provinsi → kabupaten/kota → kecamatan → kelurahan); penyelarasan `lokasi` iklan ke `region_id` masih ditunda.
 4. **Definisi metrik bisnis** yang disepakati (terutama "pengguna aktif", "retensi", "wilayah prioritas").
+
+> **Catatan 2026-06-14:** Status moderasi iklan (`add-iklan-moderation`) memengaruhi metrik konten — iklan `suspended`/`deleted` sebaiknya **dikecualikan** dari "iklan aktif" (M-CEO-CNT-01). Status akun pengguna (`add-user-service-kyc`/auth) memungkinkan metrik "pengguna terverifikasi" beralih dari `is_verified` (dipensiunkan) ke `status = active`.
 
 ---
 

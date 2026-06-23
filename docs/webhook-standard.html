@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rejki Backend — Webhook Standard (Phase 3)</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0d1117; --surf: #161b22; --surf2: #1c2230; --border: #30363d;
+      --text: #e6edf3; --muted: #8b949e; --tag: #21262d;
+      --green: #56d364; --blue: #79c0ff; --orange: #f78166;
+      --yellow: #e3b341; --purple: #bc8cff; --cyan: #56b6d4; --r: 10px;
+    }
+    html { scroll-behavior: smooth; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; font-size: 15px; }
+    .layout { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
+    @media (max-width: 840px) { .layout { grid-template-columns: 1fr; } .nav { display: none; } }
+    .nav { position: sticky; top: 0; height: 100vh; overflow-y: auto; background: var(--surf); border-right: 1px solid var(--border); padding: 1.75rem 1rem; }
+    .nav-logo { font-size: 1.1rem; font-weight: 800; color: var(--yellow); margin-bottom: 1.75rem; }
+    .nav-logo span { color: var(--text); }
+    .nav-group { margin-bottom: 1.5rem; }
+    .nav-group-label { font-size: .67rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: .4rem; }
+    .nav-link { display: block; padding: .32rem .6rem; border-radius: 6px; font-size: .85rem; color: var(--muted); text-decoration: none; transition: background .12s, color .12s; }
+    .nav-link:hover { background: var(--tag); color: var(--text); }
+    .nav-link.active { background: rgba(227,179,65,.08); color: var(--yellow); font-weight: 600; }
+    main { max-width: 920px; margin: 0 auto; padding: 3rem 2rem 6rem; }
+    @media (max-width: 600px) { main { padding: 2rem 1rem 4rem; } }
+    .hero { border-bottom: 1px solid var(--border); margin-bottom: 3rem; padding-bottom: 2.5rem; }
+    .eyebrow { display: inline-block; font-size: .73rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--purple); background: rgba(188,140,255,.07); border: 1px solid rgba(188,140,255,.25); border-radius: 20px; padding: .22rem .75rem; margin-bottom: .9rem; }
+    .hero h1 { font-size: clamp(1.7rem,4vw,2.5rem); font-weight: 800; line-height: 1.15; letter-spacing: -.4px; margin-bottom: .9rem; }
+    .hero h1 em { font-style: normal; color: var(--purple); }
+    .hero p { color: var(--muted); font-size: 1rem; max-width: 680px; line-height: 1.75; }
+    .badges { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: 1.2rem; }
+    .badge { font-size: .76rem; font-weight: 600; padding: .25rem .75rem; border-radius: 20px; border: 1px solid; }
+    .b-p  { color: var(--purple); border-color: rgba(188,140,255,.4); background: rgba(188,140,255,.06); }
+    section { margin-bottom: 3.5rem; }
+    .sec-title { display: flex; align-items: center; gap: .6rem; font-size: 1.2rem; font-weight: 700; margin-bottom: 1.25rem; padding-bottom: .55rem; border-bottom: 1px solid var(--border); }
+    .sec-icon { width: 30px; height: 30px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: .95rem; flex-shrink: 0; }
+    .ic-p { background: rgba(188,140,255,.1); }
+    .sub-title { font-size: .95rem; font-weight: 700; margin: 1.6rem 0 .65rem; display: flex; align-items: center; gap: .5rem; }
+    .sub-title::before { content: ''; display: inline-block; width: 3px; height: 14px; background: var(--purple); border-radius: 2px; }
+    .tbl { width: 100%; border-collapse: collapse; font-size: .84rem; background: var(--surf); border: 1px solid var(--border); border-radius: var(--r); overflow: hidden; }
+    .tbl th { background: var(--surf2); padding: .6rem 1rem; text-align: left; font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+    .tbl td { padding: .65rem 1rem; border-bottom: 1px solid var(--border); vertical-align: top; line-height: 1.55; }
+    .tbl tr:last-child td { border-bottom: none; }
+    .tbl tr:hover td { background: var(--surf2); }
+    .tbl-wrap { overflow-x: auto; }
+    .cblock { background: var(--surf2); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-top: .6rem; }
+    .cblock-header { display: flex; align-items: center; justify-content: space-between; padding: .45rem .9rem; border-bottom: 1px solid var(--border); }
+    .cblock-lang { font-size: .68rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+    .cblock-file { font-size: .72rem; color: var(--blue); font-family: 'Cascadia Code','Fira Code','Consolas',monospace; }
+    .cblock pre { font-family: 'Cascadia Code','Fira Code','Consolas',monospace; font-size: .8rem; line-height: 1.75; padding: .9rem 1.1rem; overflow-x: auto; }
+    .ck  { color: #ff7b72; } .cs  { color: #a5d6ff; } .cc  { color: #6e7681; }
+    .ct  { color: #ffa657; } .cfn { color: #d2a8ff; }
+    .cn  { color: #79c0ff; }
+    .callout { border-radius: var(--r); padding: .85rem 1.1rem; margin-top: .9rem; font-size: .86rem; display: flex; gap: .65rem; line-height: 1.65; }
+    .callout-icon { flex-shrink: 0; font-size: 1rem; margin-top: 2px; }
+    .callout p { color: var(--muted); } .callout strong { color: var(--text); display: block; margin-bottom: .15rem; }
+    .c-info { background: rgba(121,192,255,.06); border: 1px solid rgba(121,192,255,.22); }
+    .c-warn { background: rgba(227,179,65,.06);  border: 1px solid rgba(227,179,65,.22); }
+    .c-ok   { background: rgba(86,211,100,.06);  border: 1px solid rgba(86,211,100,.22); }
+    .c-danger { background: rgba(247,129,102,.06); border: 1px solid rgba(247,129,102,.22); }
+    code { font-family: 'Cascadia Code','Fira Code','Consolas',monospace; font-size: .8rem; background: var(--tag); border: 1px solid var(--border); border-radius: 4px; padding: .05rem .4rem; color: var(--blue); }
+    .spec-list { padding-left: 1.2rem; margin: .5rem 0 1rem; }
+    .spec-list li { margin-bottom: .4rem; font-size: .86rem; color: var(--muted); line-height: 1.6; }
+    footer { margin-top: 4rem; padding-top: 1.25rem; border-top: 1px solid var(--border); font-size: .78rem; color: var(--muted); }
+  </style>
+</head>
+<body>
+<div class="layout">
+  <nav class="nav">
+    <div class="nav-logo">rejki<span>-backend</span></div>
+    <div class="nav-group">
+      <div class="nav-group-label">Navigasi</div>
+      <a class="nav-link" href="index.html">← Architecture Overview</a>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-label">Sections</div>
+      <a class="nav-link" href="#overview">Overview</a>
+      <a class="nav-link" href="#signature">Signature (HMAC-SHA256)</a>
+      <a class="nav-link" href="#payload">Payload Format</a>
+      <a class="nav-link" href="#retry">Retry Policy</a>
+      <a class="nav-link" href="#event-catalog">Event Catalog</a>
+      <a class="nav-link" href="#implementation">Contoh Implementasi</a>
+    </div>
+  </nav>
+
+  <main>
+    <!-- ── Hero ── -->
+    <div class="hero">
+      <div class="eyebrow">Phase 3 — W3D-15 Infra Polish</div>
+      <h1>Webhook <em>Standard</em></h1>
+      <p>Standar teknis untuk outgoing webhook dari rejki-backend. Mencakup signature (HMAC-SHA256), payload format, retry policy, dan event catalog. Dokumen ini menjadi acuan untuk implementasi webhook publisher di masa depan.</p>
+      <div class="badges">
+        <span class="badge b-p">F3</span>
+        <span class="badge b-p">Signature: HMAC-SHA256</span>
+        <span class="badge b-p">Retry: 3× + Jitter</span>
+        <span class="badge b-p">Status: Standard</span>
+      </div>
+    </div>
+
+    <!-- ── 1. Overview ── -->
+    <section id="overview">
+      <div class="sec-title">
+        <div class="sec-icon ic-p">📋</div>
+        Webhook Standard Overview
+      </div>
+      <p style="margin-bottom:1rem;color:var(--muted);font-size:.9rem;">Dokumen ini mendefinisikan standar untuk semua outgoing webhook dari rejki-backend. Tujuan standardisasi:</p>
+      <ul class="spec-list">
+        <li><strong>Keamanan</strong> — Verifikasi integritas payload via HMAC-SHA256</li>
+        <li><strong>Replay protection</strong> — Via timestamp + toleransi 5 menit</li>
+        <li><strong>Reliability</strong> — Retry dengan exponential backoff + jitter</li>
+        <li><strong>Idempotency</strong> — Setiap event memiliki event_id UUID v7 unik</li>
+        <li><strong>Interoperabilitas</strong> — Format konsisten untuk semua event</li>
+      </ul>
+    </section>
+
+    <!-- ── 2. Signature ── -->
+    <section id="signature">
+      <div class="sec-title">
+        <div class="sec-icon ic-p">🔐</div>
+        Signature (HMAC-SHA256)
+      </div>
+
+      <p style="margin-bottom:.7rem;color:var(--muted);font-size:.9rem;">Setiap request webhook WAJIB menyertakan signature header untuk verifikasi integritas.</p>
+
+      <div class="sub-title">Header</div>
+      <div class="cblock">
+        <div class="cblock-header">
+          <span class="cblock-lang">http</span>
+          <span class="cblock-file">Request Headers</span>
+        </div>
+        <pre>X-Webhook-Signature: sha256=5a4b3c2d1e0f...
+X-Webhook-Timestamp: 2026-06-22T10:30:00Z
+X-Webhook-Idempotency-Key: 0191f8c0-1234-7abc-bdef-123456789abc
+Content-Type: application/json</pre>
+      </div>
+
+      <div class="sub-title">Algoritma Signature</div>
+      <div class="cblock">
+        <div class="cblock-header">
+          <span class="cblock-lang">text</span>
+        </div>
+        <pre>1. Concatenate: timestamp + "." + request body (JSON string, tanpa whitespace)
+2. HMAC-SHA256 dengan secret key per subscriber
+3. Encode hasil HMAC ke lowercase hex
+4. Set header: X-Webhook-Signature: sha256={hex}</pre>
+      </div>
+
+      <div class="sub-title">Verifikasi (oleh subscriber)</div>
+      <div class="cblock">
+        <div class="cblock-header">
+          <span class="cblock-lang">pseudo</span>
+        </div>
+        <pre>function verify_webhook(body, timestamp, signature_hex, secret):
+    // Replay protection: toleransi 5 menit
+    now = current_time()
+    if abs(now - timestamp) > 5 minutes:
+        return false  // reject expired
+
+    // Hitung ulang signature
+    payload = timestamp + "." + JSON.stringify(body)
+    expected = HMAC_SHA256(payload, secret)
+
+    // Constant-time comparison (cegah timing attack)
+    return constant_time_compare(expected, signature_hex)</pre>
+      </div>
+
+      <div class="sub-title">Secret Key Management</div>
+      <ul class="spec-list">
+        <li>Setiap subscriber memiliki secret key unik</li>
+        <li>Secret disimpan di database atau env vars</li>
+        <li>Rotasi key: support multiple active keys (version prefix di signature)</li>
+      </ul>
+    </section>
+
+    <!-- ── 3. Payload ── -->
+    <section id="payload">
+      <div class="sec-title">
+        <div class="sec-icon ic-p">📦</div>
+        Payload Format
+      </div>
+
+      <div class="sub-title">Envelope</div>
+      <div class="cblock">
+        <div class="cblock-header">
+          <span class="cblock-lang">json</span>
+        </div>
+        <pre>{
+  "event":       "user.registered",
+  "event_id":    "0191f8c0-1234-7abc-bdef-123456789abc",
+  "created_at":  "2026-06-22T10:30:00Z",
+  "environment": "production",
+  "version":     "1.0",
+  "data":        { ... }
+}</pre>
+      </div>
+
+      <div class="tbl-wrap" style="margin-top:1rem;">
+        <table class="tbl">
+          <thead><tr><th>Field</th><th>Tipe</th><th>Wajib</th><th>Deskripsi</th></tr></thead>
+          <tbody>
+            <tr><td><code>event</code></td><td>String</td><td>✅</td><td>Nama event, format <code>{domain}.{action}</code></td></tr>
+            <tr><td><code>event_id</code></td><td>UUID v7</td><td>✅</td><td>Unique identifier untuk idempotency</td></tr>
+            <tr><td><code>created_at</code></td><td>ISO 8601</td><td>✅</td><td>Timestamp event terjadi</td></tr>
+            <tr><td><code>environment</code></td><td>String</td><td>✅</td><td><code>development</code> atau <code>production</code></td></tr>
+            <tr><td><code>version</code></td><td>String</td><td>✅</td><td>Versi format payload (semver)</td></tr>
+            <tr><td><code>data</code></td><td>Object</td><td>✅</td><td>Payload spesifik event</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout c-warn" style="margin-top:1rem;">
+        <span class="callout-icon">⚠️</span>
+        <div><strong>Data sensitif dan PII wajib di-mask/di-hash</strong>
+        <p>Jangan kirim data sensitif seperti password, OTP, atau token. Email & nomor telepon harus di-mask (contoh: r***@example.com).</p></div>
+      </div>
+    </section>
+
+    <!-- ── 4. Retry Policy ── -->
+    <section id="retry">
+      <div class="sec-title">
+        <div class="sec-icon ic-p">🔄</div>
+        Retry Policy
+      </div>
+
+      <div class="tbl-wrap" style="margin-bottom:1rem;">
+        <table class="tbl">
+          <thead><tr><th>Parameter</th><th>Nilai</th><th>Keterangan</th></tr></thead>
+          <tbody>
+            <tr><td>Max attempts</td><td><strong>3×</strong></td><td>Attempt 1 (immediate), Attempt 2 (after delay), Attempt 3 (after delay)</td></tr>
+            <tr><td>Backoff</td><td><strong>Exponential + Jitter</strong></td><td>1s → 4s → 16s (random jitter ±20%)</td></tr>
+            <tr><td>Timeout per attempt</td><td><strong>10 detik</strong></td><td>Timeout untuk HTTP request ke subscriber</td></tr>
+            <tr><td>Dead Letter</td><td>✅ Setelah 3× gagal</td><td>Event masuk ke DLQ Redis Stream + log + dashboard notifikasi</td></tr>
+            <tr><td>Idempotency</td><td>✅ <code>X-Webhook-Idempotency-Key</code></td><td>Subscriber harus dedup berdasarkan key ini</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sub-title">Backoff Formula</div>
+      <div class="cblock">
+        <div class="cblock-header">
+          <span class="cblock-lang">python</span>
+        </div>
+        <pre>import random, math
+
+def backoff_delay(attempt: int) -> float:
+    # Exponential: 1 << attempt   =>  1, 2, 4, 8, 16, ...
+    base = float(1 << attempt)   # 2^attempt
+    jitter = random.uniform(0.8, 1.2)  # ±20%
+    return min(base * jitter, 30.0)     # cap 30 detik</pre>
+      </div>
+
+      <div class="sub-title">Response Codes yang Memicu Retry</div>
+      <ul class="spec-list">
+        <li><strong>5xx</strong> — Server error (retry with backoff)</li>
+        <li><strong>429</strong> — Rate limited (retry with longer backoff)</li>
+        <li><strong>408</strong> — Request timeout (retry)</li>
+        <li><strong>2xx</strong> — Sukses (berhenti, jangan retry)</li>
+        <li><strong>4xx</strong> (selain 408/429) — Client error (jangan retry, subscriber error konfigurasi)</li>
+      </ul>
+    </section>
+
+    <!-- ── 5. Event Catalog ── -->
+    <section id="event-catalog">
+      <div class="sec-title">
+        <div class="sec-icon ic-p">📖</div>
+        Event Catalog
+      </div>
+
+      <p style="margin-bottom:.7rem;color:var(--muted);font-size:.9rem;">Daftar event yang akan didukung oleh webhook publisher (implementasi menyusul).</p>
+
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Event</th><th>Trigger</th><th>Data Payload</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><code>user.registered</code></td>
+              <td>Registrasi sukses</td>
+              <td><code>{ "user_id": "uuid", "email": "r***@example.com", "registered_at": "ISO8601" }</code></td>
+            </tr>
+            <tr>
+              <td><code>user.verified</code></td>
+              <td>Email / KYC terverifikasi</td>
+              <td><code>{ "user_id": "uuid", "verified_type": "email|kyc", "verified_at": "ISO8601" }</code></td>
+            </tr>
+            <tr>
+              <td><code>iklan.created</code></td>
+              <td>Iklan baru di-publish</td>
+              <td><code>{ "iklan_id": "uuid", "type": "pekerjaan|pekerja|barang|pelatihan", "region_id": "text" }</code></td>
+            </tr>
+            <tr>
+              <td><code>iklan.status_changed</code></td>
+              <td>Status iklan berubah</td>
+              <td><code>{ "iklan_id": "uuid", "old_status": "active", "new_status": "suspended", "reason": "text" }</code></td>
+            </tr>
+            <tr>
+              <td><code>payment.received</code></td>
+              <td>Pembayaran diterima</td>
+              <td><code>{ "invoice_id": "uuid", "amount": 100000, "currency": "IDR" }</code></td>
+            </tr>
+            <tr>
+              <td><code>moderation.action</code></td>
+              <td>Tindakan moderasi</td>
+              <td><code>{ "target_id": "uuid", "target_type": "user|iklan", "action": "suspend|warn", "moderator_id": "uuid" }</code></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout c-info" style="margin-top:1rem;">
+        <span class="callout-icon">ℹ️</span>
+        <div><strong>Event Register</strong>
+        <p>Event-event di atas adalah daftar awal. Event baru bisa ditambahkan sesuai kebutuhan bisnis. Setiap penambahan event Wajib update dokumen ini + OpenSpec.</p></div>
+      </div>
+    </section>
+
+    <!-- ── 6. Contoh Implementasi ── -->
+    <section id="implementation">
+      <div class="sec-title">
+        <div class="sec-icon ic-p">🦀</div>
+        Contoh Implementasi (Rust)
+      </div>
+
+      <p style="margin-bottom:.7rem;color:var(--muted);font-size:.9rem;">Pseudo-code Rust untuk webhook publisher dan verifier.</p>
+
+      <div class="sub-title">Publisher — HMAC Sign</div>
+      <div class="cblock">
+        <div class="cblock-header">
+          <span class="cblock-lang">rust</span>
+        </div>
+        <pre>use hmac::{Hmac, Mac};
+use sha2::Sha256;
+use std::time::{SystemTime, UNIX_EPOCH};
+
+type HmacSha256 = Hmac<Sha256>;
+
+fn sign_webhook(body: &str, secret: &[u8]) -> (String, String) {
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
+        .to_string();
+
+    let payload = format!("{}.{}", timestamp, body);
+
+    let mut mac = HmacSha256::new_from_slice(secret)
+        .expect("HMAC key length invalid");
+    mac.update(payload.as_bytes());
+    let signature = hex::encode(&mac.finalize().into_bytes());
+
+    (timestamp, signature)
+}</pre>
+      </div>
+
+      <div class="sub-title">Verifier — Validate Signature + Replay Protection</div>
+      <div class="cblock">
+        <div class="cblock-header">
+          <span class="cblock-lang">rust</span>
+        </div>
+        <pre>fn verify_webhook(
+    body: &str,
+    timestamp_secs: u64,
+    signature_hex: &str,
+    secret: &[u8],
+) -> bool {
+    // Replay protection: toleransi 5 menit
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    if now.abs_diff(timestamp_secs) > 300 {
+        return false; // expired
+    }
+
+    // Recompute signature
+    let payload = format!("{}.{}", timestamp_secs, body);
+    let mut mac = HmacSha256::new_from_slice(secret).unwrap();
+    mac.update(payload.as_bytes());
+    let expected = hex::encode(mac.finalize().into_bytes());
+
+    // Constant-time comparison
+    expected == signature_hex
+}</pre>
+      </div>
+
+      <div class="callout c-ok" style="margin-top:1rem;">
+        <span class="callout-icon">✅</span>
+        <div><strong>Catatan Implementasi</strong>
+        <p>Implementasi webhook publisher (sender) dan event trigger belum termasuk dalam scope Phase 3. Dokumen ini adalah standard reference untuk implementasi di masa depan.</p></div>
+      </div>
+    </section>
+
+    <footer>
+      <span>rejki-backend · Webhook Standard · 22 Juni 2026</span>
+      <span>Phase 3 · W3D-15 · Status: Standard</span>
+    </footer>
+  </main>
+</div>
+</body>
+</html>

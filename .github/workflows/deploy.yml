@@ -4,14 +4,13 @@ on:
   push:
     branches: [main]
 
-# Cegah dua deployment berjalan bersamaan
 concurrency:
   group: deploy-production
   cancel-in-progress: false
 
 jobs:
   deploy:
-    name: Deploy to VPS
+    name: Deploy to VPS (prod)
     runs-on: ubuntu-latest
     environment: production
     steps:
@@ -27,28 +26,46 @@ jobs:
           script: |
             set -e
 
-            cd /opt/rejki/prod
+            cd /opt/rejki/prod/rejki-backend
 
-            echo "==> Pull latest code"
+            echo "==> Pull latest main"
             git pull origin main
 
-            echo "==> Build rejki-app image"
-            docker compose -p rejki-prod build rejki-app
+            echo "==> Run database migrations (prod)"
+            cd rust-services
+            export DATABASE_URL="postgres://rejki:${POSTGRES_PASSWORD}@postgres:5432/rejki_prod"
+            map_schema() {
+              case "$1" in
+                user-service)            echo "user_svc" ;;
+                corporate-comms-service) echo "comms" ;;
+                *)                       echo "$1" | sed 's/-service//' | sed 's/-/_/g' ;;
+              esac
+            }
+            for dir in *-service/migrations; do
+              svc=$(basename "$(dirname "$dir")")
+              schema=$(map_schema "$svc")
+              psql "$DATABASE_URL" -c "CREATE SCHEMA IF NOT EXISTS $schema" 2>/dev/null
+              sqlx migrate run --source "$dir" --database-url "$DATABASE_URL"
+            done
+            cd ..
 
-            echo "==> Build bun-notification image"
-            docker compose -p rejki-prod build bun-notification
+            echo "==> Pull base images"
+            docker compose -f docker-compose.prod.yml -p rejki-prod pull
 
-            echo "==> Restart services"
-            docker compose -p rejki-prod --profile prod up -d
+            echo "==> Build prod images"
+            docker compose -f docker-compose.prod.yml -p rejki-prod build
+
+            echo "==> Restart prod services (with cloudflare tunnel)"
+            docker compose -f docker-compose.prod.yml -p rejki-prod --profile prod up -d
 
             echo "==> Wait for health check"
             sleep 10
-            docker compose -p rejki-prod ps
+            docker compose -f docker-compose.prod.yml -p rejki-prod ps
 
             echo "==> Verify /health endpoint"
-            curl -sf http://localhost/health || (echo "Health check failed!" && exit 1)
+            curl -sf http://localhost:8082/health || (echo "Prod health check failed!" && exit 1)
 
             echo "==> Cleanup old images"
             docker image prune -f
 
-            echo "==> Deploy complete"
+            echo "==> Prod deploy complete"

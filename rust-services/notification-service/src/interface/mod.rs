@@ -8,20 +8,25 @@ use axum::{
 };
 use sqlx::PgPool;
 
-use auth_service_client::AuthClient;
-use common_auth_mw::require_auth;
 use crate::application::service::NotificationService;
 use crate::infrastructure::{PgNotificationRepository, RedisPublisher};
+use auth_service_client::AuthClient;
+use common_auth_mw::require_auth;
+use common_rate_limit::RateLimiter;
 
 #[derive(Clone)]
 pub struct AppState {
     pub notif_svc: Arc<NotificationService<PgNotificationRepository>>,
 }
 
-pub fn router(pool: PgPool, auth_client: Arc<dyn AuthClient>) -> Router {
+pub fn router(
+    pool: PgPool,
+    auth_client: Arc<dyn AuthClient>,
+    rate_limiter: Option<Arc<dyn RateLimiter>>,
+) -> Router {
     let repo = Arc::new(PgNotificationRepository::new(pool));
 
-    let svc = if let Ok(redis_url) = std::env::var("REDIS_URL") {
+    let mut svc = if let Ok(redis_url) = std::env::var("REDIS_URL") {
         match RedisPublisher::new(&redis_url) {
             Ok(pub_) => {
                 tracing::info!("Redis publisher connected");
@@ -36,6 +41,9 @@ pub fn router(pool: PgPool, auth_client: Arc<dyn AuthClient>) -> Router {
         tracing::warn!("REDIS_URL not set — push notifications disabled");
         NotificationService::new(repo)
     };
+    if let Some(rl) = rate_limiter {
+        svc = svc.with_rate_limiter(rl);
+    }
 
     let state = AppState {
         notif_svc: Arc::new(svc),
@@ -46,6 +54,18 @@ pub fn router(pool: PgPool, auth_client: Arc<dyn AuthClient>) -> Router {
         .route("/", get(handlers::list_my_notifications))
         .route("/send", post(handlers::send))
         .route("/{id}/read", patch(handlers::mark_read))
+        // Device token management
+        .route(
+            "/tokens",
+            get(handlers::list_device_tokens).post(handlers::register_device_token),
+        )
+        .route(
+            "/tokens/{token}",
+            axum::routing::delete(handlers::delete_device_token),
+        )
         .with_state(state)
-        .layer(axum::middleware::from_fn_with_state(auth_client, require_auth))
+        .layer(axum::middleware::from_fn_with_state(
+            auth_client,
+            require_auth,
+        ))
 }

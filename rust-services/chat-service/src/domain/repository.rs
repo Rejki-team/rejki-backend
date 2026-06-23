@@ -26,5 +26,6 @@ pub trait ChatRepository: Send + Sync {
         conversation_id: Uuid,
         limit: i64,
         before_id: Option<Uuid>,
+        after_id: Option<Uuid>,
     ) -> Result<Vec<Message>, anyhow::Error>;
 }

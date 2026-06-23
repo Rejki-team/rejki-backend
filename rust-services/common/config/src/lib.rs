@@ -36,6 +36,9 @@ pub struct AppConfig {
     pub database_url: String,
     pub redis_url: String,
     pub service_name: String,
+    /// Daftar origin CORS yang diizinkan di production (comma-separated).
+    /// Default: `https://rejki.id,https://app.rejki.id`
+    pub cors_allowed_origins: Vec<String>,
 }
 
 impl AppConfig {
@@ -44,6 +47,20 @@ impl AppConfig {
         if app_env == AppEnv::Development {
             dotenvy::dotenv().ok();
         }
+
+        let cors_raw = env::var("CORS_ALLOWED_ORIGINS")
+            .unwrap_or_else(|_| "https://rejki.id,https://app.rejki.id".into());
+
+        let cors_allowed_origins: Vec<String> = cors_raw
+            .split(',')
+            .map(|s| s.trim().to_owned())
+            .filter(|s| !s.is_empty())
+            .collect();
+
+        assert!(
+            !cors_allowed_origins.is_empty(),
+            "CORS_ALLOWED_ORIGINS tidak boleh kosong — isi dengan daftar origin (comma-separated)"
+        );
 
         Self {
             app_port: env::var("APP_PORT")
@@ -54,6 +71,7 @@ impl AppConfig {
             redis_url: env::var("REDIS_URL").expect("REDIS_URL tidak di-set"),
             service_name: env::var("SERVICE_NAME").unwrap_or_else(|_| "rejki-app".into()),
             app_env,
+            cors_allowed_origins,
         }
     }
 }

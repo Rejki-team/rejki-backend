@@ -11,6 +11,10 @@ path = "src/lib.rs"
 name = "region-service"
 path = "src/main.rs"
 
+[dev-dependencies]
+tower      = { workspace = true }
+serde_json = { workspace = true }
+
 [dependencies]
 common-errors  = { workspace = true }
 common-tracing = { workspace = true }

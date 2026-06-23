@@ -1,0 +1,44 @@
+@startuml user-suspension-bulk-purge-sequence
+title Bulk Suspend Pengguna + Purge Dokumen Permanen (Change B)
+' Sumber: dashboard-gap-analysis.md §2.5 + prd-dashboard.md §5.7 (FR-ADM-USR-07).
+' Endpoint bertanda [BARU] adalah gap yang ditutup Change B: extend-user-suspension-bulk-purge.
+
+actor Admin
+participant "rejki-web\n(Pengelolaan Pengguna)" as web
+participant "require_admin" as rbac
+participant "auth-service\n/auth/admin/users/*" as auth
+database "auth\n(account_suspension)" as authdb
+participant "UserClient\n(in-process)" as uclient
+participant "user-service\n(purge_documents)" as usvc
+participant "StorageClient" as stor
+participant "NotificationClient" as notif
+
+== Unggah bukti (alur existing) ==
+Admin -> web : pilih beberapa pengguna + alasan + bukti (≤5MB, 1 file)
+web -> auth : POST /auth/admin/users/{id}/suspend/evidence (presigned)
+auth --> web : evidence_object_key
+
+== Bulk suspend (FR-ADM-USR-07) ==
+web -> rbac : POST /auth/admin/users/suspend  [BARU]\n{user_ids[], permanent, reason, evidence_object_key, expires_at}
+rbac -> auth : role=admin OK
+note over auth : Validasi fail-fast:\nreason wajib; expires_at wajib bila sementara;\nbatas maks user_ids (mis. 100)
+
+loop untuk tiap user_id (independen, partial-success)
+  auth -> authdb : suspend_one → insert account_suspension
+  alt sukses
+    alt permanent = true
+      auth -> uclient : purge_kyc_documents(user_id)  [BARU]
+      uclient -> usvc : resolve profile → purge_documents
+      usvc -> stor : delete(ktp, selfie)  (best-effort + logged)
+    end
+    auth -> notif : send (in-app) + send_email (pengguna terdampak)
+    note right of auth : result += {user_id, success:true}
+  else gagal (mis. user invalid)
+    note right of auth : result += {user_id, success:false, error}
+  end
+end
+
+auth --> web : 200 ApiResponse { results: [...] }\n(per-item; sebagian gagal tidak membatalkan batch)
+
+note over auth : Suspend sementara TIDAK memicu purge.\nKegagalan purge tidak membatalkan suspend (tercatat untuk pembersihan).
+@enduml

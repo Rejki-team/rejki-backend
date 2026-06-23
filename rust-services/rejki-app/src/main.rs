@@ -9,6 +9,7 @@ use tower_http::{
 };
 
 mod openapi;
+mod rate_limit_middleware;
 
 #[tokio::main]
 async fn main() {
@@ -18,8 +19,25 @@ async fn main() {
     // ── 2. Load semua env var dari .env (development only) + validasi ─────────
     let cfg = common_config::AppConfig::from_env(app_env);
 
-    // ── 3. Init tracing ───────────────────────────────────────────────────────
-    common_tracing::init_tracing();
+    // ── 3. Init tracing & OpenTelemetry ─────────────────────────────────────
+    // Jika OTEL_EXPORTER_OTLP_ENDPOINT diset, pakai OTel mode (→ Grafana Cloud)
+    // Jika tidak, pakai standard tracing (development pretty / production JSON)
+    let _otel_handle = if std::env::var("OTEL_EXPORTER_OTLP_ENDPOINT").is_ok() {
+        match common_tracing::init_otel().await {
+            Some(handle) => {
+                tracing::info!("OpenTelemetry mode: spans → Grafana Cloud");
+                Some(handle)
+            }
+            None => {
+                tracing::warn!("OTEL_EXPORTER_OTLP_ENDPOINT diset tapi init_otel gagal — fallback ke standard tracing");
+                common_tracing::init_tracing();
+                None
+            }
+        }
+    } else {
+        common_tracing::init_tracing();
+        None
+    };
 
     tracing::info!(
         service = %cfg.service_name,
@@ -59,13 +77,11 @@ async fn main() {
     // Repo auth dibuat sekali & di-share ke router auth dan AuthInProcessClient,
     // agar status akun punya satu sumber kebenaran (lihat K2 / spec account-status-lifecycle).
     let auth_repo = Arc::new(auth_service::PgAuthRepository::new(pool.clone()));
-    let auth_client: Arc<dyn auth_service_client::AuthClient> = Arc::new(
+    let auth_client: Arc<dyn auth_service::AuthClient> = Arc::new(
         auth_service::AuthInProcessClient::new(jwt.clone(), auth_repo.clone()),
     );
 
-    // NotificationClient — implementasi in-process (publisher Redis Stream) milik domain
-    // notification. Di-inject ke auth untuk email OTP. None bila REDIS_URL tidak diset.
-    let notifier: Option<Arc<dyn notification_service_client::NotificationClient>> =
+    let notifier: Option<Arc<dyn notification_service::NotificationClient>> =
         match std::env::var("REDIS_URL")
             .ok()
             .and_then(|u| notification_service::NotificationPublisher::new(&u).ok())
@@ -78,50 +94,140 @@ async fn main() {
         };
 
     // RegionClient — implementasi in-process untuk user-service (validasi wilayah KYC).
-    let region_client: Arc<dyn region_service_client::RegionClient> = {
+    let region_client: Arc<dyn region_service::RegionClient> = {
         let repo = Arc::new(region_service::PgRegionRepository::new(pool.clone()));
-        let svc  = Arc::new(region_service::RegionService::new(repo));
+        let svc = Arc::new(region_service::RegionService::new(repo));
         Arc::new(region_service::RegionInProcessClient::new(svc))
     };
 
     // StorageClient — in-process (MinIO/S3 via presigned URL). MinioStorage di-init
     // dari env; bila env tidak diset, request_upload mengembalikan Unavailable.
-    let storage_client: Arc<dyn storage_service_client::StorageClient> =
+    let storage_client: Arc<dyn storage_service::StorageClient> =
         Arc::new(storage_service::StorageInProcessClient::new().await);
 
-    // ── 7. Build router ───────────────────────────────────────────────────────
+    // UserClient — in-process untuk suspend permanen → purge dokumen KYC (D4).
+    // Dibangun dari UserService yang sama dengan user-service router (satu instance,
+    // satu sumber kebenaran profil/dokumen).
+    let user_client: Arc<dyn user_service::UserClient> = {
+        let user_repo = Arc::new(user_service::PgUserRepository::new(pool.clone()));
+        let user_svc = Arc::new(user_service::UserService::new(
+            user_repo,
+            auth_client.clone(),
+            region_client.clone(),
+            Some(storage_client.clone()),
+            notifier.clone(),
+        ));
+        Arc::new(user_service::UserInProcessClient::new(user_svc))
+    };
+
+    // ── 7. Rate limiter (shared — Redis Lua atomik, fail-open) ────────────────
+    let rate_limiter: Option<Arc<dyn common_rate_limit::RateLimiter>> =
+        if std::env::var("REDIS_URL").is_ok() || cfg!(test) {
+            Some(Arc::new(common_rate_limit::OtpRateLimiter::from_env()))
+        } else {
+            tracing::warn!("REDIS_URL tidak diset — rate limiter non-aktif");
+            None
+        };
+
+    // ── 8. Build router ───────────────────────────────────────────────────────
     let api_v1 = Router::new()
         .nest(
             "/auth",
-            auth_service::router_with_deps(
+            auth_service::router_with_deps_ex(
                 jwt.clone(),
                 auth_repo.clone(),
                 auth_client.clone(),
                 notifier.clone(),
+                Some(storage_client.clone()),
+                Some(user_client.clone()),
             ),
         )
         .nest("/regions", region_service::router(pool.clone()))
-        .nest("/users", user_service::router(pool.clone(), auth_client.clone(), region_client.clone(), storage_client.clone()))
+        .nest(
+            "/users",
+            user_service::router(
+                pool.clone(),
+                auth_client.clone(),
+                region_client.clone(),
+                storage_client.clone(),
+                notifier.clone(),
+            ),
+        )
         .nest(
             "/chat",
-            chat_service::router(pool.clone(), auth_client.clone()),
+            chat_service::router(pool.clone(), auth_client.clone(), rate_limiter.clone()),
         )
-        .nest("/notif", notification_service::router(pool.clone(), auth_client.clone()))
+        .nest(
+            "/notif",
+            notification_service::router(pool.clone(), auth_client.clone(), rate_limiter.clone()),
+        )
         .nest(
             "/pekerjaan",
-            iklan_pekerjaan_service::router(pool.clone(), auth_client.clone()),
+            iklan_pekerjaan_service::router(
+                pool.clone(),
+                auth_client.clone(),
+                Some(storage_client.clone()),
+                notifier.clone(),
+                rate_limiter.clone(),
+                Some(region_client.clone()),
+            ),
         )
         .nest(
             "/pekerja",
-            iklan_pekerja_service::router(pool.clone(), auth_client.clone()),
+            iklan_pekerja_service::router(
+                pool.clone(),
+                auth_client.clone(),
+                Some(storage_client.clone()),
+                notifier.clone(),
+                rate_limiter.clone(),
+                Some(region_client.clone()),
+            ),
         )
         .nest(
             "/barang",
-            iklan_barang_bekas_service::router(pool.clone(), auth_client.clone()),
+            iklan_barang_bekas_service::router(
+                pool.clone(),
+                auth_client.clone(),
+                Some(storage_client.clone()),
+                notifier.clone(),
+                rate_limiter.clone(),
+                Some(region_client.clone()),
+            ),
         )
         .nest(
             "/pelatihan",
-            iklan_pelatihan_service::router(pool.clone(), auth_client.clone()),
+            iklan_pelatihan_service::router(
+                pool.clone(),
+                auth_client.clone(),
+                Some(storage_client.clone()),
+                notifier.clone(),
+                rate_limiter.clone(),
+                Some(region_client.clone()),
+            ),
+        )
+        .nest(
+            "/admin/articles",
+            corporate_comms_service::router(
+                pool.clone(),
+                auth_client.clone(),
+                Some(storage_client.clone()),
+                notifier.clone(),
+                rate_limiter.clone(),
+            ),
+        )
+        .nest(
+            "/reports",
+            report_service::router(
+                pool.clone(),
+                auth_client.clone(),
+                Some(storage_client.clone()),
+                notifier.clone(),
+                rate_limiter.clone(),
+            ),
+        )
+        .nest(
+            "/insights",
+            insights_service::router(pool.clone(), auth_client.clone()),
         );
 
     let mut app = Router::new()
@@ -135,22 +241,58 @@ async fn main() {
         use utoipa::OpenApi;
         use utoipa_swagger_ui::SwaggerUi;
         app = app.merge(
-            SwaggerUi::new("/swagger-ui")
-                .url("/api-docs/openapi.json", openapi::ApiDoc::openapi()),
+            SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", openapi::ApiDoc::openapi()),
         );
         tracing::info!("Swagger UI aktif (development) — /swagger-ui");
     }
 
+    let rl_state = rate_limit_middleware::RateLimitState {
+        limiter: rate_limiter.clone(),
+    };
+
+    // ── CORS — environment-aware ───────────────────────────────────
+    // Development: longgar (Any) untuk frontend lokal di port berbeda.
+    // Production: whitelist dari CORS_ALLOWED_ORIGINS + allow_credentials(true).
+    let cors = if cfg.app_env.is_production() {
+        let origins: Vec<_> = cfg
+            .cors_allowed_origins
+            .iter()
+            .map(|o| {
+                o.parse::<axum::http::HeaderValue>()
+                    .expect("CORS_ALLOWED_ORIGINS tidak valid — pastikan format URL benar")
+            })
+            .collect();
+        CorsLayer::new()
+            .allow_origin(origins)
+            .allow_credentials(true)
+            .allow_methods([
+                axum::http::Method::GET,
+                axum::http::Method::POST,
+                axum::http::Method::PATCH,
+                axum::http::Method::DELETE,
+                axum::http::Method::OPTIONS,
+            ])
+            .allow_headers([
+                axum::http::header::AUTHORIZATION,
+                axum::http::header::CONTENT_TYPE,
+                axum::http::header::ACCEPT,
+            ])
+    } else {
+        CorsLayer::new()
+            .allow_origin(Any)
+            .allow_methods(Any)
+            .allow_headers(Any)
+    };
+
     let app = app
+        .layer(axum::middleware::from_fn_with_state(
+            rl_state,
+            rate_limit_middleware::global_rate_limit,
+        ))
         .layer(axum::middleware::from_fn(common_tracing::request_id_layer))
         .layer(CompressionLayer::new())
         .layer(TraceLayer::new_for_http())
-        .layer(
-            CorsLayer::new()
-                .allow_origin(Any)
-                .allow_methods(Any)
-                .allow_headers(Any),
-        );
+        .layer(cors);
 
     // ── 8. Bind listener ──────────────────────────────────────────────────────
     let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", cfg.app_port))
@@ -174,6 +316,9 @@ async fn main() {
         }
 
         tracing::info!("shutdown signal received — draining connections (30s)");
+
+        // Shutdown OpenTelemetry tracer (flush spans)
+        common_tracing::shutdown_otel(_otel_handle).await;
     };
 
     axum::serve(listener, app)

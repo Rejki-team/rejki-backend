@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="id">
 <head>
   <meta charset="UTF-8" />
@@ -232,6 +232,10 @@
       <a class="nav-link accent" href="health-check.html">🏥 Phase 1.5 — Health Check</a>
       <a class="nav-link accent" href="api-versioning.html">🔢 Phase 1.5 — API Versioning</a>
       <a class="nav-link accent" href="authorization-pattern.html">🔐 Phase 1.5 — Authorization</a>
+      <a class="nav-link accent" href="code-review-standards.html" style="color:var(--green);">📋 Code Review Standards <span style="font-size:0.65rem;opacity:0.6;">NEW</span></a>
+      <a class="nav-link accent" href="deployment-guide.html" style="color:var(--green);">🚀 Deployment Guide <span style="font-size:0.65rem;opacity:0.6;">NEW</span></a>
+      <a class="nav-link accent" href="implementation-plan-phase-3.html" style="color:var(--yellow);">🛡️ Phase 3 — Implementation Plan</a>
+      <a class="nav-link accent" href="brainstorm/phase-3-hardening-analysis.html" style="color:var(--yellow);">🧠 Phase 3 — Brainstorm</a>
       <a class="nav-link" href="#roadmap">Roadmap</a>
       <a class="nav-link" href="#checklist">Master Checklist</a>
     </div>
@@ -289,6 +293,7 @@
             <div class="arch-box ab-app">iklan-pekerja-service<small>/api/pekerja/*</small></div>
             <div class="arch-box ab-app">iklan-barang-bekas-service<small>/api/barang/*</small></div>
             <div class="arch-box ab-app">iklan-pelatihan-service<small>/api/pelatihan/*</small></div>
+            <div class="arch-box ab-app">**insights-service**<small>/insights/* · CEO analytics</small></div>
           </div>
         </div>
         <div class="arch-arrow">↓</div>
@@ -306,7 +311,7 @@
       <h2 class="sec-title"><span class="sec-icon ic-y">🗂️</span>Struktur Proyek</h2>
       <div class="filetree">
 <span class="ft-dir">rejki-backend/</span>
-├── <span class="ft-hi">Cargo.toml</span>                        <span class="ft-note"># Workspace root — 20 members</span>
+├── <span class="ft-hi">Cargo.toml</span>                        <span class="ft-note"># Workspace root — 32 members</span>
 ├── <span class="ft-hi">Cargo.lock</span>                        <span class="ft-note"># Commit ini — reproducible builds</span>
 ├── .gitignore
 ├── docker-compose.yml
@@ -318,9 +323,12 @@
 │   └── src/main.rs                   <span class="ft-note"># wire deps → gabung router → serve</span>
 │
 ├── <span class="ft-dir">common/</span>                           <span class="ft-note"># Shared library crates</span>
-│   ├── errors/src/lib.rs             <span class="ft-note"># AppError + IntoResponse</span>
-│   ├── tracing-setup/src/lib.rs      <span class="ft-note"># init_tracing()</span>
-│   └── auth-middleware/src/lib.rs    <span class="ft-note"># Tower JWT layer (diisi setelah auth-service)</span>
+│   ├── crypto/src/lib.rs            <span class="ft-note"># AES-256-GCM encryption</span>
+│   ├── config/src/lib.rs            <span class="ft-note"># AppConfig::from_env() fail-fast</span>
+│   ├── errors/src/lib.rs            <span class="ft-note"># AppError + IntoResponse + ApiResponse</span>
+│   ├── rate-limit/src/lib.rs        <span class="ft-note"># Rate limit tower layer</span>
+│   ├── tracing-setup/src/lib.rs     <span class="ft-note"># init_tracing()</span>
+│   └── auth-middleware/src/lib.rs   <span class="ft-note"># Tower JWT layer</span>
 │
 ├── <span class="ft-dir">auth-service/</span>                     <span class="ft-note"># [lib] + [[bin]]</span>
 │   ├── rust-services/Cargo.toml
@@ -338,13 +346,21 @@
 │   └── src/lib.rs                    <span class="ft-note"># trait AuthClient · AuthClaims</span>
 │
 <span class="ft-note"># ... pola [lib]+[[bin]] dan *-client identik untuk semua service lain</span>
-├── user-service/          user-service-client/
-├── chat-service/          chat-service-client/
-├── notification-service/  notification-service-client/
+├── region-service/           region-service-client/
+├── storage-service/          storage-service-client/
+├── user-service/             user-service-client/
+├── chat-service/             chat-service-client/
+├── notification-service/     notification-service-client/
+├── corporate-comms-service/  corporate-comms-service-client/
+├── report-service/           report-service-client/
 ├── iklan-pekerjaan-service/  iklan-pekerjaan-service-client/
 ├── iklan-pekerja-service/    iklan-pekerja-service-client/
 ├── iklan-barang-bekas-service/  iklan-barang-bekas-service-client/
-└── iklan-pelatihan-service/     iklan-pelatihan-service-client/</div>
+├── iklan-pelatihan-service/     iklan-pelatihan-service-client/
+├── <span class="ft-hi">insights-service/</span>             <span class="ft-note"># CEO analytics · 4 MV · Executive role</span>
+└── ...
+
+
     </section>
 
     <!-- DEPENDENCY GRAPH -->
@@ -393,6 +409,14 @@
           <span class="dep-arrow">imports</span>
           <div class="dep-node dn-g">common-errors</div>
           <div class="dep-node dn-g">common-tracing</div>
+          <div class="dep-node dn-m">tidak import service lain</div>
+        </div>
+
+        <div class="dep-flow">
+          <span style="font-size:.75rem;font-weight:700;color:var(--muted);min-width:110px;">insights-service</span>
+          <span class="dep-arrow">imports</span>
+          <div class="dep-node dn-b">auth-service-client</div>
+          <div class="dep-node dn-g">common-errors</div>
           <div class="dep-node dn-m">tidak import service lain</div>
         </div>
 
@@ -541,50 +565,24 @@
       <p style="color:var(--muted);font-size:.88rem;margin-bottom:1rem;">Satu-satunya tempat yang tahu semua implementasi konkret. Prinsip ini disebut <strong>Composition Root pattern</strong>.</p>
 
       <div class="code">
-        <pre><span class="cc">// rejki-app/src/main.rs — implementasi nyata (Phase 1 selesai)</span>
-<span class="ck">use</span> std::sync::Arc;
-<span class="ck">use</span> tower_http::{cors::{Any, CorsLayer}, trace::TraceLayer, compression::CompressionLayer};
+        <pre><span class="cc">// rejki-app/src/main.rs — implementasi nyata (ringkasan)</span>
+<span class="ck">let</span> api_v1 = Router::new()
+    .<span class="cfn">nest</span>(<span class="cs">"/auth"</span>,      auth_service::<span class="cfn">router_with_deps_ex</span>(...))
+    .<span class="cfn">nest</span>(<span class="cs">"/users"</span>,     user_service::<span class="cfn">router</span>(...))
+    .<span class="cfn">nest</span>(<span class="cs">"/regions"</span>,  region_service::<span class="cfn">router</span>(pool))
+    .<span class="cfn">nest</span>(<span class="cs">"/chat"</span>,      chat_service::<span class="cfn">router</span>(...))
+    .<span class="cfn">nest</span>(<span class="cs">"/notif"</span>,     notification_service::<span class="cfn">router</span>(...))
+    .<span class="cfn">nest</span>(<span class="cs">"/pekerjaan"</span>, iklan_pekerjaan_service::<span class="cfn">router</span>(...))
+    .<span class="cfn">nest</span>(<span class="cs">"/pekerja"</span>,   iklan_pekerja_service::<span class="cfn">router</span>(...))
+    .<span class="cfn">nest</span>(<span class="cs">"/barang"</span>,    iklan_barang_bekas_service::<span class="cfn">router</span>(...))
+    .<span class="cfn">nest</span>(<span class="cs">"/pelatihan"</span>, iklan_pelatihan_service::<span class="cfn">router</span>(...))
+    .<span class="cfn">nest</span>(<span class="cs">"/admin/articles"</span>, corporate_comms_service::<span class="cfn">router</span>(...))
+    .<span class="cfn">nest</span>(<span class="cs">"/reports"</span>,   report_service::<span class="cfn">router</span>(...))
+    .<span class="cfn">nest</span>(<span class="cs">"/insights"</span>,  insights_service::<span class="cfn">router</span>(...));
 
-<span class="ck">#[tokio::main]</span>
-<span class="ck">async fn</span> <span class="cfn">main</span>() {
-    dotenvy::<span class="cfn">dotenv</span>().ok();
-    common_tracing::<span class="cfn">init_tracing</span>();
-
-    <span class="cc">// 1. Shared DB pool — schema terisolasi per service</span>
-    <span class="ck">let</span> pool = sqlx::<span class="ct">PgPool</span>::<span class="cfn">connect</span>(&env::<span class="cfn">var</span>(<span class="cs">"DATABASE_URL"</span>).<span class="cfn">expect</span>(<span class="cs">"DATABASE_URL tidak di-set"</span>))
-        .await.<span class="cfn">expect</span>(<span class="cs">"gagal connect ke PostgreSQL"</span>);
-
-    <span class="cc">// 2. JwtService — inisiasi sekali, di-share via Arc ke auth-service</span>
-    <span class="ck">let</span> jwt = Arc::new(auth_service::<span class="ct">JwtService</span>::<span class="cfn">from_files</span>(
-        &std::fs::<span class="cfn">read_to_string</span>(<span class="cs">"./keys/private.pem"</span>).<span class="cfn">unwrap</span>(),
-        &std::fs::<span class="cfn">read_to_string</span>(<span class="cs">"./keys/public.pem"</span>).<span class="cfn">unwrap</span>(),
-        <span class="cn">900</span>,
-    ).<span class="cfn">unwrap</span>());
-
-    <span class="cc">// 3. AuthClient in-process — di-inject ke middleware semua service berproteksi</span>
-    <span class="cc">//    Saat diekstrak ke microservice: ganti dengan HttpAuthClient, tidak ada perubahan lain</span>
-    <span class="ck">let</span> auth_client: Arc&lt;<span class="ck">dyn</span> auth_service_client::<span class="ct">AuthClient</span>&gt; =
-        Arc::new(auth_service::<span class="ct">AuthInProcessClient</span>::<span class="cfn">new</span>(jwt.<span class="cfn">clone</span>()));
-
-    <span class="cc">// 4. Wire semua router + cross-cutting layers</span>
-    <span class="ck">let</span> app = Router::new()
-        .<span class="cfn">nest</span>(<span class="cs">"/api/auth"</span>,      auth_service::<span class="cfn">router_with_jwt</span>(pool.<span class="cfn">clone</span>(), jwt))
-        .<span class="cfn">nest</span>(<span class="cs">"/api/users"</span>,     user_service::<span class="cfn">router</span>(pool.<span class="cfn">clone</span>()))
-        .<span class="cfn">nest</span>(<span class="cs">"/api/chat"</span>,      chat_service::<span class="cfn">router</span>(pool.<span class="cfn">clone</span>()))
-        .<span class="cfn">nest</span>(<span class="cs">"/api/notif"</span>,     notification_service::<span class="cfn">router</span>(pool.<span class="cfn">clone</span>()))
-        .<span class="cfn">nest</span>(<span class="cs">"/api/pekerjaan"</span>, iklan_pekerjaan_service::<span class="cfn">router</span>(pool.<span class="cfn">clone</span>()))
-        .<span class="cfn">nest</span>(<span class="cs">"/api/pekerja"</span>,   iklan_pekerja_service::<span class="cfn">router</span>(pool.<span class="cfn">clone</span>()))
-        .<span class="cfn">nest</span>(<span class="cs">"/api/barang"</span>,    iklan_barang_bekas_service::<span class="cfn">router</span>(pool.<span class="cfn">clone</span>()))
-        .<span class="cfn">nest</span>(<span class="cs">"/api/pelatihan"</span>, iklan_pelatihan_service::<span class="cfn">router</span>(pool))
-        .<span class="cfn">layer</span>(<span class="ct">CompressionLayer</span>::<span class="cfn">new</span>())
-        .<span class="cfn">layer</span>(<span class="ct">TraceLayer</span>::<span class="cfn">new_for_http</span>())
-        .<span class="cfn">layer</span>(<span class="ct">CorsLayer</span>::<span class="cfn">new</span>().<span class="cfn">allow_origin</span>(<span class="ct">Any</span>).<span class="cfn">allow_methods</span>(<span class="ct">Any</span>).<span class="cfn">allow_headers</span>(<span class="ct">Any</span>));
-
-    <span class="ck">let</span> port     = env::<span class="cfn">var</span>(<span class="cs">"APP_PORT"</span>).<span class="cfn">unwrap_or</span>(<span class="cs">"8080"</span>.<span class="cfn">into</span>());
-    <span class="ck">let</span> listener = tokio::net::<span class="ct">TcpListener</span>::<span class="cfn">bind</span>(<span class="cfn">format!</span>(<span class="cs">"0.0.0.0:{port}"</span>)).await.<span class="cfn">unwrap</span>();
-    tracing::<span class="cfn">info!</span>(port = %port, <span class="cs">"rejki-app listening"</span>);
-    axum::<span class="cfn">serve</span>(listener, app).await.<span class="cfn">unwrap</span>();
-}</pre>
+<span class="cc">// Cross-cutting: common-config (fail-fast) · common/crypto · common/rate-limit ·</span>
+<span class="cc">// CorsLayer env-aware · TraceLayer · CompressionLayer · request_id_layer ·</span>
+<span class="cc">// graceful shutdown SIGTERM 30s · Swagger UI (development only)</span></pre>
       </div>
 
       <div class="comp-callouts">
@@ -621,6 +619,21 @@
           <div class="card-icon" style="font-size:1rem;background:rgba(86,211,100,.1);border-radius:6px;padding:.4rem .7rem;display:inline-block;margin-bottom:.6rem;">notification-service-client</div>
           <h3>Expose</h3>
           <p><code>trait NotificationClient</code><br/><code>NotificationPayload</code><br/><code>fn send(recipient_id, payload)</code><br/><code>fn send_bulk(ids, payload)</code></p>
+        </div>
+        <div class="card">
+          <div class="card-icon" style="font-size:1rem;background:rgba(227,179,65,.1);border-radius:6px;padding:.4rem .7rem;display:inline-block;margin-bottom:.6rem;">region-service-client</div>
+          <h3>Expose</h3>
+          <p><code>trait RegionClient</code><br/><code>Region { id, name, type }</code><br/><code>fn get_region(id)</code><br/><code>fn validate_chain(ids)</code></p>
+        </div>
+        <div class="card">
+          <div class="card-icon" style="font-size:1rem;background:rgba(121,192,255,.1);border-radius:6px;padding:.4rem .7rem;display:inline-block;margin-bottom:.6rem;">storage-service-client</div>
+          <h3>Expose</h3>
+          <p><code>trait StorageClient</code><br/><code>fn request_upload(filename, mime)</code><br/><code>fn get_download_url(path)</code></p>
+        </div>
+        <div class="card">
+          <div class="card-icon" style="font-size:1rem;background:rgba(247,129,102,.1);border-radius:6px;padding:.4rem .7rem;display:inline-block;margin-bottom:.6rem;">corporate-comms-client</div>
+          <h3>Expose</h3>
+          <p><code>trait CommsClient</code><br/><code>ArticleSummary { id, title }</code><br/><code>fn broadcast(article_id)</code></p>
         </div>
         <div class="card">
           <div class="card-icon" style="font-size:1rem;background:rgba(227,179,65,.1);border-radius:6px;padding:.4rem .7rem;display:inline-block;margin-bottom:.6rem;">iklan-*-service-client</div>
@@ -701,7 +714,7 @@
           <div class="rm-body">
             <div class="rm-phase">Phase 1 — Foundation</div>
             <div class="rm-title">Workspace, Shared Crates, Toolchain</div>
-            <div class="rm-desc">Cargo workspace 20 members · common/errors (JSON body) · common/tracing-setup · common/auth-middleware (DI via AuthClient trait) · Docker Compose PostgreSQL · 8 schema DB terisolasi · scripts/init-schemas.sql · .env.example · .gitignore.</div>
+            <div class="rm-desc">Cargo workspace 32 members · common/errors (JSON body + ApiResponse) · common/tracing-setup · common/auth-middleware (DI via AuthClient trait) · common/config (AppConfig fail-fast) · common/crypto (AES-256-GCM) · common/rate-limit · Docker Compose PostgreSQL · 8+ schema DB terisolasi (init + migration) · scripts/init-schemas.sql · .env.example · .gitignore.</div>
             <div class="rm-done">✓ Selesai</div>
             <div class="rm-pills">
               <span class="rm-pill">common/errors</span>
@@ -726,7 +739,7 @@
               <span class="rm-pill">auth-service-client</span>
               <span class="rm-pill">JwtService</span>
               <span class="rm-pill">AuthInProcessClient</span>
-              <span class="rm-pill">8 service skeleton</span>
+              <span class="rm-pill">13 service skeleton</span>
               <span class="rm-pill">rejki-app wiring</span>
             </div>
           </div>
@@ -770,8 +783,23 @@
           <div class="rm-left"><div class="rm-dot"></div><div class="rm-line"></div></div>
           <div class="rm-body">
             <div class="rm-phase">Phase 2 — Core Services</div>
+            <div class="rm-title">Infrastructure Services: region-service · storage-service</div>
+            <div class="rm-desc">region-service: data wilayah 4-level (provinsi/kabupaten/kecamatan/desa), cascading API, RegionClient trait untuk validasi chain · storage-service: presigned URL upload/download, MinIO/S3 abstraction via StorageClient trait.</div>
+            <div class="rm-done">✓ Selesai</div>
+            <div class="rm-pills">
+              <span class="rm-pill">region-service</span>
+              <span class="rm-pill">storage-service</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="rm ph2">
+          <div class="rm-left"><div class="rm-dot"></div><div class="rm-line"></div></div>
+          <div class="rm-body">
+            <div class="rm-phase">Phase 2 — Core Services</div>
             <div class="rm-title">user-service · notification-service · chat-service</div>
-            <div class="rm-desc">user-service CRUD profil lengkap · notification-service Rust jadi publisher Redis Stream + REST API in-app · bun-notification-service consumer FCM HTTP v1 + DB write · chat-service (WebSocket + cursor pagination) · buat <code>UserClient</code>, <code>NotificationClient</code>, <code>ChatClient</code> trait.</div>
+            <div class="rm-desc">user-service CRUD profil lengkap + RBAC admin · notification-service Rust jadi publisher Redis Stream + REST API in-app + device token management · bun-notification-service consumer FCM HTTP v1 + DB write · chat-service (WebSocket + cursor pagination bidirectional + broadcast) · <code>UserClient</code>, <code>NotificationClient</code>, <code>ChatClient</code> trait.</div>
+            <div class="rm-done">✓ Selesai</div>
             <div class="rm-pills">
               <span class="rm-pill">user-service</span>
               <span class="rm-pill">notification-service</span>
@@ -784,8 +812,23 @@
           <div class="rm-left"><div class="rm-dot"></div><div class="rm-line"></div></div>
           <div class="rm-body">
             <div class="rm-phase">Phase 2 — Core Services</div>
+            <div class="rm-title">corporate-comms-service · report-service</div>
+            <div class="rm-desc">corporate-comms-service: artikel, soft-delete, foto, broadcast notifikasi · report-service: content reports, review system, CSV export.</div>
+            <div class="rm-done">✓ Selesai</div>
+            <div class="rm-pills">
+              <span class="rm-pill">corporate-comms-service</span>
+              <span class="rm-pill">report-service</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="rm ph2">
+          <div class="rm-left"><div class="rm-dot"></div><div class="rm-line"></div></div>
+          <div class="rm-body">
+            <div class="rm-phase">Phase 2 — Core Services</div>
             <div class="rm-title">iklan-* services (4 service)</div>
-            <div class="rm-desc">iklan-pekerjaan · iklan-pekerja (GIN index keahlian) · iklan-barang-bekas (mark_sold, foto_urls) · iklan-pelatihan (tanggal_mulai/selesai) · integrasi NotificationClient untuk notifikasi event iklan.</div>
+            <div class="rm-desc">iklan-pekerjaan · iklan-pekerja (GIN index keahlian) · iklan-barang-bekas (gratis/donasi model) · iklan-pelatihan (7-status lifecycle + enrollment + badge) · integrasi NotificationClient untuk notifikasi event iklan. Moderation + suspend + CSV export di semua 4 vertikal.</div>
+            <div class="rm-done">✓ Selesai</div>
             <div class="rm-pills">
               <span class="rm-pill">iklan-pekerjaan</span>
               <span class="rm-pill">iklan-pekerja</span>
@@ -801,6 +844,7 @@
             <div class="rm-phase">Phase 3 — Hardening</div>
             <div class="rm-title">Security · Observability · Testing</div>
             <div class="rm-desc">Rate limiting (tower-governor) · OTP brute-force protection · request ID per request · structured JSON logging production · integration test dengan DB real (schema <code>rejki_test</code>, bukan mock).</div>
+            <div class="rm-done">✓ Selesai</div>
             <div class="rm-pills">
               <span class="rm-pill">rate limiting</span>
               <span class="rm-pill">request ID</span>
@@ -813,13 +857,46 @@
           <div class="rm-left"><div class="rm-dot"></div><div class="rm-line"></div></div>
           <div class="rm-body">
             <div class="rm-phase">Phase 3 — Hardening</div>
+            <div class="rm-title">W3D-15: Code Review Full — 17 Rust Crates + 1 Bun Service</div>
+            <div class="rm-desc">Full code review seluruh service: 13 findings (4 HIGH, 2 MEDIUM, 2 LOW) · Fix connection leaks (Redis, gRPC, HTTP) · Memory leak cleanup · SigV4 auth untuk MinIO · N+1 query → UNION ALL · Graceful shutdown Bun · 40+ unit tests PASS · Dokumentasi <a href="code-review-standards.html" style="color:var(--green);">code-review-standards.html</a>.</div>
+            <div class="rm-done">✓ Selesai</div>
+            <div class="rm-pills">
+              <span class="rm-pill">13 findings fixed</span>
+              <span class="rm-pill">connection leaks</span>
+              <span class="rm-pill">N+1 queries</span>
+              <span class="rm-pill">SigV4 MinIO</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="rm ph1">
+          <div class="rm-left"><div class="rm-dot"></div><div class="rm-line"></div></div>
+          <div class="rm-body">
+            <div class="rm-phase">Phase 1.5 — Standardisasi</div>
             <div class="rm-title">CI/CD · Docker · Deployment</div>
-            <div class="rm-desc">Multi-stage Dockerfile (image &lt;30MB) · GitHub Actions: fmt → clippy → test → build → push · nginx.prod.conf lengkap (WebSocket proxy, rate limit) · Cloudflare Tunnel zero-trust · PostgreSQL managed DB + backup cron.</div>
+            <div class="rm-desc">Fondasi infrastructure yang dikerjakan di Phase 1.5, <strong>bukan bagian dari Phase 3</strong>. Multi-stage Dockerfile (image &lt;30MB) · GitHub Actions: <code>ci.yml</code> (fmt → clippy → test → build), <code>deploy.yml</code> (SSH ke prod), <code>deploy-dev.yml</code> (SSH ke dev) · nginx.prod.conf (WebSocket proxy, rate limit, security headers) · Cloudflare Tunnel zero-trust · <code>docker-compose.yml</code> (postgres:17, redis:7, nginx, bun, cloudflare-tunnel). <br><small>Lihat: <a href="infrastructure-setup.html" style="color:var(--blue);">infrastructure-setup.html</a> · <a href="vps-deployment.html" style="color:var(--blue);">vps-deployment.html</a> · <a href="cicd-setup.html" style="color:var(--blue);">cicd-setup.html</a></small></div>
+            <div class="rm-done">✓ Selesai (Phase 1.5)</div>
             <div class="rm-pills">
               <span class="rm-pill">Dockerfile</span>
               <span class="rm-pill">GitHub Actions</span>
               <span class="rm-pill">nginx</span>
               <span class="rm-pill">Cloudflare Tunnel</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="rm ph3">
+          <div class="rm-left"><div class="rm-dot"></div><div class="rm-line"></div></div>
+          <div class="rm-body">
+            <div class="rm-phase">Phase 3 — Hardening</div>
+            <div class="rm-title">W3D-12: CEO Analytics Endpoints</div>
+            <div class="rm-desc">Insights-service: 4 materialized view (user_stats, iklan_stats, geo_stats, engagement_stats) &#183; refresh scheduler &#183; Executive role (rank 90) &#183; RBAC endpoint filtering &#183; canvassing endpoint &#183; filter vertikal+provinsi &#183; integration test 12 PASS.</div>
+            <div class="rm-done">✓ Selesai</div>
+            <div class="rm-pills">
+              <span class="rm-pill">insights-service</span>
+              <span class="rm-pill">4 MV</span>
+              <span class="rm-pill">Executive role</span>
+              <span class="rm-pill">canvassing</span>
             </div>
           </div>
         </div>
@@ -861,7 +938,7 @@
               <td><span class="cl-status-done">✓ Selesai</span></td>
             </tr>
             <tr class="cl-1">
-              <td>Cargo workspace 20 members + struktur folder</td>
+              <td>Cargo workspace 32 members + struktur folder</td>
               <td style="text-align:center;">1</td>
               <td><span class="cl-status-done">✓ Selesai</span></td>
             </tr>
@@ -1017,66 +1094,163 @@
             <tr class="cl-2">
               <td>user-service CRUD profil + user-service-client</td>
               <td style="text-align:center;">2</td>
-              <td><span class="cl-status-todo">Pending</span></td>
+              <td><span class="cl-status-done">✓ Selesai</span></td>
             </tr>
             <tr class="cl-2">
-              <td>notification-service Rust: ubah peran jadi publisher Redis Stream (<code>XADD</code>) + REST API in-app + device token register/delete · bun-notification-service: consumer XREADGROUP + FCM dispatch + DB write</td>
+              <td><strong>+ RBAC admin</strong> — role column, admin login, require_admin middleware</td>
               <td style="text-align:center;">2</td>
-              <td><span class="cl-status-todo">Pending</span></td>
+              <td><span class="cl-status-done">✓ Selesai</span></td>
             </tr>
             <tr class="cl-2">
-              <td>chat-service (WebSocket + cursor pagination) + chat-service-client</td>
+              <td><strong>+ region-service</strong> — data wilayah 4-level, cascading API, RegionClient</td>
               <td style="text-align:center;">2</td>
-              <td><span class="cl-status-todo">Pending</span></td>
+              <td><span class="cl-status-done">✓ Selesai</span></td>
+            </tr>
+            <tr class="cl-2">
+              <td>notification-service Rust: publisher Redis Stream (<code>XADD</code>) + REST API in-app + device token register/delete · bun-notification-service: consumer XREADGROUP + FCM dispatch + DB write</td>
+              <td style="text-align:center;">2</td>
+              <td><span class="cl-status-done">✓ Selesai</span></td>
+            </tr>
+            <tr class="cl-2">
+              <td>chat-service (WebSocket + cursor pagination bidirectional + broadcast) + chat-service-client</td>
+              <td style="text-align:center;">2</td>
+              <td><span class="cl-status-done">✓ Selesai</span></td>
+            </tr>
+            <tr class="cl-2">
+              <td><strong>+ corporate-comms</strong> — artikel, soft-delete, foto, broadcast notifikasi</td>
+              <td style="text-align:center;">2</td>
+              <td><span class="cl-status-done">✓ Selesai</span></td>
+            </tr>
+            <tr class="cl-2">
+              <td><strong>+ content-reports</strong> — aduan, review, CSV export</td>
+              <td style="text-align:center;">2</td>
+              <td><span class="cl-status-done">✓ Selesai</span></td>
             </tr>
             <tr class="cl-2">
               <td>iklan-pekerjaan / iklan-pekerja / iklan-barang-bekas / iklan-pelatihan — implementasi lengkap</td>
               <td style="text-align:center;">2</td>
-              <td><span class="cl-status-todo">Pending</span></td>
+              <td><span class="cl-status-done">✓ Selesai</span></td>
+            </tr>
+            <tr class="cl-2">
+              <td><strong>+ pelatihan enrollment + badge</strong> — 7-status lifecycle, enrollment, sertifikat</td>
+              <td style="text-align:center;">2</td>
+              <td><span class="cl-status-done">✓ Selesai</span></td>
+            </tr>
+            <tr class="cl-2">
+              <td><strong>+ rejki-web-dashboard</strong> — Vue.js SPA + 11 page view + reusable components</td>
+              <td style="text-align:center;">2</td>
+              <td><span class="cl-status-done">✓ Selesai</span></td>
             </tr>
 
             <!-- ── Phase 3 Hardening ── -->
             <tr class="cl-3">
-              <td>Rate limiting (tower-governor) + OTP brute-force protection</td>
+              <td>Rate limiting (tower-governor) + OTP brute-force protection — <em>partial: sudah ada di auth-service (Lua script atomik Redis), perlu diperluas ke endpoint bisnis</em></td>
               <td style="text-align:center;">3</td>
-              <td><span class="cl-status-todo">Pending</span></td>
+              <td><span class="cl-status-done" style="background:rgba(227,179,65,.15);color:var(--yellow);border-color:rgba(227,179,65,.3);">⚡ Partial</span></td>
             </tr>
             <tr class="cl-3">
-              <td>Structured logging JSON + Request ID per request</td>
-              <td style="text-align:center;">3</td>
-              <td><span class="cl-status-todo">Pending</span></td>
+              <td>Structured logging JSON + Request ID per request — <em>selesai di Phase 1.5 (common/tracing-setup, request_id_layer UUID v7, logging-standard)</em></td>
+              <td style="text-align:center;">1.5</td>
+              <td><span class="cl-status-done">✓ Selesai</span></td>
             </tr>
             <tr class="cl-3">
-              <td>Integration test dengan DB real (schema <code>rejki_test</code>)</td>
+              <td>Integration test dengan DB real (schema <code>rejki_test</code>) — <em>partial: 52 integration test di rejki-app/tests/ + 12 test di insights-service (CEO analytics)</em></td>
               <td style="text-align:center;">3</td>
-              <td><span class="cl-status-todo">Pending</span></td>
+              <td><span class="cl-status-done" style="background:rgba(227,179,65,.15);color:var(--yellow);border-color:rgba(227,179,65,.3);">⚡ Partial</span></td>
             </tr>
 
-            <!-- ── Phase 3 CI/CD ── -->
-            <tr class="cl-4">
-              <td>Multi-stage Dockerfile per service (image &lt;30MB)</td>
-              <td style="text-align:center;">3</td>
-              <td><span class="cl-status-todo">Pending</span></td>
+            <!-- ── Phase 3 CI/CD — completed via Phase 1.5 ── -->
+            <tr class="cl-2">
+              <td>Multi-stage Dockerfile per service (image &lt;30MB) — <em>selesai di Phase 1.5 (infrastructure-setup, rust-services/Dockerfile + bun-notification-service/Dockerfile)</em></td>
+              <td style="text-align:center;">1.5</td>
+              <td><span class="cl-status-done">✓ Selesai</span></td>
             </tr>
-            <tr class="cl-4">
-              <td>GitHub Actions: fmt → clippy → test → build → push image</td>
-              <td style="text-align:center;">3</td>
-              <td><span class="cl-status-todo">Pending</span></td>
+            <tr class="cl-2">
+              <td>GitHub Actions: fmt → clippy → test → build → push image — <em>selesai di Phase 1.5 (ci.yml + deploy.yml + deploy-dev.yml, integration test dg Postgres container)</em></td>
+              <td style="text-align:center;">1.5</td>
+              <td><span class="cl-status-done">✓ Selesai</span></td>
             </tr>
-            <tr class="cl-4">
-              <td>nginx.dev.conf + nginx.prod.conf lengkap (WebSocket proxy, rate limit)</td>
-              <td style="text-align:center;">3</td>
-              <td><span class="cl-status-todo">Pending</span></td>
+            <tr class="cl-2">
+              <td>nginx.dev.conf + nginx.prod.conf lengkap (WebSocket proxy, rate limit) — <em>selesai di Phase 1.5 (rate-limit 3 zona, JSON log, security headers, custom 429/502)</em></td>
+              <td style="text-align:center;">1.5</td>
+              <td><span class="cl-status-done">✓ Selesai</span></td>
             </tr>
-            <tr class="cl-4">
-              <td>Cloudflare Tunnel: TUNNEL_TOKEN di secrets + zero-trust config</td>
-              <td style="text-align:center;">3</td>
-              <td><span class="cl-status-todo">Pending</span></td>
+            <tr class="cl-2">
+              <td>Cloudflare Tunnel: TUNNEL_TOKEN di secrets + zero-trust config — <em>selesai di Phase 1.5 (vps-deployment, docker-compose profil cloudflare-tunnel)</em></td>
+              <td style="text-align:center;">1.5</td>
+              <td><span class="cl-status-done">✓ Selesai</span></td>
             </tr>
             <tr class="cl-5">
-              <td>PostgreSQL managed DB (bukan dalam Swarm) + backup cron</td>
+              <td>PostgreSQL managed DB (bukan dalam Swarm) + backup cron — <em>infra: single-VPS setup sudah didokumentasikan; managed DB + backup cron deferred ke Wave 3D-15</em></td>
               <td style="text-align:center;">3</td>
-              <td><span class="cl-status-todo">Pending</span></td>
+              <td><span class="cl-status-todo">Deferred</span></td>
+            </tr>
+
+            <!-- ── Phase 3 Hardening — active tasks ── -->
+            <tr class="cl-3">
+              <td><strong>ws-testing-coverage</strong> — CI fix ✅, unit test 9 services 247 PASS ✅ (incl. MockUserRepository for user-service), 52 integration tests PASS ✅, coverage 17.90%→49.09% ✅, CI gate 49% hard ✅ <br><small><a href="../../openspec/changes/ws-testing-coverage/tasks.md" style="color:var(--yellow);">tasks.md</a> · <a href="implementation-plan-phase-3.html#w3a" style="color:var(--yellow);">W3A-01</a></small></td>
+              <td style="text-align:center;">3</td>
+              <td><span class="cl-status-done">✅ Done</span></td>
+            </tr>
+            <tr class="cl-3">
+              <td><strong>ws-rate-limiting-bisnis</strong> — common/rate-limit crate ✅, 8 services full wiring ✅, global middleware ✅, 247 unit + 52 integration PASS, archived 18 Jun <br><small><a href="../../openspec/changes/archive/2026-06-18-ws-rate-limiting-bisnis/tasks.md" style="color:var(--green);">tasks.md</a> · <a href="implementation-plan-phase-3.html#w3a" style="color:var(--green);">W3A-02 · P0 · Archived</a></small></td>
+              <td style="text-align:center;">3</td>
+              <td><span class="cl-status-done">✅ Done</span></td>
+            </tr>
+            <tr class="cl-3">
+              <td><strong>ws-region-id-iklan</strong> — 4 migration (region_id TEXT + partial index) ✅, RegionClient::get_region() validation ✅, 247 unit + 52 integration PASS ✅, Swagger mirror DTO + path annotation ✅, archived 18 Jun <br><small><a href="../../openspec/changes/archive/2026-06-18-ws-region-id-iklan/tasks.md" style="color:var(--green);">tasks.md</a> · <a href="implementation-plan-phase-3.html#w3a" style="color:var(--green);">W3A-03 · P0 · Archived</a></small></td>
+              <td style="text-align:center;">3</td>
+              <td><span class="cl-status-done">✅ Done</span></td>
+            </tr>
+            <tr class="cl-3">
+              <td><strong>ws-audit-log</strong> — migration auth.audit_log (append-only) ✅, PgAuditLogRepository ✅, 11 AuditEvent variant ✅, inject ke 10 auth events ✅, fail-open ✅, 247 unit ✅ <br><small><a href="../../openspec/changes/ws-audit-log/tasks.md" style="color:var(--yellow);">tasks.md</a> · <a href="implementation-plan-phase-3.html#w3b" style="color:var(--yellow);">W3B-04 · P1 · 19 Jun 2026</a></small></td>
+              <td style="text-align:center;">3</td>
+              <td><span class="cl-status-done">✅ Done</span></td>
+            </tr>
+            <tr class="cl-3">
+              <td><strong>ws-multi-tier-rbac</strong> — 6 role hierarchy (SuperAdmin 100, AdminIklan/AdminUser 80, Moderator 60, UserVerified 40, User 20) ✅, require_role(min_rank) ganti require_admin ✅, InsufficientRole error ✅, 8 router update ✅, admin_login guard >= 80 ✅, migration alter CHECK ✅ <br><small><a href="../../openspec/changes/ws-multi-tier-rbac/tasks.md" style="color:var(--blue);">tasks.md</a> · <a href="implementation-plan-phase-3.html#w3b" style="color:var(--blue);">W3B-05 · P1 · 19 Jun 2026</a></small></td>
+              <td style="text-align:center;">3</td>
+              <td><span class="cl-status-done">✅ Done</span></td>
+            </tr>
+            <tr class="cl-3">
+              <td><strong>ws-patch-iklan</strong> — PATCH endpoint di 4 iklan service (pekerjaan, pekerja, barang-bekas, pelatihan) ✅, partial update COALESCE SQL ✅, lifecycle guard per service ✅, is_active toggle ✅, IDOR 404 ✅, rate limit ✅ <br><small><a href="../../openspec/changes/ws-patch-iklan/tasks.md" style="color:var(--blue);">tasks.md</a> · <a href="implementation-plan-phase-3.html#w3b" style="color:var(--blue);">W3B-06 · P1 · 19 Jun 2026</a></small></td>
+              <td style="text-align:center;">3</td>
+              <td><span class="cl-status-done">✅ Done</span></td>
+            </tr>
+            <tr class="cl-3">
+              <td><strong>ws-password-reset</strong> — forgot-password + reset-password + change-password (OTP-based) ✅, anti-enumeration ✅, atomik transaction consume OTP + update password + revoke tokens ✅, rate limit 3 req/15m ✅, audit event PasswordReset/PasswordChanged ✅ <br><small><a href="../../openspec/changes/ws-password-reset/tasks.md" style="color:var(--blue);">tasks.md</a> · <a href="implementation-plan-phase-3.html#w3b" style="color:var(--blue);">W3B-07 · P1 · 19 Jun 2026</a></small></td>
+              <td style="text-align:center;">3</td>
+              <td><span class="cl-status-done">✅ Done</span></td>
+            </tr>
+            <tr class="cl-3">
+              <td><strong>ws-encryption-at-rest</strong> — Phone: decrypt di auth-service repo layer ✅, user-service <code>phone_encrypted</code> TEXT AES-256-GCM ✅ + Rekening (JSON: bank, number, holder → encrypt, response: <code>rekening_bank</code> + <code>rekening_masked</code> + <code>rekening_holder_masked</code>) ✅ + Key rotation strategy ✅ <br><small><a href="implementation-plan-phase-3.html#w3c" style="color:var(--blue);">W3C-09 · P2 · 20 Jun 2026</a></small></td>
+              <td style="text-align:center;">3</td>
+              <td><span class="cl-status-done">✅ Done</span></td>
+            </tr>
+            <tr class="cl-3">
+              <td><strong>ws-cors-production</strong> — CORS_ALLOWED_ORIGINS env var (default: rejki.id,app.rejki.id) ✅, conditional CorsLayer (development=Any, production=whitelist+credentials) ✅ <br><small><a href="../../openspec/changes/ws-cors-production/tasks.md" style="color:var(--blue);">tasks.md</a> · <a href="implementation-plan-phase-3.html#w3c" style="color:var(--blue);">W3C-08 · P2 · 20 Jun 2026</a></small></td>
+              <td style="text-align:center;">3</td>
+              <td><span class="cl-status-done">✅ Done</span></td>
+            </tr>
+            <tr class="cl-3">
+              <td><strong>ws-region-validation</strong> — Validasi chain region_id di user profiles ✅, <code>province_id / regency_id / district_id / village_id</code> (optional) di <code>UpdateProfileInput</code> ✅, chain check via <code>RegionClient.validate_chain()</code> sebelum save ✅, partial region ditolak ✅, 49 unit + 5 integration PASS <br><small><a href="implementation-plan-phase-3.html#w3c" style="color:var(--blue);">W3C-11 · P2 · 20 Jun 2026</a></small></td>
+              <td style="text-align:center;">3</td>
+              <td><span class="cl-status-done">✅ Done</span></td>
+            </tr>
+            <tr class="cl-3">
+              <td><strong>ws-ceo-analytics</strong> — insights-service: 4 MV (user_stats, iklan_stats, geo_stats, engagement_stats) ✅, refresh scheduler ✅, Executive role (rank 90) ✅, RBAC endpoint filtering ✅, canvassing endpoint ✅, filter vertikal+provinsi ✅, unit test 8 PASS ✅, integration test 12 PASS ✅ <br><small><a href="implementation-plan-phase-3.html#w3d" style="color:var(--yellow);">W3D-12 &#183; P2 &#183; 22 Jun 2026</a></small></td>
+              <td style="text-align:center;">3</td>
+              <td><span class="cl-status-done">✅ Done</span></td>
+            </tr>
+            <tr class="cl-3">
+              <td><strong>ws-code-review-full</strong> — Full code review 17 Rust crates + 1 Bun: 13 findings (4 HIGH, 2 MEDIUM, 2 LOW) · Connection leak fix (rate-limit, RedisPublisher, NotificationClient) · Memory leak fix (chat channel cleanup) · Security fix (MinIO SigV4 auth) · N+1 fix (region UNION ALL) · Graceful shutdown Bun · Build/lint/test all PASS · Dokumentasi <code>docs/code-review-standards.html</code> · PR #18 merged <br><small><a href="code-review-standards.html" style="color:var(--green);">code-review-standards.html</a> · <a href="implementation-plan-phase-3.html#w3d" style="color:var(--green);">W3D-15 · P3 · 22 Jun 2026</a></small></td>
+              <td style="text-align:center;">3</td>
+              <td><span class="cl-status-done">✅ Done</span></td>
+            </tr>
+            <tr class="cl-3">
+              <td><strong>Phase 3 plan</strong> — brainstorm + implementation plan (15 task, 4 wave, 8-12 minggu) <br><small><a href="brainstorm/phase-3-hardening-analysis.html" style="color:var(--yellow);">brainstorm</a> · <a href="implementation-plan-phase-3.html" style="color:var(--yellow);">implementation plan</a></small></td>
+              <td style="text-align:center;">3</td>
+              <td><span class="cl-status-done">✓ 17 Juni 2026</span></td>
             </tr>
           </tbody>
         </table>
@@ -1084,7 +1258,7 @@
     </section>
 
     <footer>
-      <p>Rejki Backend Architecture Document · Terakhir diperbarui: 9 Juni 2026 · Phase 1 selesai ✓</p>
+      <p>Rejki Backend Architecture Document · Terakhir diperbarui: 22 Juni 2026 · Phase 2 selesai ✓ · Wave 3A COMPLETE ✓ · W3B 4/4 ✅ · W3C 4/4 ✅ · W3D 1/1 ✅ · W3D-15 Code Review ✅</p>
       <p style="margin-top:.3rem;">Stack: Rust · Axum 0.8 · sqlx 0.9 · PostgreSQL · Modular Monolith → Extraction-Ready</p>
     </footer>
 

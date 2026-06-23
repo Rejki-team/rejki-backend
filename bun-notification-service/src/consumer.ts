@@ -1,11 +1,9 @@
-import Redis from "ioredis";
+import { redis } from "./connections";
 import { config } from "./config";
 import { get_fcm_tokens_column, mark_event_processed } from "./db";
 import { send_push } from "./firebase";
 import { send_email } from "./email";
 import { is_email_event, type StreamEvent, type NotificationEvent } from "./types";
-
-const redis = new Redis(config.redis_url);
 
 async function ensure_consumer_group(): Promise<void> {
   try {
@@ -63,7 +61,7 @@ async function move_to_dlq(id: string, payload: string, error: string): Promise<
 
 async function reclaim_stale(): Promise<void> {
   // XAUTOCLAIM: ambil alih pesan yang pending > 60 detik dari consumer lain
-  const result = await (redis as any).xautoclaim(
+  const result: [string, [string, string[]][]] = await redis.xautoclaim(
     config.stream_name,
     config.consumer_group,
     config.consumer_name,

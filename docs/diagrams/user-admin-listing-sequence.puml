@@ -1,0 +1,57 @@
+@startuml user-admin-listing-sequence
+title Listing & Akses Dokumen KYC Admin (Change A: add-user-admin-management)
+' Sumber: dashboard-gap-analysis.md §2.5 + prd-dashboard.md §5.7 (FR-ADM-USR-01/02/05/06/08).
+' Endpoint bertanda [BARU] adalah gap yang ditutup Change A (sebelumnya tidak ada di kode).
+
+actor Admin
+participant "rejki-web\n(Pengelolaan Pengguna)" as web
+participant "require_admin\n(add-admin-rbac)" as rbac
+participant "user-service\n/users/admin/kyc/*" as usvc
+participant "RegionClient" as region
+participant "StorageClient\n(presigned)" as stor
+database "user_svc\n(profiles, kyc_submission,\ndocument_access_log)" as db
+participant "NotificationClient" as notif
+
+== Daftar pengajuan (FR-ADM-USR-01/08) ==
+Admin -> web : buka halaman + filter/search/sort
+web -> rbac : GET /users/admin/kyc?q&status&sort_by&sort_dir&limit&offset  [BARU]
+rbac -> usvc : role=admin OK (default-deny)
+usvc -> db : admin_list_submissions (filter/sort/paginate)
+usvc -> region : resolve id wilayah (atau kirim id; UI resolve)
+db --> web : ApiResponse + PaginatedMeta\n(NIK ter-mask, tanpa NIK penuh)
+
+== Detail + click-to-view dokumen teraudit (FR-ADM-USR-02) ==
+Admin -> web : klik ikon Mata → popup detail
+web -> rbac : GET /users/admin/kyc/{id}  [BARU]
+rbac -> usvc : role=admin OK
+usvc --> web : detail (NIK ter-mask default)
+
+Admin -> web : klik "view" Foto KTP / Selfie
+web -> rbac : GET /users/admin/kyc/{id}/documents/{kind}  [BARU]
+rbac -> usvc : role=admin OK
+alt Dokumen tersedia
+  usvc -> db : log_document_access(actor=admin, read_issued, request_id)
+  usvc -> stor : request_download (presigned, TTL pendek)
+  stor --> Admin : URL dokumen sementara
+else Dokumen sudah dimusnahkan
+  usvc --> web : tidak-tersedia (bukan 500)
+end
+
+== Review (reuse existing) + auto-purge saat tolak (FR-ADM-USR-05) ==
+alt Tolak
+  Admin -> web : klik Tolak + alasan
+  web -> usvc : POST /users/admin/kyc/{id}/review {approved:false, note}
+  usvc -> db : submission → rejected (guard: tolak bila sudah terminal)
+  usvc -> stor : purge_documents (delete ktp + selfie)  [BARU: trigger otomatis]
+  usvc -> db : clear_document_keys
+  usvc -> notif : send (in-app) + send_email
+else Terima
+  Admin -> web : klik Terima
+  web -> usvc : POST /users/admin/kyc/{id}/review {approved:true}
+  usvc -> db : submission → approved
+  usvc -> notif : send (in-app) + send_email
+end
+
+note over web : Export CSV: GET /users/admin/kyc/export.csv  [BARU] (ikuti filter aktif)
+note over usvc : Setelah verifikasi, submission TERKUNCI (FR-ADM-USR-06).
+@enduml

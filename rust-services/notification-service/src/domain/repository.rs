@@ -1,6 +1,6 @@
 use uuid::Uuid;
 
-use super::entity::Notification;
+use super::entity::{DeviceToken, Notification};
 
 // `async fn` di trait kini stabil; lint hanya menyoroti ketiadaan Send bound otomatis.
 // Repository dipakai in-process; cukup di-allow.
@@ -21,4 +21,20 @@ pub trait NotificationRepository: Send + Sync {
     ) -> Result<Vec<Notification>, anyhow::Error>;
 
     async fn mark_read(&self, id: Uuid, recipient_id: Uuid) -> Result<(), anyhow::Error>;
+
+    // ── Device token ────────────────────────────────────────────────────────
+
+    async fn register_device_token(
+        &self,
+        user_id: Uuid,
+        token: &str,
+        platform: &str,
+    ) -> Result<DeviceToken, anyhow::Error>;
+
+    async fn delete_device_token(&self, token: &str, user_id: Uuid) -> Result<(), anyhow::Error>;
+
+    async fn list_device_tokens_for_user(
+        &self,
+        user_id: Uuid,
+    ) -> Result<Vec<DeviceToken>, anyhow::Error>;
 }

@@ -1,8 +1,5 @@
-import { Pool } from "pg";
-import { config } from "./config";
+import { pool } from "./connections";
 import type { FcmToken } from "./types";
-
-const pool = new Pool({ connectionString: config.database_url });
 
 export async function get_fcm_tokens(user_id: string): Promise<FcmToken[]> {
   const res = await pool.query<FcmToken>(

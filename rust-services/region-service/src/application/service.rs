@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use region_service_client::{Region, RegionLevel};
 use crate::domain::repository::RegionRepository;
+use region_service_client::{Region, RegionLevel};
 
 pub struct RegionService<R: RegionRepository> {
     repo: Arc<R>,
@@ -59,9 +59,9 @@ impl<R: RegionRepository> RegionService<R> {
     pub async fn validate_chain(
         &self,
         province_id: &str,
-        regency_id:  &str,
+        regency_id: &str,
         district_id: &str,
-        village_id:  &str,
+        village_id: &str,
     ) -> Result<bool, anyhow::Error> {
         self.repo
             .validate_chain(province_id, regency_id, district_id, village_id)

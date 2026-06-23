@@ -1,0 +1,1 @@
+DROP MATERIALIZED VIEW IF EXISTS analytics.mv_iklan_stats CASCADE;

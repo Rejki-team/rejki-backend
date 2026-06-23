@@ -1,0 +1,35 @@
+@startuml report-aduan-flow
+title Pengelolaan Dukungan — Aduan: User lapor (Mobile) → Admin tindak (Dashboard)
+' Sumber: prd-dashboard.md §5.8 (FR-ADM-SUP-*) + prd-mobile.md §5.1 (FR-MOB-RPT-01). add-content-reports.
+
+actor "Pengguna\n(Rejki Mobile)" as user
+actor "Admin\n(Dashboard)" as admin
+participant "report-service" as svc
+participant "require_admin" as rbac
+participant "StorageClient" as stor
+database "schema report\n(report)" as db
+participant "NotificationClient" as notif
+
+== Pelaporan (sisi Mobile — prasyarat) ==
+user -> svc : POST /reports {target(iklan|user), keterangan, foto bukti}
+svc -> stor : presigned upload bukti → object_key
+svc -> db : report(status=pending, evidence_object_key)
+
+== Tindak lanjut (sisi Dashboard) ==
+admin -> rbac : GET /admin/reports?status=... (Bearer admin)
+rbac -> svc : role=admin OK
+svc -> db : list aduan
+admin -> svc : klik ikon Mata → popup (+ Foto Bukti)
+admin -> svc : isi "tindakan yang dilakukan" (wajib) + Tolak|Terima
+alt Terima
+  svc -> db : status → resolved (+ action_note, reviewed_by)
+else Tolak
+  svc -> db : status → rejected (+ action_note)
+end
+svc -> notif : send + send_email ke pihak terdampak
+note over svc
+  Tombol Tolak/Terima terkunci setelah verifikasi aduan.
+  Admin tak dapat mengubah data aduan; bisa search (ID pengguna/ID aduan),
+  sort by status, Export CSV.
+end note
+@enduml

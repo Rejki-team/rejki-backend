@@ -6,20 +6,45 @@ use axum::{
     routing::{delete, get, patch, post},
     Router,
 };
-use common_auth_mw::{require_active_account, require_auth};
+use common_auth_mw::{require_active_account, require_auth, require_role};
+use common_rate_limit::RateLimiter;
+use notification_service_client::NotificationClient;
+use region_service_client::RegionClient;
 use sqlx::PgPool;
 use std::sync::Arc;
+use storage_service_client::StorageClient;
 
 #[derive(Clone)]
 pub struct AppState {
     pub svc: Arc<IklanBarangBekasService<PgIklanBarangBekasRepository>>,
+    pub storage: Option<Arc<dyn StorageClient>>,
+    pub notifier: Option<Arc<dyn NotificationClient>>,
+    pub auth_client: Option<Arc<dyn AuthClient>>,
 }
 
-pub fn router(pool: PgPool, auth_client: Arc<dyn AuthClient>) -> Router {
+pub fn router(
+    pool: PgPool,
+    auth_client: Arc<dyn AuthClient>,
+    storage: Option<Arc<dyn StorageClient>>,
+    notifier: Option<Arc<dyn NotificationClient>>,
+    rate_limiter: Option<Arc<dyn RateLimiter>>,
+    region_client: Option<Arc<dyn RegionClient>>,
+) -> Router {
+    let svc = {
+        let mut b = IklanBarangBekasService::new(Arc::new(PgIklanBarangBekasRepository::new(pool)));
+        if let Some(rl) = rate_limiter {
+            b = b.with_rate_limiter(rl);
+        }
+        if let Some(rc) = region_client {
+            b = b.with_region_client(rc);
+        }
+        b
+    };
     let state = AppState {
-        svc: Arc::new(IklanBarangBekasService::new(Arc::new(
-            PgIklanBarangBekasRepository::new(pool),
-        ))),
+        svc: Arc::new(svc),
+        storage,
+        notifier,
+        auth_client: Some(auth_client.clone()),
     };
 
     let public = Router::new()
@@ -30,9 +55,26 @@ pub fn router(pool: PgPool, auth_client: Arc<dyn AuthClient>) -> Router {
 
     let protected = Router::new()
         .route("/", post(handlers::create))
+        .route("/{id}", patch(handlers::update_iklan))
         .route("/{id}", delete(handlers::delete_iklan))
-        .route("/{id}/sold", patch(handlers::mark_sold))
+        .route("/{id}/taken", patch(handlers::mark_taken))
+        .with_state(state.clone())
+        .layer(axum::middleware::from_fn_with_state(
+            auth_client.clone(),
+            require_active_account,
+        ))
+        .layer(axum::middleware::from_fn_with_state(
+            auth_client.clone(),
+            require_auth,
+        ));
+
+    let admin = Router::new()
+        .route("/", get(handlers::admin_list))
+        .route("/export.csv", get(handlers::admin_export_csv))
+        .route("/suspend/evidence", post(handlers::admin_request_evidence))
+        .route("/suspend", post(handlers::admin_suspend))
         .with_state(state)
+        .layer(axum::middleware::from_fn_with_state(80u8, require_role))
         .layer(axum::middleware::from_fn_with_state(
             auth_client.clone(),
             require_active_account,
@@ -42,5 +84,7 @@ pub fn router(pool: PgPool, auth_client: Arc<dyn AuthClient>) -> Router {
             require_auth,
         ));
 
-    public.merge(protected)
+    public
+        .merge(protected)
+        .merge(Router::new().nest("/admin", admin))
 }

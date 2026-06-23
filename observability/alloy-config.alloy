@@ -1,0 +1,68 @@
+// ────────────────────────────────────────────────────────────────────────────
+// Rejki Backend — Grafana Alloy Configuration
+// Shipping logs from Docker containers to Grafana Loki.
+// ────────────────────────────────────────────────────────────────────────────
+
+// ── Docker Log Source ────────────────────────────────────────────────────────
+// Collect logs from all running containers via Docker socket
+local.file_match "container_logs" {
+  path_targets = [{
+    __path__ = "/var/log/containers/*.log",
+    job      = "docker-containers",
+  }]
+}
+
+// Parse Docker log format (JSON lines)
+loki.source.file "docker_logs" {
+  targets    = local.file_match.container_logs.targets
+  forward_to = [loki.process.filter_noisy, loki.process.add_labels]
+  tail_from_end = true
+}
+
+// ── Filter Noisy Logs ────────────────────────────────────────────────────────
+// Skip health check logs to reduce volume
+loki.process "filter_noisy" {
+  stage.drop {
+    source = "message"
+    expression = "^(/health|/nginx-health)"
+    drop_counter_reason = "health_check"
+  }
+
+  stage.drop {
+    source = "message"
+    expression = "health check"
+    drop_counter_reason = "health_check_msg"
+  }
+
+  forward_to = [loki.process.add_labels]
+}
+
+// ── Add Labels ───────────────────────────────────────────────────────────────
+// Extract container name from filename for better querying
+loki.process "add_labels" {
+  // Extract container name from log path
+  stage.regex {
+    expression = ".*/(?P<container_name>[a-zA-Z0-9_-]+)-\\d+\\.log$"
+  }
+
+  stage.labels {
+    values = {
+      container = "container_name",
+      job       = "job",
+    }
+  }
+
+  forward_to = [loki.write.grafana_cloud]
+}
+
+// ── Export to Grafana Cloud Loki ─────────────────────────────────────────────
+loki.write "grafana_cloud" {
+  endpoint {
+    url = env("GRAFANA_LOKI_URL")
+
+    basic_auth {
+      username = env("GRAFANA_LOKI_USER")
+      password = env("GRAFANA_LOKI_TOKEN")
+    }
+  }
+}

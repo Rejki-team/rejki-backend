@@ -1,8 +1,8 @@
 use sqlx::PgPool;
 
-use region_service_client::RegionLevel;
 use crate::domain::entity::RegionEntity;
 use crate::domain::repository::RegionRepository;
+use region_service_client::RegionLevel;
 
 pub struct PgRegionRepository {
     pool: PgPool,
@@ -15,7 +15,12 @@ impl PgRegionRepository {
 }
 
 /// Map row (id, name) + level + optional parent ke RegionEntity.
-fn region_from_row(id: String, name: String, level: RegionLevel, parent_id: Option<&str>) -> RegionEntity {
+fn region_from_row(
+    id: String,
+    name: String,
+    level: RegionLevel,
+    parent_id: Option<&str>,
+) -> RegionEntity {
     RegionEntity {
         id,
         name,
@@ -27,7 +32,7 @@ fn region_from_row(id: String, name: String, level: RegionLevel, parent_id: Opti
 impl RegionRepository for PgRegionRepository {
     async fn list_by_level(
         &self,
-        level:     RegionLevel,
+        level: RegionLevel,
         parent_id: Option<&str>,
     ) -> Result<Vec<RegionEntity>, anyhow::Error> {
         let rows: Vec<RegionEntity> = match level {
@@ -80,54 +85,52 @@ impl RegionRepository for PgRegionRepository {
     }
 
     async fn get_by_id(&self, id: &str) -> Result<Option<RegionEntity>, anyhow::Error> {
-        // Coba tiap level — heuristik sederhana karena kita tidak tahu level dari id saja.
-        // Untuk performa, bisa ditambahkan lookup prefix di masa depan.
-        if let Some(r) = sqlx::query!("SELECT id, name FROM region.village WHERE id = $1", id)
-            .fetch_optional(&self.pool)
-            .await?
-        {
-            return Ok(Some(region_from_row(r.id, r.name, RegionLevel::Village, None)));
-        }
-        if let Some(r) = sqlx::query!("SELECT id, name FROM region.district WHERE id = $1", id)
-            .fetch_optional(&self.pool)
-            .await?
-        {
-            return Ok(Some(region_from_row(r.id, r.name, RegionLevel::District, None)));
-        }
-        if let Some(r) = sqlx::query!("SELECT id, name FROM region.regency WHERE id = $1", id)
-            .fetch_optional(&self.pool)
-            .await?
-        {
-            return Ok(Some(region_from_row(r.id, r.name, RegionLevel::Regency, None)));
-        }
-        if let Some(r) = sqlx::query!("SELECT id, name FROM region.province WHERE id = $1", id)
-            .fetch_optional(&self.pool)
-            .await?
-        {
-            return Ok(Some(region_from_row(r.id, r.name, RegionLevel::Province, None)));
-        }
-        Ok(None)
+        // Single query UNION ALL — 4 sequential queries jadi 1 round trip
+        let row: Option<(String, String, String)> = sqlx::query_as(
+            r#"SELECT id, name, 'village' FROM region.village WHERE id = $1
+               UNION ALL
+               SELECT id, name, 'district' FROM region.district WHERE id = $1
+               UNION ALL
+               SELECT id, name, 'regency' FROM region.regency WHERE id = $1
+               UNION ALL
+               SELECT id, name, 'province' FROM region.province WHERE id = $1
+               LIMIT 1"#,
+        )
+        .bind(id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(row.map(|(id, name, level)| {
+            let level = match level.as_str() {
+                "village" => RegionLevel::Village,
+                "district" => RegionLevel::District,
+                "regency" => RegionLevel::Regency,
+                _ => RegionLevel::Province,
+            };
+            region_from_row(id, name, level, None)
+        }))
     }
 
     async fn validate_chain(
         &self,
         province_id: &str,
-        regency_id:  &str,
+        regency_id: &str,
         district_id: &str,
-        village_id:  &str,
+        village_id: &str,
     ) -> Result<bool, anyhow::Error> {
-        Ok(
-            sqlx::query_scalar!(
-                "SELECT EXISTS(
+        Ok(sqlx::query_scalar!(
+            "SELECT EXISTS(
                     SELECT 1 FROM region.village v
                     JOIN region.district d ON d.id = v.district_id
                     JOIN region.regency  r ON r.id = d.regency_id
                     WHERE v.id = $1 AND d.id = $2 AND r.id = $3 AND r.province_id = $4
                 ) AS \"exists!\"",
-                village_id, district_id, regency_id, province_id
-            )
-            .fetch_one(&self.pool)
-            .await?
+            village_id,
+            district_id,
+            regency_id,
+            province_id
         )
+        .fetch_one(&self.pool)
+        .await?)
     }
 }

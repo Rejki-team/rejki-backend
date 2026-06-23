@@ -1,0 +1,1 @@
+DROP MATERIALIZED VIEW IF EXISTS analytics.mv_geo_stats CASCADE;

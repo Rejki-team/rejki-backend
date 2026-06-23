@@ -1,0 +1,97 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Rejki Backend — Shared Infrastructure
+# PostgreSQL + Redis + MinIO yang dipakai BERSAMA oleh dev & prod environment.
+# Hanya SATU instance, jalan sebagai service systemd, bukan di dalam compose project.
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  # ── PostgreSQL ──────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:17-alpine
+    container_name: rejki-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER:     rejki
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?err}
+      POSTGRES_DB:       rejki
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./scripts/init-databases.sql:/docker-entrypoint-initdb.d/init-databases.sql:ro
+    ports:
+      - "127.0.0.1:5432:5432"   # hanya localhost — tidak暴露 ke network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rejki -d rejki"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+        reservations:
+          memory: 512M
+    networks:
+      - rejki-infra
+
+  # ── Redis ───────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: rejki-redis
+    restart: unless-stopped
+    command: redis-server --save 60 1 --loglevel warning --maxmemory 128mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redisdata:/data
+    ports:
+      - "127.0.0.1:6379:6379"   # hanya localhost
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 192M
+        reservations:
+          memory: 64M
+    networks:
+      - rejki-infra
+
+  # ── MinIO (S3-compatible object storage) ────────────────────────────────
+  minio:
+    image: minio/minio:latest
+    container_name: rejki-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER:     ${MINIO_ACCESS_KEY:-rejkiadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-rejkiadmin123}
+    volumes:
+      - miniodata:/data
+    ports:
+      - "127.0.0.1:9000:9000"   # S3 API — localhost only
+      # Console (9001) tidak perlu di-expose — akses via docker exec
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 128M
+    networks:
+      - rejki-infra
+
+volumes:
+  pgdata:
+  redisdata:
+  miniodata:
+
+networks:
+  rejki-infra:
+    name: rejki-infra
+    driver: bridge

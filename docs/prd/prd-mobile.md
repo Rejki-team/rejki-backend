@@ -4,8 +4,8 @@
 |---|---|
 | **Aplikasi** | Rejki Mobile (pengguna umum) |
 | **Dokumen** | Sub-PRD (bagian dari [rejki-prd.md](rejki-prd.md)) |
-| **Versi** | 0.1 — Draft |
-| **Tanggal** | 2026-06-10 |
+| **Versi** | 0.2 — Draft |
+| **Tanggal** | 2026-06-14 |
 | **Status** | Draft untuk ditinjau |
 | **Pemilik** | _(belum ditentukan)_ |
 
@@ -86,15 +86,17 @@ Rejki Mobile adalah aplikasi **Flutter** (Dart) untuk **pengguna umum** (role us
 
 ### 3.5 Iklan Barang Bekas
 
+> **⚠️ Prasyarat lintas-app 2026-06-15.** Keputusan pemilik produk mengubah Barang Bekas ke **model gratis/donasi** (change `extend-barang-bekas-gratis-model`): hapus `harga`/`kondisi`, tambah `jenis_barang` (Bekas/Baru), `jumlah`, `lokasi_pengambilan`; `is_sold` → `availability_status` (Tersedia/Sudah Diambil). **Form create & tampilan barang di Rejki Mobile harus disesuaikan** mengikuti model baru. Lihat [dashboard-gap-analysis.md](../dashboard-gap-analysis.md) §2.4.
+
 | ID | Requirement | Prioritas | Status |
 |---|---|---|---|
 | FR-MOB-GDS-01 | Menelusuri daftar barang (`GET /barang`) | M | ✅ Ada |
 | FR-MOB-GDS-02 | Melihat detail barang (`GET /barang/{id}`) | M | ✅ Ada |
-| FR-MOB-GDS-03 | Memasang barang (`POST /barang`) | M | ✅ Ada |
+| FR-MOB-GDS-03 | Memasang barang (`POST /barang`) — **disesuaikan ke model gratis** (jenis/jumlah/lokasi pengambilan, tanpa harga) | M | 🔧 Perlu penyesuaian — `extend-barang-bekas-gratis-model` |
 | FR-MOB-GDS-04 | Menghapus barang milik sendiri (`DELETE`) | M | ✅ Ada |
-| FR-MOB-GDS-05 | Menandai barang terjual (`is_sold`) | M | 🔧 Parsial _(field ada di entity; endpoint khusus belum terverifikasi)_ |
+| FR-MOB-GDS-05 | Menandai barang **Sudah Diambil** (`PATCH /barang/{id}/taken`, sebelumnya `is_sold`) | M | 🔧 Berubah — `extend-barang-bekas-gratis-model` |
 | FR-MOB-GDS-06 | Unggah banyak foto (`foto_urls`) | M | 🔧 Parsial _(field ada; alur upload media belum)_ |
-| FR-MOB-GDS-07 | Filter kondisi / harga / lokasi | S | 📋 Rencana _(usulan)_ |
+| FR-MOB-GDS-07 | Filter jenis barang / lokasi pengambilan | S | 📋 Rencana _(model gratis — tanpa filter harga)_ |
 
 ### 3.6 Iklan Pelatihan
 
@@ -149,6 +151,19 @@ Fitur mobile umum yang **belum** ada di backend dan diusulkan untuk Phase 2+ _(u
 - **Registrasi device token** untuk push dari sisi aplikasi.
 - **Pelaporan konten/pengguna** (report) — prasyarat untuk moderasi di [prd-dashboard.md](prd-dashboard.md).
 - **Reset password** & pemulihan akun.
+
+### 5.1 Prasyarat sisi Mobile untuk fitur Dashboard _(📋 Rencana — ditambahkan 2026-06-14)_
+
+Beberapa alur Dashboard (admin) bergantung pada aksi yang dilakukan **pengguna di Mobile** terlebih dahulu. Item berikut adalah **prasyarat lintas-aplikasi**:
+
+| ID | Requirement | Prioritas | Status | Backend (change) |
+|---|---|---|---|---|
+| FR-MOB-RPT-01 | Pengguna **melaporkan/mengadukan** iklan atau pengguna lain (keterangan + foto bukti) | M | 📋 Rencana | `add-content-reports` |
+| FR-MOB-TRN-07 | Pengguna **mendaftar (enroll) pelatihan** & mengunggah **bukti transfer** | M | 📋 Rencana | `add-pelatihan-enrollment-badge` |
+| FR-MOB-TRN-08 | Pengguna **mengajukan badge/sertifikat** pelatihan untuk diverifikasi admin | S | 📋 Rencana | `add-pelatihan-enrollment-badge` |
+| FR-MOB-NOT-05 | Menerima notifikasi **hasil moderasi/aduan/verifikasi** & **broadcast corporate communication** | M | 🔧 jalur notifikasi ada; event baru ditambah | `add-content-reports`, `add-corporate-comms`, `add-pelatihan-enrollment-badge` |
+
+> Aduan & enrollment dibuat di Mobile, lalu **ditinjau admin** di [prd-dashboard.md](prd-dashboard.md) (§5.4, §5.5, §5.8).
 
 ---
 

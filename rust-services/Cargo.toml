@@ -16,6 +16,9 @@ members = [
     "iklan-pekerja-service",
     "iklan-barang-bekas-service",
     "iklan-pelatihan-service",
+    "corporate-comms-service",
+    "report-service",
+    "insights-service",
 
     # ── Client Domains ────────────────────────────────────
     "region-service-client",
@@ -28,6 +31,8 @@ members = [
     "iklan-pekerja-service-client",
     "iklan-barang-bekas-service-client",
     "iklan-pelatihan-service-client",
+    "corporate-comms-service-client",
+    "report-service-client",
 
     # ── Shared Utilities ──────────────────────────────────
     "common/crypto",
@@ -35,6 +40,9 @@ members = [
     "common/errors",
     "common/tracing-setup",
     "common/auth-middleware",
+    "common/rate-limit",
+    "common/idempotency",
+    "common/clamav",
 ]
 
 # ── Shared dependency versions (semua member pakai ini) ───
@@ -55,13 +63,16 @@ validator          = { version = "0.20", features = ["derive"] }
 # (default aws-lc-rs memicu panic "Could not determine CryptoProvider" saat sign).
 jsonwebtoken       = { version = "10", default-features = false, features = ["rust_crypto", "use_pem"] }
 bcrypt             = "0.19"
+argon2             = "0.5"
 rand               = "0.9"
 dotenvy            = "0.15"
 anyhow             = "1"
 sha2               = "0.10"
 hex                = "0.4"
 ammonia            = "4"
-redis              = { version = "0.27", features = ["tokio-comp", "connection-manager"] }
+async-trait        = "0.1"
+tower              = { version = "0.5",  features = ["util"] }
+redis              = { version = "0.27", features = ["tokio-comp", "connection-manager", "aio", "streams"] }
 aes-gcm            = "0.10"
 base64             = "0.22"
 aws-config         = { version = "1", features = ["behavior-version-latest"] }
@@ -71,6 +82,14 @@ aws-credential-types = "1"
 utoipa             = { version = "5", features = ["axum_extras", "uuid", "chrono"] }
 utoipa-swagger-ui  = { version = "9", features = ["axum"] }
 
+# OpenTelemetry → Grafana Cloud (OTLP gRPC)
+opentelemetry            = { version = "0.28", features = ["trace"] }
+opentelemetry_sdk        = { version = "0.28", features = ["rt-tokio", "trace"] }
+opentelemetry-otlp       = { version = "0.28", features = ["grpc-tonic"] }
+tracing-opentelemetry    = "0.29"
+tonic                    = "0.12"
+prost                    = "0.13"
+
 # Internal shared crates
 common-crypto      = { path = "common/crypto" }
 region-service-client = { path = "region-service-client" }
@@ -79,6 +98,8 @@ common-config      = { path = "common/config" }
 common-errors      = { path = "common/errors" }
 common-tracing     = { path = "common/tracing-setup" }
 common-auth-mw     = { path = "common/auth-middleware" }
+common-rate-limit  = { path = "common/rate-limit" }
+common-idempotency = { path = "common/idempotency" }
 
 [profile.release]
 opt-level = 3

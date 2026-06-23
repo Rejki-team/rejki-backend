@@ -3,12 +3,11 @@ name: Deploy to Dev
 on:
   push:
     branches: [develop]
-  # Trigger manual dari GitHub UI
   workflow_dispatch:
 
 concurrency:
   group: deploy-dev
-  cancel-in-progress: true   # dev: cancel yang lama, pakai yang baru
+  cancel-in-progress: true
 
 jobs:
   deploy-dev:
@@ -28,22 +27,47 @@ jobs:
           script: |
             set -e
 
-            cd /opt/rejki/dev
+            cd /opt/rejki/dev/rejki-backend
 
             echo "==> Pull latest develop"
             git pull origin develop
 
-            echo "==> Build rejki-app image (dev)"
-            docker compose -p rejki-dev build rejki-app
+            echo "==> Run database migrations (dev)"
+            cd rust-services
+            export DATABASE_URL="postgres://rejki:${POSTGRES_PASSWORD}@postgres:5432/rejki_dev"
+            # Map service → schema
+            map_schema() {
+              case "$1" in
+                user-service)            echo "user_svc" ;;
+                corporate-comms-service) echo "comms" ;;
+                *)                       echo "$1" | sed 's/-service//' | sed 's/-/_/g' ;;
+              esac
+            }
+            for dir in *-service/migrations; do
+              svc=$(basename "$(dirname "$dir")")
+              schema=$(map_schema "$svc")
+              psql "$DATABASE_URL" -c "CREATE SCHEMA IF NOT EXISTS $schema" 2>/dev/null
+              sqlx migrate run --source "$dir" --database-url "$DATABASE_URL"
+            done
+            cd ..
 
-            echo "==> Restart services (dev)"
-            docker compose -p rejki-dev up -d
+            echo "==> Pull base images"
+            docker compose -f docker-compose.dev.yml -p rejki-dev pull
+
+            echo "==> Build dev images"
+            docker compose -f docker-compose.dev.yml -p rejki-dev build
+
+            echo "==> Restart dev services"
+            docker compose -f docker-compose.dev.yml -p rejki-dev up -d
 
             echo "==> Wait for health check"
             sleep 10
-            docker compose -p rejki-dev ps
+            docker compose -f docker-compose.dev.yml -p rejki-dev ps
 
-            echo "==> Verify /health (dev nginx port 8080)"
-            curl -sf http://localhost:8080/health || (echo "Dev health check failed!" && exit 1)
+            echo "==> Verify /health endpoint"
+            curl -sf http://localhost:8081/health || (echo "Dev health check failed!" && exit 1)
+
+            echo "==> Cleanup old images"
+            docker image prune -f
 
             echo "==> Dev deploy complete"

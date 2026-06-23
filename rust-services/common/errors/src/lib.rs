@@ -28,9 +28,29 @@ pub enum AppError {
     #[error("forbidden")]
     Forbidden(String),
 
+    #[error("too many requests")]
+    TooManyRequests(String),
+
+    /// Rate limiting active — identical to TooManyRequests but with explicit
+    /// error code RATE_LIMITED (per api-standard + security-baseline docs).
+    #[error("rate limited")]
+    RateLimited(String),
+
     /// Akun belum aktif (gating fitur). Kode mesin spesifik: ACCOUNT_NOT_ACTIVE.
     #[error("account not active")]
     AccountNotActive,
+
+    /// Bukan admin — akses admin ditolak. Kode mesin spesifik: ACCOUNT_NOT_ADMIN.
+    #[error("account not admin")]
+    AccountNotAdmin,
+
+    /// Role tidak mencukupi untuk mengakses endpoint ini. Kode mesin: INSUFFICIENT_ROLE.
+    #[error("insufficient role")]
+    InsufficientRole,
+
+    /// Idempotency-Key sudah dipakai dengan payload berbeda.
+    #[error("idempotency conflict")]
+    IdempotencyConflict(String),
 
     #[error("internal server error")]
     Internal(#[from] anyhow::Error),
@@ -55,11 +75,48 @@ impl IntoResponse for AppError {
             AppError::Validation(m) => (StatusCode::UNPROCESSABLE_ENTITY, "VALIDATION_ERROR", m),
             AppError::Conflict(m) => (StatusCode::CONFLICT, "CONFLICT", m),
             AppError::Forbidden(m) => (StatusCode::FORBIDDEN, "FORBIDDEN", m),
+            AppError::TooManyRequests(m) => {
+                let mut resp = (
+                    StatusCode::TOO_MANY_REQUESTS,
+                    Json(ErrorBody {
+                        error: "TOO_MANY_REQUESTS",
+                        message: m,
+                    }),
+                )
+                    .into_response();
+                resp.headers_mut()
+                    .insert(header::RETRY_AFTER, HeaderValue::from_static("60"));
+                return resp;
+            }
+            AppError::RateLimited(m) => {
+                let mut resp = (
+                    StatusCode::TOO_MANY_REQUESTS,
+                    Json(ErrorBody {
+                        error: "RATE_LIMITED",
+                        message: m,
+                    }),
+                )
+                    .into_response();
+                resp.headers_mut()
+                    .insert(header::RETRY_AFTER, HeaderValue::from_static("60"));
+                return resp;
+            }
             AppError::AccountNotActive => (
                 StatusCode::FORBIDDEN,
                 "ACCOUNT_NOT_ACTIVE",
                 "akun belum aktif — lengkapi verifikasi untuk mengakses fitur".into(),
             ),
+            AppError::AccountNotAdmin => (
+                StatusCode::FORBIDDEN,
+                "ACCOUNT_NOT_ADMIN",
+                "akses admin diperlukan — akun tidak memiliki peran admin".into(),
+            ),
+            AppError::InsufficientRole => (
+                StatusCode::FORBIDDEN,
+                "INSUFFICIENT_ROLE",
+                "peran anda tidak memiliki akses ke sumber daya ini".into(),
+            ),
+            AppError::IdempotencyConflict(m) => (StatusCode::CONFLICT, "IDEMPOTENCY_CONFLICT", m),
             AppError::Internal(e) => {
                 tracing::error!(error = ?e, "internal server error");
                 (
@@ -88,7 +145,8 @@ pub struct ApiResponse<T: Serialize> {
     pub data: T,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub meta: Option<serde_json::Value>,
-    pub request_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_id: Option<String>,
 }
 
 fn new_request_id() -> String {
@@ -102,7 +160,7 @@ impl<T: Serialize> ApiResponse<T> {
             success: true,
             data,
             meta: None,
-            request_id: new_request_id(),
+            request_id: Some(new_request_id()),
         }
     }
 
@@ -111,7 +169,7 @@ impl<T: Serialize> ApiResponse<T> {
             success: true,
             data,
             meta: Some(serde_json::to_value(meta).unwrap_or(serde_json::Value::Null)),
-            request_id: new_request_id(),
+            request_id: Some(new_request_id()),
         }
     }
 }

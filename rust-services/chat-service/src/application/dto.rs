@@ -29,4 +29,10 @@ pub struct SendMessageInput {
 pub struct ListMessagesQuery {
     pub limit: Option<i64>,
     pub before_id: Option<Uuid>,
+    pub after_id: Option<Uuid>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct MessageListResponse {
+    pub messages: Vec<MessageResponse>,
 }

@@ -1,0 +1,32 @@
+@startuml rbac-account-status
+title Status Akun (existing) + Posisi Role Admin (add-admin-rbac)
+' Sumber: auth-service-client/src/lib.rs (AccountStatus) + add-admin-rbac.
+' State machine status akun SUDAH ADA di kode; role adalah dimensi ORTHOGONAL yang ditambahkan.
+
+[*] --> pending_verification
+
+pending_verification --> profile_incomplete : email terverifikasi (OTP)
+profile_incomplete --> pending_kyc : kirim data KYC lengkap
+pending_kyc --> active : admin approve
+pending_kyc --> rejected : admin reject
+rejected --> pending_kyc : ajukan ulang (cooldown 3 hari kerja)
+active --> suspended_temp : suspend sementara (+ alasan + bukti)
+active --> suspended_permanent : suspend permanen (+ alasan + bukti; hapus dok)
+suspended_temp --> active : expires_at terlewati
+suspended_permanent --> [*] : terminal
+
+note right of active
+  Hanya status `active` yang boleh memakai fitur
+  (can_use_features()). Ditegakkan require_active_account.
+end note
+
+legend bottom
+  Dimensi ORTHOGONAL: role (add-admin-rbac)
+  ----
+  role = 'user'  : pengguna umum (jalani state machine di atas)
+  role = 'admin' : di-inject DBA, diasumsikan langsung `active`,
+                   TIDAK menjalani KYC. CHECK extensible →
+                   kelak super_admin / moderator / support.
+  JwtClaims/AuthClaims menambah field `role` (aditif).
+endlegend
+@enduml

@@ -16,11 +16,10 @@ pub trait AuthRepository: Send + Sync {
         &self,
         email: &str,
         password_hash: &str,
+        password_algorithm: &str,
         phone_encrypted: Option<&str>,
         tos_version: &str,
     ) -> Result<AuthUser, anyhow::Error>;
-
-    async fn user_exists(&self, user_id: Uuid) -> Result<bool, anyhow::Error>;
 
     async fn save_refresh_token(
         &self,
@@ -36,6 +35,13 @@ pub trait AuthRepository: Send + Sync {
     ) -> Result<Option<Uuid>, anyhow::Error>;
 
     async fn revoke_refresh_token(&self, token_hash: &str) -> Result<(), anyhow::Error>;
+
+    /// Hapus refresh token secara atomik dan kembalikan user_id. Dipakai di refresh
+    /// untuk menghindari race condition (DELETE-first pattern).
+    async fn delete_and_return_refresh_token(
+        &self,
+        token_hash: &str,
+    ) -> Result<Option<(Uuid, chrono::DateTime<Utc>)>, anyhow::Error>;
 
     /// Cabut SEMUA refresh token milik user (mis. saat reset password).
     async fn revoke_all_refresh_tokens(&self, user_id: Uuid) -> Result<(), anyhow::Error>;
@@ -87,9 +93,56 @@ pub trait AuthRepository: Send + Sync {
         reason: &str,
         expires_at: Option<DateTime<Utc>>,
         created_by: Uuid,
+        evidence_object_key: Option<&str>,
     ) -> Result<(), anyhow::Error>;
 
     /// Apakah masih ada penangguhan yang berlaku untuk user (permanen, atau sementara
     /// yang `expires_at`-nya belum lewat). Dipakai login untuk auto-pulih suspend sementara.
     async fn has_active_suspension(&self, user_id: Uuid) -> Result<bool, anyhow::Error>;
+
+    /// Ambil semua user_id pengguna aktif — dipakai untuk broadcast notifikasi
+    /// (mis. corporate-comms service menyiarkan artikel ke seluruh pengguna).
+    async fn list_active_user_ids(&self) -> Result<Vec<Uuid>, anyhow::Error>;
+
+    /// Suspend user secara atomik: set_status + insert_suspension + revoke_all_refresh_tokens
+    /// dalam satu transaction. Commit otomatis bila semua sukses; rollback bila gagal.
+    #[allow(clippy::too_many_arguments)]
+    async fn suspend_user_transactional(
+        &self,
+        user_id: Uuid,
+        target: AccountStatus,
+        permanent: bool,
+        reason: &str,
+        expires_at: Option<DateTime<Utc>>,
+        admin_id: Uuid,
+        evidence_object_key: Option<&str>,
+    ) -> Result<(), anyhow::Error>;
+
+    /// Update password + revoke_all_refresh_tokens dalam satu transaction.
+    /// Token dicabut DULU sebelum password diperbarui (anti data-loss pada refresh token compromised).
+    async fn update_password_transactional(
+        &self,
+        user_id: Uuid,
+        new_hash: &str,
+    ) -> Result<(), anyhow::Error>;
+
+    /// Bump OTP attempts + conditional DELETE dalam satu transaction.
+    /// Mencegah race condition di mana save_otp (resend) meng-upsert OTP baru
+    /// yang langsung dihapus oleh DELETE yang masih in-flight.
+    async fn bump_otp_attempts_transactional(
+        &self,
+        user_id: Uuid,
+        purpose: &str,
+        max_attempts: i32,
+    ) -> Result<i32, anyhow::Error>;
+
+    /// Consume OTP + revoke refresh tokens + update password dalam SATU transaction.
+    /// Mencegah OTP terlanjur dikonsumsi walau password update gagal.
+    async fn consume_otp_and_update_password_transactional(
+        &self,
+        user_id: Uuid,
+        otp_hash: &str,
+        purpose: &str,
+        new_password_hash: &str,
+    ) -> Result<bool, anyhow::Error>;
 }

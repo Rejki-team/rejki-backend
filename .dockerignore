@@ -1,0 +1,37 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Rejki Backend — Root Docker Build Context Ignore
+# Build context: . (root) — hanya dipakai oleh Dockerfile.backup
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Rust build artifacts (1-2 GB)
+rust-services/target/
+rust-services/.sqlx/
+rust-services/keys/
+
+# Node modules
+bun-notification-service/node_modules/
+
+# Environment files
+.env*
+!.env.example
+
+# Git & CI
+.git
+.gitignore
+.github/
+
+# Documentation
+*.md
+docs/
+
+# Observability (not needed for backup image)
+observability/
+
+# Scripts yang tidak relevan
+scripts/setup-vps.sh
+scripts/init-databases.sql
+scripts/migrate.sh
+
+# Dockerfiles lain
+**/Dockerfile
+Dockerfile.backup  # file ini sendiri

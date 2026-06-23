@@ -41,6 +41,10 @@ COPY iklan-barang-bekas-service/Cargo.toml  iklan-barang-bekas-service/Cargo.tom
 COPY iklan-barang-bekas-service-client/Cargo.toml iklan-barang-bekas-service-client/Cargo.toml
 COPY iklan-pelatihan-service/Cargo.toml     iklan-pelatihan-service/Cargo.toml
 COPY iklan-pelatihan-service-client/Cargo.toml iklan-pelatihan-service-client/Cargo.toml
+COPY corporate-comms-service/Cargo.toml       corporate-comms-service/Cargo.toml
+COPY corporate-comms-service-client/Cargo.toml corporate-comms-service-client/Cargo.toml
+COPY report-service/Cargo.toml               report-service/Cargo.toml
+COPY report-service-client/Cargo.toml         report-service-client/Cargo.toml
 COPY rejki-app/Cargo.toml             rejki-app/Cargo.toml
 
 # Buat src dummy agar cargo bisa fetch dependency tanpa source asli
@@ -54,18 +58,23 @@ RUN mkdir -p common/config/src common/errors/src common/tracing-setup/src common
     iklan-pekerja-service/src iklan-pekerja-service-client/src \
     iklan-barang-bekas-service/src iklan-barang-bekas-service-client/src \
     iklan-pelatihan-service/src iklan-pelatihan-service-client/src \
+    corporate-comms-service/src corporate-comms-service-client/src \
+    report-service/src report-service-client/src \
     rejki-app/src \
     && echo "fn main() {}" | tee \
         auth-service/src/main.rs user-service/src/main.rs \
         chat-service/src/main.rs notification-service/src/main.rs \
         iklan-pekerjaan-service/src/main.rs iklan-pekerja-service/src/main.rs \
         iklan-barang-bekas-service/src/main.rs iklan-pelatihan-service/src/main.rs \
+        corporate-comms-service/src/main.rs \
+        report-service/src/main.rs \
         rejki-app/src/main.rs \
     && for d in common/config common/errors common/tracing-setup common/auth-middleware \
         auth-service-client user-service-client chat-service-client \
         notification-service-client iklan-pekerjaan-service-client \
         iklan-pekerja-service-client iklan-barang-bekas-service-client \
-        iklan-pelatihan-service-client; do \
+        iklan-pelatihan-service-client corporate-comms-service-client \
+        report-service-client; do \
         echo "" > $d/src/lib.rs; \
     done
 
