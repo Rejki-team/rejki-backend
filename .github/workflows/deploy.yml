@@ -49,6 +49,9 @@ jobs:
             done
             cd ..
 
+            echo "==> Pull base images"
+            docker compose -f docker-compose.prod.yml -p rejki-prod pull
+
             echo "==> Build prod images"
             docker compose -f docker-compose.prod.yml -p rejki-prod build
 
