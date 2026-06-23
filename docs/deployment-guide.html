@@ -317,24 +317,33 @@
 <span class="ft-dir">/opt/rejki/</span>
 ├── <span class="ft-dir">dev/</span>
 │   ├── <span class="ft-f">.env</span>                          <span class="ft-note"># Environment variables dev (tidak di git)</span>
-│   └── <span class="ft-dir">rejki-backend/</span>               <span class="ft-note"># Git clone → branch develop</span>
-│       ├── docker-compose.dev.yml
-│       ├── docker-compose.infra.yml
-│       ├── nginx.dev.conf
-│       ├── .github/workflows/deploy-dev.yml
-│       ├── scripts/migrate.sh
-│       └── ...
+│   ├── <span class="ft-dir">rejki-backend/</span>               <span class="ft-note"># Git clone → branch develop</span>
+│   │   ├── docker-compose.dev.yml
+│   │   ├── docker-compose.infra.yml
+│   │   ├── nginx.dev.conf
+│   │   ├── .github/workflows/deploy-dev.yml
+│   │   ├── scripts/migrate.sh
+│   │   └── ...
+│   └── <span class="ft-dir">rejki-web/</span>                    <span class="ft-note"># Git clone → branch develop</span>
+│       ├── Dockerfile
+│       ├── nginx.conf
+│       └── .github/workflows/ci.yml
 │
 ├── <span class="ft-dir">prod/</span>
 │   ├── <span class="ft-f">.env</span>                          <span class="ft-note"># Environment variables prod (tidak di git)</span>
-│   └── <span class="ft-dir">rejki-backend/</span>               <span class="ft-note"># Git clone → branch main</span>
-│       ├── docker-compose.prod.yml
-│       ├── docker-compose.infra.yml
-│       ├── nginx.prod.conf
-│       ├── .github/workflows/deploy.yml
-│       ├── Dockerfile.backup
-│       ├── scripts/migrate.sh
-│       └── ...
+│   ├── <span class="ft-dir">rejki-backend/</span>               <span class="ft-note"># Git clone → branch main</span>
+│   │   ├── docker-compose.prod.yml
+│   │   ├── docker-compose.infra.yml
+│   │   ├── nginx.prod.conf
+│   │   ├── .github/workflows/deploy.yml
+│   │   ├── Dockerfile.backup
+│   │   ├── scripts/migrate.sh
+│   │   └── ...
+│   └── <span class="ft-dir">rejki-web/</span>                    <span class="ft-note"># Git clone → branch main</span>
+│       ├── Dockerfile
+│       ├── nginx.conf
+│       └── .github/workflows/ci.yml
+│
 │
 ├── <span class="ft-dir">keys/</span>
 │   ├── private.pem                              <span class="ft-note"># JWT private key (RS256)</span>
@@ -722,12 +731,12 @@ nano /opt/rejki/prod/.env    # isi password, key, dll</pre></div>
           <div class="step-num">14</div>
           <div class="step-body">
             <h4>Clone rejki-web</h4>
-            <p>rejki-web dibutuhkan oleh dev dan prod compose. Clone di kedua direktori:</p>
+            <p>rejki-web adalah repo terpisah. Clone di kedua direktori, pastikan branch sesuai:</p>
             <div class="code"><pre>cd /opt/rejki/dev
-git clone git@github.com:rejki/rejki-web.git
+git clone -b develop git@github.com:rizkirchm97/rejki-web-dashboard.git rejki-web
 
 cd /opt/rejki/prod
-git clone git@github.com:rejki/rejki-web.git</pre></div>
+git clone -b main git@github.com:rizkirchm97/rejki-web-dashboard.git rejki-web</pre></div>
           </div>
         </div>
 
@@ -954,6 +963,46 @@ bash scripts/migrate.sh prod</pre></div>
         <span class="callout-icon">💡</span>
         <div><strong>Integration test tidak di CI</strong>
         <p>Integration test yang butuh PostgreSQL dijalankan manual saat development dan staging — tidak di CI untuk mempercepat pipeline (~5-10 menit lebih cepat). Coverage juga lib-only (tanpa DB) sehingga lebih cepat.</p></div>
+      </div>
+
+      <!-- ── rejki-web workflows ──────────────────────────────────────────── -->
+      <div style="margin-top:1.5rem;padding-top:1rem;border-top:1px solid var(--border);">
+        <h4 style="font-size:.95rem;font-weight:700;margin-bottom:.3rem;color:var(--yellow);">🟡 rejki-web-dashboard — Workflow</h4>
+        <p style="color:var(--muted);font-size:.84rem;margin-bottom:.6rem;">
+          Repo terpisah di <code>github.com/rizkirchm97/rejki-web-dashboard.git</code>.
+          Frontend Vue 3 di-build dengan Bun, di-serve via nginx:alpine.
+        </p>
+
+        <div class="col-tbl">
+          <div>
+            <h5 style="font-size:.82rem;font-weight:700;margin-bottom:.3rem;color:var(--purple);">🔁 CI: ci.yml</h5>
+            <div class="tbl-wrap"><table class="tbl">
+              <thead><tr><th>Aspek</th><th>Detail</th></tr></thead>
+              <tbody>
+                <tr><td>Trigger</td><td>Push/PR ke <code>develop</code>, <code>main</code></td></tr>
+                <tr><td>Steps</td><td><code>bun install</code> → <code>typecheck</code> → <code>lint:check</code> → <code>test</code> → <code>build</code></td></tr>
+                <tr><td>Concurrency</td><td>Group: ci-\${{ github.ref }}, cancel-in-progress: true</td></tr>
+              </tbody>
+            </table></div>
+          </div>
+          <div>
+            <h5 style="font-size:.82rem;font-weight:700;margin-bottom:.3rem;color:var(--blue);">🚀 Deploy: deploy-dev.yml</h5>
+            <div class="tbl-wrap"><table class="tbl">
+              <thead><tr><th>Aspek</th><th>Detail</th></tr></thead>
+              <tbody>
+                <tr><td>Trigger</td><td>Push ke <code>develop</code> + workflow_dispatch</td></tr>
+                <tr><td>Deploy dir</td><td><code>/opt/rejki/dev/rejki-web</code></td></tr>
+                <tr><td>Steps</td><td><code>git pull</code> → rebuild &amp; restart <code>rejki-web</code> service → <code>prune</code></td></tr>
+              </tbody>
+            </table></div>
+          </div>
+        </div>
+
+        <div class="callout c-info" style="margin-top:.5rem;">
+          <span class="callout-icon">💡</span>
+          <div><strong>Deploy rejki-web = rebuild container di compose backend</strong>
+          <p>rejki-web di-deploy sebagai bagian dari compose project <code>rejki-dev</code>/<code>rejki-prod</code> yang ada di repo rejki-backend. Workflow deploy rejki-web hanya rebuild &amp; restart satu service: <code>rejki-web</code>. Tidak perlu down/up seluruh compose.</p></div>
+        </div>
       </div>
     </section>
 
