@@ -1,0 +1,30 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Rejki Backend — Docker Build Context Ignore
+# Build context: rust-services/
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Rust build artifacts (bisa 1-2 GB, tidak perlu dikirim ke Docker daemon)
+target/
+
+# SQLx offline data cache
+.sqlx/
+
+# Sensitive files
+keys/
+
+# Coverage & test reports
+lcov.info
+coverage/
+
+# Environment files
+.env*
+!.env.test
+
+# Documentation & metadata
+*.md
+*.toml
+deny.toml
+
+# Git
+.git
+.gitignore

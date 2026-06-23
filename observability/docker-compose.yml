@@ -1,0 +1,174 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Rejki Backend — Observability Stack
+# Semua exporter dan agent untuk full observability (metrics, logs, traces).
+# Mengirim data ke Grafana Cloud free tier.
+#
+# Cara pakai:
+#   docker compose -f observability/docker-compose.yml -p rejki-obs up -d
+#
+# Prasyarat:
+#   1. Daftar Grafana Cloud: https://grafana.com → Free
+#   2. Buat Stack → OpenTelemetry → dapatkan endpoint & credentials
+#   3. Isi .env observability (copy dari .env.example)
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  # ── OpenTelemetry Collector ─────────────────────────────────────────────────
+  # Menerima OTLP traces dari Rust app + scrape metrics dari semua exporter
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.115.1
+    container_name: rejki-otel-collector
+    restart: unless-stopped
+    command: ["--config=/etc/otel/config.yml"]
+    volumes:
+      - ./otel-collector-config.yml:/etc/otel/config.yml:ro
+    environment:
+      OTEL_ENDPOINT:     ${GRAFANA_OTEL_ENDPOINT:?err}
+      OTEL_AUTH_HEADER:  ${GRAFANA_OTEL_AUTH_HEADER:?err}
+    expose:
+      - "4317"   # OTLP gRPC
+      - "4318"   # OTLP HTTP
+    ports:
+      - "127.0.0.1:4317:4317"   # Hanya localhost — Rust app & Bun akses via docker network
+      - "127.0.0.1:4318:4318"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 128M
+    networks:
+      - rejki-infra
+      - rejki-observability
+
+  # ── Node Exporter ───────────────────────────────────────────────────────────
+  # Metrics VPS: CPU, RAM, disk, network, load average
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: rejki-node-exporter
+    restart: unless-stopped
+    command:
+      - '--path.rootfs=/host'
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    volumes:
+      - /:/host:ro,rslave
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+    pid: host
+    expose:
+      - "9100"
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+        reservations:
+          memory: 32M
+    networks:
+      - rejki-observability
+
+  # ── cAdvisor ────────────────────────────────────────────────────────────────
+  # Metrics per container: CPU, memory, network, filesystem per container
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: rejki-cadvisor
+    restart: unless-stopped
+    privileged: true
+    devices:
+      - /dev/kmsg:/dev/kmsg
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+      - /dev/disk:/dev/disk:ro
+    expose:
+      - "8080"
+    deploy:
+      resources:
+        limits:
+          memory: 96M
+        reservations:
+          memory: 48M
+    networks:
+      - rejki-observability
+
+  # ── PostgreSQL Exporter ─────────────────────────────────────────────────────
+  # Metrics database: koneksi, query, cache hit ratio, wal, replication
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:latest
+    container_name: rejki-pg-exporter
+    restart: unless-stopped
+    environment:
+      DATA_SOURCE_NAME: postgres://rejki:${POSTGRES_PASSWORD:?err}@rejki-postgres:5432/rejki_prod?sslmode=disable
+      PG_EXPORTER_DISABLE_DEFAULT_METRICS: "false"
+      PG_EXPORTER_AUTO_DISCOVER_DATABASES: "true"
+    expose:
+      - "9187"
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+        reservations:
+          memory: 32M
+    networks:
+      - rejki-infra
+      - rejki-observability
+
+  # ── Redis Exporter ──────────────────────────────────────────────────────────
+  # Metrics Redis: memory usage, hits/misses, connected clients, keyspace
+  redis-exporter:
+    image: oliver006/redis_exporter:latest
+    container_name: rejki-redis-exporter
+    restart: unless-stopped
+    environment:
+      REDIS_ADDR: redis://rejki-redis:6379
+      REDIS_EXPORTER_INCL_SYSTEM_METRICS: "true"
+    expose:
+      - "9121"
+    deploy:
+      resources:
+        limits:
+          memory: 48M
+        reservations:
+          memory: 24M
+    networks:
+      - rejki-infra
+      - rejki-observability
+
+  # ── Grafana Alloy (Log shipping) ────────────────────────────────────────────
+  # Mengumpulkan logs dari semua container dan mengirim ke Grafana Loki.
+  # Juga bisa untuk metrics & traces forwarding alternatif.
+  alloy:
+    image: grafana/alloy:latest
+    container_name: rejki-alloy
+    restart: unless-stopped
+    command:
+      - run
+      - /etc/alloy/config.alloy
+      - --stability.level=generally-available
+    volumes:
+      - ./alloy-config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/log:/var/log:ro
+    environment:
+      GRAFANA_LOKI_URL:     ${GRAFANA_LOKI_URL:?err}
+      GRAFANA_LOKI_USER:    ${GRAFANA_LOKI_USER:?err}
+      GRAFANA_LOKI_TOKEN:   ${GRAFANA_LOKI_TOKEN:?err}
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+        reservations:
+          memory: 64M
+    networks:
+      - rejki-observability
+
+networks:
+  rejki-infra:
+    name: rejki-infra
+    external: true
+  rejki-observability:
+    name: rejki-observability
+    driver: bridge
