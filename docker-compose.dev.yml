@@ -1,15 +1,13 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # Rejki Backend — Dev Environment
-# Berbagi PostgreSQL + Redis + MinIO dari docker-compose.infra.yml
-# Jalan di project name: rejki-dev
+# Service images di-push ke GHCR oleh GitHub Actions CI
+# Server hanya pull & up -d
 # ─────────────────────────────────────────────────────────────────────────────
 
 services:
   # ── Rejki App (Rust — Modular Monolith) ────────────────────────────────────
   rejki-app:
-    build:
-      context: ./rust-services
-      dockerfile: Dockerfile
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-rejki}/rejki-backend:develop
     container_name: rejki-app-dev
     restart: unless-stopped
     depends_on:
@@ -33,7 +31,7 @@ services:
       OTEL_EXPORTER_OTLP_ENDPOINT: http://rejki-otel-collector:4317
       OTEL_EXPORTER_OTLP_HEADERS:  ${OTEL_EXPORTER_OTLP_HEADERS:-}
     volumes:
-      - ./keys:/app/keys:ro
+      - /opt/rejki/keys:/app/keys:ro
     expose:
       - "8080"
     healthcheck:
@@ -54,9 +52,7 @@ services:
 
   # ── Bun Notification Service ───────────────────────────────────────────────
   bun-notification:
-    build:
-      context: ./bun-notification-service
-      dockerfile: Dockerfile
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-rejki}/rejki-backend-notification:develop
     container_name: rejki-bun-dev
     restart: unless-stopped
     depends_on:
@@ -77,7 +73,7 @@ services:
       EMAIL_FROM:                   ${EMAIL_FROM:-Rejki Dev <noreply@dev.rejki.id>}
       PORT:                         9000
     volumes:
-      - ./keys:/app/keys:ro
+      - /opt/rejki/keys:/app/keys:ro
     expose:
       - "9000"
     healthcheck:
@@ -98,12 +94,7 @@ services:
 
   # ── Rejki Web (Vue 3 Frontend) ────────────────────────────────────────────
   rejki-web:
-    build:
-      context: ../rejki-web
-      dockerfile: Dockerfile
-      args:
-        VITE_API_BASE_URL: /api/v1
-        VITE_MAX_EVIDENCE_BYTES: 5242880
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-rejki}/rejki-web:develop
     container_name: rejki-web-dev
     restart: unless-stopped
     depends_on:
@@ -128,9 +119,9 @@ services:
       - rejki-app
       - rejki-web
     volumes:
-      - ./nginx.dev.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
     ports:
-      - "127.0.0.1:8081:80"   # Dev di port 8081 (localhost only)
+      - "127.0.0.1:8081:80"
     deploy:
       resources:
         limits:
@@ -156,7 +147,7 @@ services:
 networks:
   rejki-infra:
     name: rejki-infra
-    external: true    # pakai network yang sama dengan infra
+    external: true
   rejki-dev:
     name: rejki-dev
     driver: bridge

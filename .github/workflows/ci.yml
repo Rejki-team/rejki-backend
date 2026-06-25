@@ -12,6 +12,8 @@ on:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/rejki-backend
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -89,31 +91,51 @@ jobs:
         working-directory: bun-notification-service
         run: bun test
 
-  # ── Docker build check ────────────────────────────────────────────────────
-  docker-build-check:
-    name: Docker Build Check
+  # ── Docker build & push ──────────────────────────────────────────────────
+  docker-build:
+    name: Docker Build & Push
     runs-on: ubuntu-latest
-    needs: check
-    if: github.ref == 'refs/heads/main' || github.base_ref == 'main' || github.ref == 'refs/heads/develop' || github.base_ref == 'develop'
+    needs: [check, unit-test, bun-check]
+    if: github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build rejki-app image (no push)
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix={{branch}}-,format=short
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+
+      - name: Build and push rejki-app image
         uses: docker/build-push-action@v5
         with:
           context: ./rust-services
-          push: false
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Build bun-notification image (no push)
+      - name: Build and push bun-notification image
         uses: docker/build-push-action@v5
         with:
           context: ./bun-notification-service
-          push: false
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-notification:${{ github.ref_name }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -139,7 +161,7 @@ jobs:
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
 
-      - name: Run coverage (lib only — tanpa integration)
+      - name: Run coverage (lib only)
         working-directory: rust-services
         run: cargo llvm-cov --workspace --lib --lcov --output-path lcov.info
         env:
@@ -154,8 +176,6 @@ jobs:
             if [ -n "$total" ] && [ "$total" -gt 0 ]; then
               pct=$(awk "BEGIN {printf \"%.2f\", ($hit/$total)*100}")
               echo "Overall line coverage: ${pct}%"
-              # Soft gate bertahap (Ops A — design D9). Target final: ≥85%.
-              # Threshold naik dari baseline 17.90% → 49.09% (post ws-testing-coverage roll-out).
               threshold=49.0
               if (( $(echo "$pct < $threshold" | bc -l) )); then
                 echo "⚠️  Coverage ${pct}% di bawah threshold ${threshold}% — gagal"
@@ -177,50 +197,38 @@ jobs:
   cargo-audit:
     name: Cargo Audit
     runs-on: ubuntu-latest
-    # Hanya jalan saat schedule event — tidak perlu blocking PR (terlalu berisik)
     if: github.event_name == 'schedule'
     steps:
       - uses: actions/checkout@v4
-
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
-
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: rust-services
           cache-on-failure: true
-
       - name: Install cargo-audit
         uses: taiki-e/install-action@cargo-audit
-
       - name: Audit Cargo.lock for CVEs
         working-directory: rust-services
-        # Fail on CRITICAL dan HIGH — ignore warnings (informational/low/medium)
         run: cargo audit --deny warnings
 
   # ── Cargo Deny (license compliance) ────────────────────────────────────
   cargo-deny:
     name: Cargo Deny (license)
     runs-on: ubuntu-latest
-    # Hanya jalan saat schedule event — tidak perlu blocking PR (terlalu berisik)
     if: github.event_name == 'schedule'
     steps:
       - uses: actions/checkout@v4
-
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
-
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: rust-services
           cache-on-failure: true
-
       - name: Install cargo-deny
         uses: taiki-e/install-action@cargo-deny
-
-      - name: Check licenses (reject GPL/AGPL)
+      - name: Check licenses
         working-directory: rust-services
-        # deny.toml ada di rust-services/ — cargo-deny auto-detect
         run: cargo deny check licenses
