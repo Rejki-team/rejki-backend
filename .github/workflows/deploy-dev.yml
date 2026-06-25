@@ -17,7 +17,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Deploy dev via SSH
+      - name: Copy deploy config to VPS via SCP
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host:     ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key:      ${{ secrets.VPS_SSH_KEY }}
+          port:     ${{ secrets.VPS_PORT || 22 }}
+          source:   "docker-compose.dev.yml,nginx.dev.conf"
+          target:   "/opt/rejki/dev/"
+          strip_components: 0
+          overwrite: true
+
+      - name: Rename & restart via SSH
         uses: appleboy/ssh-action@v1
         with:
           host:     ${{ secrets.VPS_HOST }}
@@ -27,47 +39,27 @@ jobs:
           script: |
             set -e
 
-            cd /opt/rejki/dev/rejki-backend
+            cd /opt/rejki/dev
 
-            echo "==> Pull latest develop"
-            git pull origin develop
+            echo "==> Rename config files"
+            [ -f docker-compose.dev.yml ] && mv docker-compose.dev.yml docker-compose.yml
+            [ -f nginx.dev.conf ] && mv nginx.dev.conf nginx.conf
 
-            echo "==> Run database migrations (dev)"
-            cd rust-services
-            export DATABASE_URL="postgres://rejki:${POSTGRES_PASSWORD}@postgres:5432/rejki_dev"
-            # Map service → schema
-            map_schema() {
-              case "$1" in
-                user-service)            echo "user_svc" ;;
-                corporate-comms-service) echo "comms" ;;
-                *)                       echo "$1" | sed 's/-service//' | sed 's/-/_/g' ;;
-              esac
-            }
-            for dir in *-service/migrations; do
-              svc=$(basename "$(dirname "$dir")")
-              schema=$(map_schema "$svc")
-              psql "$DATABASE_URL" -c "CREATE SCHEMA IF NOT EXISTS $schema" 2>/dev/null
-              sqlx migrate run --source "$dir" --database-url "$DATABASE_URL"
-            done
-            cd ..
+            echo "==> Login to GitHub Container Registry"
+            echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
-            echo "==> Pull base images"
-            docker compose -f docker-compose.dev.yml -p rejki-dev pull
+            echo "==> Pull latest images"
+            docker compose pull
 
-            echo "==> Build dev images"
-            docker compose -f docker-compose.dev.yml -p rejki-dev build
+            echo "==> Restart services"
+            docker compose up -d
 
-            echo "==> Restart dev services"
-            docker compose -f docker-compose.dev.yml -p rejki-dev up -d
-
-            echo "==> Wait for health check"
+            echo "==> Verify health check"
             sleep 10
-            docker compose -f docker-compose.dev.yml -p rejki-dev ps
+            docker compose ps
+            curl -sf http://localhost:8081/health || (echo "❌ Dev health check failed!" && exit 1)
 
-            echo "==> Verify /health endpoint"
-            curl -sf http://localhost:8081/health || (echo "Dev health check failed!" && exit 1)
-
-            echo "==> Cleanup old images"
+            echo "==> Prune old images"
             docker image prune -f
 
-            echo "==> Dev deploy complete"
+            echo "✅ Dev deploy complete"

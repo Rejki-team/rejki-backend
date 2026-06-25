@@ -7,9 +7,7 @@
 services:
   # ── Rejki App (Rust — Modular Monolith) ────────────────────────────────────
   rejki-app:
-    build:
-      context: ./rust-services
-      dockerfile: Dockerfile
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-rejki}/rejki-backend:main
     container_name: rejki-app-prod
     restart: unless-stopped
     depends_on:
@@ -60,9 +58,7 @@ services:
 
   # ── Bun Notification Service ───────────────────────────────────────────────
   bun-notification:
-    build:
-      context: ./bun-notification-service
-      dockerfile: Dockerfile
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-rejki}/rejki-backend-notification:main
     container_name: rejki-bun-prod
     restart: unless-stopped
     depends_on:
@@ -100,6 +96,24 @@ services:
           memory: 64M
     networks:
       - rejki-infra
+      - rejki-prod
+
+  # ── Rejki Web (Vue 3 Frontend) ────────────────────────────────────────────
+  rejki-web:
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-rejki}/rejki-web:main
+    container_name: rejki-web-prod
+    restart: unless-stopped
+    depends_on:
+      - rejki-app
+    expose:
+      - "80"
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+        reservations:
+          memory: 32M
+    networks:
       - rejki-prod
 
   # ── Nginx (Reverse Proxy) — PROD ──────────────────────────────────────────
@@ -150,9 +164,7 @@ services:
 
   # ── DB Backup ─────────────────────────────────────────────────────────────
   db-backup:
-    build:
-      context: .
-      dockerfile: Dockerfile.backup
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-rejki}/rejki-backup:main
     container_name: rejki-db-backup
     restart: unless-stopped
     depends_on:

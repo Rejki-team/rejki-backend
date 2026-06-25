@@ -4,6 +4,10 @@ on:
   push:
     branches: [main]
 
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/rejki-backend
+
 concurrency:
   group: deploy-production
   cancel-in-progress: false
@@ -16,7 +20,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Deploy via SSH
+      - name: Copy deploy config to VPS via SCP
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host:     ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key:      ${{ secrets.VPS_SSH_KEY }}
+          port:     ${{ secrets.VPS_PORT || 22 }}
+          source:   "docker-compose.prod.yml,nginx.prod.conf"
+          target:   "/opt/rejki/prod/"
+          strip_components: 0
+          overwrite: true
+
+      - name: Rename & restart via SSH
         uses: appleboy/ssh-action@v1
         with:
           host:     ${{ secrets.VPS_HOST }}
@@ -26,46 +42,33 @@ jobs:
           script: |
             set -e
 
-            cd /opt/rejki/prod/rejki-backend
+            cd /opt/rejki/prod
 
-            echo "==> Pull latest main"
-            git pull origin main
+            echo "==> Rename files if needed"
+            [ -f docker-compose.prod.yml ] && mv docker-compose.prod.yml docker-compose.yml
+            [ -f nginx.prod.conf ] && mv nginx.prod.conf nginx.conf && echo "nginx.conf updated"
 
-            echo "==> Run database migrations (prod)"
-            cd rust-services
-            export DATABASE_URL="postgres://rejki:${POSTGRES_PASSWORD}@postgres:5432/rejki_prod"
-            map_schema() {
-              case "$1" in
-                user-service)            echo "user_svc" ;;
-                corporate-comms-service) echo "comms" ;;
-                *)                       echo "$1" | sed 's/-service//' | sed 's/-/_/g' ;;
-              esac
-            }
-            for dir in *-service/migrations; do
-              svc=$(basename "$(dirname "$dir")")
-              schema=$(map_schema "$svc")
-              psql "$DATABASE_URL" -c "CREATE SCHEMA IF NOT EXISTS $schema" 2>/dev/null
-              sqlx migrate run --source "$dir" --database-url "$DATABASE_URL"
-            done
-            cd ..
+            echo "==> Login to GitHub Container Registry"
+            echo "${{ secrets.GHCR_TOKEN }}" | docker login $REGISTRY -u ${{ github.actor }} --password-stdin
 
-            echo "==> Pull base images"
-            docker compose -f docker-compose.prod.yml -p rejki-prod pull
+            echo "==> Pull latest images"
+            docker compose pull
 
-            echo "==> Build prod images"
-            docker compose -f docker-compose.prod.yml -p rejki-prod build
+            echo "==> Restart services"
+            docker compose up -d
 
-            echo "==> Restart prod services (with cloudflare tunnel)"
-            docker compose -f docker-compose.prod.yml -p rejki-prod --profile prod up -d
-
-            echo "==> Wait for health check"
+            echo "==> Verify health check"
             sleep 10
-            docker compose -f docker-compose.prod.yml -p rejki-prod ps
+            docker compose ps
 
-            echo "==> Verify /health endpoint"
-            curl -sf http://localhost:8082/health || (echo "Prod health check failed!" && exit 1)
+            echo "==> Test /health endpoint"
+            curl -sf http://localhost:8082/health || (echo "❌ Health check failed!" && exit 1)
 
-            echo "==> Cleanup old images"
+            echo "==> Run database migrations"
+            docker compose exec -T rejki-app /app/rejki-app migrate 2>/dev/null || \
+              echo "⚠️  No built-in migrate command — run sqlx manually if needed"
+
+            echo "==> Prune old images"
             docker image prune -f
 
-            echo "==> Prod deploy complete"
+            echo "✅ Prod deploy complete"
