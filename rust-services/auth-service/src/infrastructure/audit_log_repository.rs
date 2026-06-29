@@ -59,6 +59,7 @@ impl AuditLogRepository for PgAuditLogRepository {
 // ── Unit tests ────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
+#[allow(clippy::type_complexity)]
 mod tests {
     use super::*;
 

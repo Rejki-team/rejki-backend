@@ -1,24 +1,26 @@
 #[tokio::main]
 async fn main() {
-    let app_env =
-        std::env::var("APP_ENV").expect("APP_ENV tidak di-set (development | production)");
-    if app_env == "development" {
-        dotenvy::dotenv().ok();
-    }
-    common_tracing::init_tracing();
+    // ── 1. Load centralized config ────────────────────────────────────────
+    let cfg = common_config::AppConfig::load();
+    let is_prod = cfg.is_production();
 
-    let db_url = std::env::var("DATABASE_URL").expect("DATABASE_URL not set");
-    let pool = sqlx::PgPool::connect(&db_url)
+    // ── 2. Init tracing ───────────────────────────────────────────────────
+    common_tracing::init_tracing(&cfg.otel, is_prod);
+
+    // ── 3. Database pool ──────────────────────────────────────────────────
+    let pool = sqlx::PgPool::connect(&cfg.database.url)
         .await
-        .expect("DB connect failed");
+        .expect("gagal connect ke PostgreSQL");
 
     sqlx::migrate!("./migrations")
         .run(&pool)
         .await
         .expect("Migration failed");
 
+    // ── 4. Build router ───────────────────────────────────────────────────
     let app = auth_service::router(pool);
-    let port = std::env::var("APP_PORT").unwrap_or_else(|_| "3001".into());
+
+    let port = cfg.app_port;
     let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{port}"))
         .await
         .unwrap();

@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use std::sync::Arc;
 
 use axum::{body::Body, http::Request, Router};
@@ -68,6 +69,8 @@ pub async fn build_test_app(pool: PgPool) -> Router {
                 None,
                 Some(storage_client.clone()),
                 Some(user_client.clone()),
+                900,
+                None,
             ),
         )
         .nest(

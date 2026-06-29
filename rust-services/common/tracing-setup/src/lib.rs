@@ -17,6 +17,7 @@ use axum::{
     middleware::Next,
     response::Response,
 };
+use common_config::OtelConfig;
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 use uuid::{Timestamp, Uuid};
 
@@ -26,21 +27,42 @@ pub static X_REQUEST_ID: HeaderName = HeaderName::from_static("x-request-id");
 
 /// Inisialisasi tracing subscriber.
 ///
-/// - Jika `OTEL_EXPORTER_OTLP_ENDPOINT` diset, function ini tidak melakukan
+/// - Jika `config.exporter_otlp_endpoint` di-set, function ini tidak melakukan
 ///   apa-apa karena OTel sudah menangani tracing-subscriber sendiri.
-/// - Jika `APP_ENV=production`: JSON logging
-/// - Jika `APP_ENV=development` atau tidak diset: pretty logging
-pub fn init_tracing() {
+/// - Jika `is_production` true: JSON logging
+/// - Jika false: pretty logging
+pub fn init_tracing(config: &OtelConfig, is_production: bool) {
     // Jika OTel active, jangan double init tracing-subscriber
-    if std::env::var("OTEL_EXPORTER_OTLP_ENDPOINT").is_ok() {
+    if config.exporter_otlp_endpoint.is_some() {
         return;
     }
 
     let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
+
+    if is_production {
+        tracing_subscriber::registry()
+            .with(filter)
+            .with(fmt::layer().json())
+            .init();
+    } else {
+        tracing_subscriber::registry()
+            .with(filter)
+            .with(fmt::layer().pretty())
+            .init();
+    }
+}
+
+/// Versi sederhana — membaca APP_ENV dari env var dan OtelConfig dari env var juga.
+/// Untuk backward compat dengan standalone service yang belum migrate ke AppConfig.
+pub fn init_tracing_legacy() {
     let is_prod = std::env::var("APP_ENV")
         .map(|v| v == "production")
         .unwrap_or(false);
-
+    let eksperimen_otel = std::env::var("OTEL_EXPORTER_OTLP_ENDPOINT").is_ok();
+    if eksperimen_otel {
+        return;
+    }
+    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
     if is_prod {
         tracing_subscriber::registry()
             .with(filter)
@@ -75,18 +97,14 @@ impl OtelHandle {
 
 /// Inisialisasi OpenTelemetry tracer dengan OTLP exporter ke Grafana Cloud.
 ///
-/// Membaca env vars:
-/// - `OTEL_EXPORTER_OTLP_ENDPOINT` — OTLP gRPC endpoint (wajib)
-/// - `OTEL_EXPORTER_OTLP_HEADERS` — Authorization header (wajib)
-/// - `OTEL_SERVICE_NAME` — Nama service (default: "rejki-backend")
+/// Menerima `&OtelConfig` langsung (sudah dibaca dari env vars oleh common-config).
 ///
-/// Returns `Some(OtelHandle)` jika sukses, `None` jika env var tidak tersedia.
+/// Returns `Some(OtelHandle)` jika sukses, `None` jika config OTel tidak tersedia.
 #[cfg(feature = "otel")]
-pub async fn init_otel() -> Option<OtelHandle> {
-    let endpoint = std::env::var("OTEL_EXPORTER_OTLP_ENDPOINT").ok()?;
-    let headers_raw = std::env::var("OTEL_EXPORTER_OTLP_HEADERS").ok()?;
-    let service_name =
-        std::env::var("OTEL_SERVICE_NAME").unwrap_or_else(|_| "rejki-backend".into());
+pub async fn init_otel(config: &OtelConfig, is_production: bool) -> Option<OtelHandle> {
+    let endpoint = config.exporter_otlp_endpoint.as_ref()?;
+    let headers_raw = config.exporter_otlp_headers.as_ref()?;
+    let service_name = &config.service_name;
 
     // Parse headers dari format "key=value"
     let mut metadata = tonic::metadata::MetadataMap::new();
@@ -105,7 +123,7 @@ pub async fn init_otel() -> Option<OtelHandle> {
     use opentelemetry_otlp::WithTonicConfig; // trait for .with_metadata()
     let otlp_exporter = opentelemetry_otlp::SpanExporter::builder()
         .with_tonic()
-        .with_endpoint(&endpoint)
+        .with_endpoint(endpoint)
         .with_metadata(metadata)
         .build()
         .ok()?;
@@ -122,7 +140,7 @@ pub async fn init_otel() -> Option<OtelHandle> {
         ))
         .with_attribute(opentelemetry::KeyValue::new(
             "deployment.environment",
-            std::env::var("APP_ENV").unwrap_or_else(|_| "unknown".into()),
+            if is_production { "production" } else { "development" },
         ))
         .build();
 
@@ -139,11 +157,8 @@ pub async fn init_otel() -> Option<OtelHandle> {
     // ── Bridge tracing ke OpenTelemetry ─────────────────────────────────
     let tracer = tracer_provider.tracer("rejki-backend");
     let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
-    let is_prod = std::env::var("APP_ENV")
-        .map(|v| v == "production")
-        .unwrap_or(false);
 
-    if is_prod {
+    if is_production {
         tracing_subscriber::registry()
             .with(filter)
             .with(fmt::layer().json())

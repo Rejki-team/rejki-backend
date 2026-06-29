@@ -27,5 +27,5 @@ export const config = {
   smtp_port:       Number(process.env.SMTP_PORT ?? "587"),
   smtp_user:       opt_env("SMTP_USER"),
   smtp_pass:       opt_env("SMTP_PASS"),
-  email_from:      process.env.EMAIL_FROM ?? "no-reply@rejki.id",
+  email_from:      require_env("EMAIL_FROM"),
 };

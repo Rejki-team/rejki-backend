@@ -12,7 +12,7 @@ path = "src/main.rs"
 [dependencies]
 common-config  = { workspace = true }
 common-errors  = { workspace = true }
-common-tracing = { workspace = true, features = ["otel"] }
+common-tracing = { workspace = true }
 common-rate-limit = { workspace = true }
 
 # Import SERVICE (implementasi), bukan client (trait/kontrak).
@@ -44,6 +44,9 @@ uuid        = { workspace = true }
 # OpenAPI / Swagger UI — hanya di-mount saat APP_ENV=development.
 utoipa             = { workspace = true }
 utoipa-swagger-ui  = { workspace = true }
+
+[features]
+otel = ["common-tracing/otel"]
 
 [dev-dependencies]
 tower       = { version = "0.5", features = ["util"] }

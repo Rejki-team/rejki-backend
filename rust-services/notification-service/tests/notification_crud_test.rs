@@ -50,7 +50,7 @@ async fn test_list_given_authed_user_when_list_then_200() {
 
     // Verify structure
     let notif = &items[0];
-    assert!(notif["id"].as_str().unwrap().len() > 0);
+    assert!(!notif["id"].as_str().unwrap().is_empty());
     assert!(notif["title"].as_str().unwrap().contains("lst1"));
     assert!(!notif["is_read"].as_bool().unwrap());
 }

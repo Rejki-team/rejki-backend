@@ -63,7 +63,23 @@ pub struct OtpRateLimiter {
 }
 
 impl OtpRateLimiter {
-    /// Bangun dari REDIS_URL; bila tidak diset/invalid → limiter non-aktif (fail-open).
+    /// Bangun dari `redis_url` (Option — dari common-config).
+    pub fn new(redis_url: Option<String>) -> Self {
+        let inner = redis_url
+            .and_then(|url| match redis::Client::open(url) {
+                Ok(c) => Some(Arc::new(LimiterInner {
+                    client: c,
+                    conn: Mutex::new(None),
+                })),
+                Err(e) => {
+                    tracing::warn!(error = ?e, "REDIS_URL invalid — rate limiter non-aktif");
+                    None
+                }
+            });
+        Self { inner }
+    }
+
+    /// Bangun dari REDIS_URL env var; bila tidak diset/invalid → limiter non-aktif (fail-open).
     /// ConnectionManager dibuat lazy (async) pada panggilan `allow_raw` pertama.
     pub fn from_env() -> Self {
         let inner =
@@ -186,8 +202,10 @@ mod tests {
 
     #[test]
     fn constants_are_reasonable() {
-        assert!(BISNIS_CREATE_MAX >= 10 && BISNIS_CREATE_MAX <= 100);
-        assert!(BISNIS_CREATE_TIGHT >= 1 && BISNIS_CREATE_TIGHT <= 30);
-        assert!(BISNIS_WINDOW_SECS >= 60);
+        const {
+            assert!(BISNIS_CREATE_MAX >= 10 && BISNIS_CREATE_MAX <= 100);
+            assert!(BISNIS_CREATE_TIGHT >= 1 && BISNIS_CREATE_TIGHT <= 30);
+            assert!(BISNIS_WINDOW_SECS >= 60);
+        }
     }
 }

@@ -44,7 +44,7 @@ async fn test_create_given_valid_input_when_create_then_201() {
     assert_eq!(resp.status(), StatusCode::CREATED);
 
     let data = body_json(resp).await;
-    assert!(data["data"]["id"].as_str().unwrap().len() > 0);
+    assert!(!data["data"]["id"].as_str().unwrap().is_empty());
     assert_eq!(data["data"]["nama"], "Budi Santoso");
 }
 

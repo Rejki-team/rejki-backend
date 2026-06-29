@@ -2,7 +2,6 @@ pub mod handlers;
 
 pub mod audit_extractor;
 
-use std::env;
 use std::sync::Arc;
 
 use axum::{
@@ -38,11 +37,16 @@ pub struct AppState {
 
 /// Entry point yang dipanggil oleh rejki-app (Composition Root) dan main.rs standalone.
 /// Menerima shared PgPool dan JwtService yang sudah diinisiasi.
-pub fn router_with_jwt(pool: PgPool, jwt: Arc<JwtService>) -> Router {
+pub fn router_with_jwt(
+    pool: PgPool,
+    jwt: Arc<JwtService>,
+    refresh_ttl_secs: i64,
+    redis_url: Option<String>,
+) -> Router {
     let repo = Arc::new(PgAuthRepository::new(pool));
     let auth_client: Arc<dyn AuthClient> =
         Arc::new(AuthInProcessClient::new(jwt.clone(), repo.clone()));
-    router_with_deps(jwt, repo, auth_client, None, None)
+    router_with_deps(jwt, repo, auth_client, None, None, refresh_ttl_secs, redis_url)
 }
 
 /// Bangun router auth dari repository yang sudah dibuat (di-share dengan AuthInProcessClient
@@ -56,11 +60,23 @@ pub fn router_with_deps(
     auth_client: Arc<dyn AuthClient>,
     notifier: Option<Arc<dyn NotificationClient>>,
     storage_client: Option<Arc<dyn StorageClient>>,
+    refresh_ttl_secs: i64,
+    redis_url: Option<String>,
 ) -> Router {
-    router_with_deps_ex(jwt, repo, auth_client, notifier, storage_client, None)
+    router_with_deps_ex(
+        jwt,
+        repo,
+        auth_client,
+        notifier,
+        storage_client,
+        None,
+        refresh_ttl_secs,
+        redis_url,
+    )
 }
 
 /// Versi extended — menerima `user_client` untuk pemusnahan dokumen KYC (D4).
+#[allow(clippy::too_many_arguments)]
 pub fn router_with_deps_ex(
     jwt: Arc<JwtService>,
     repo: Arc<PgAuthRepository>,
@@ -68,16 +84,13 @@ pub fn router_with_deps_ex(
     notifier: Option<Arc<dyn NotificationClient>>,
     storage_client: Option<Arc<dyn StorageClient>>,
     user_client: Option<Arc<dyn UserClient>>,
+    refresh_ttl_secs: i64,
+    redis_url: Option<String>,
 ) -> Router {
-    let refresh_ttl = env::var("JWT_REFRESH_TTL_SECS")
-        .ok()
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(crate::application::service::DEFAULT_REFRESH_TTL_SECS);
-
     let token_issuer: Arc<dyn TokenIssuer> = jwt.clone();
-    let rate_limiter: Arc<dyn RateLimiter> = Arc::new(OtpRateLimiter::from_env());
+    let rate_limiter: Arc<dyn RateLimiter> = Arc::new(OtpRateLimiter::new(redis_url));
 
-    let mut svc = AuthService::new(repo.clone(), token_issuer, refresh_ttl, rate_limiter);
+    let mut svc = AuthService::new(repo.clone(), token_issuer, refresh_ttl_secs, rate_limiter);
     let notifier_for_state = notifier.clone();
     if let Some(n) = notifier {
         svc = svc.with_notifier(n);
@@ -104,25 +117,32 @@ pub fn router_with_deps_ex(
 /// Dipakai oleh main.rs standalone binary.
 pub fn router(pool: PgPool) -> Router {
     let private_pem = std::fs::read_to_string(
-        env::var("JWT_PRIVATE_KEY_PATH").unwrap_or_else(|_| "./keys/private.pem".into())
+        std::env::var("JWT_PRIVATE_KEY_PATH").unwrap_or_else(|_| "./keys/private.pem".into())
     ).expect("JWT_PRIVATE_KEY_PATH tidak ditemukan — jalankan: openssl genrsa -out keys/private.pem 2048");
 
     let public_pem = std::fs::read_to_string(
-        env::var("JWT_PUBLIC_KEY_PATH").unwrap_or_else(|_| "./keys/public.pem".into()),
+        std::env::var("JWT_PUBLIC_KEY_PATH").unwrap_or_else(|_| "./keys/public.pem".into()),
     )
     .expect("JWT_PUBLIC_KEY_PATH tidak ditemukan");
 
-    let access_ttl = env::var("JWT_ACCESS_TTL_SECS")
+    let access_ttl = std::env::var("JWT_ACCESS_TTL_SECS")
         .ok()
         .and_then(|v| v.parse().ok())
         .unwrap_or(service::DEFAULT_ACCESS_TTL_SECS);
+
+    let refresh_ttl_secs = std::env::var("JWT_REFRESH_TTL_SECS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(crate::application::service::DEFAULT_REFRESH_TTL_SECS);
+
+    let redis_url = std::env::var("REDIS_URL").ok();
 
     let jwt = Arc::new(
         JwtService::from_files(&private_pem, &public_pem, access_ttl)
             .expect("gagal inisiasi JwtService"),
     );
 
-    router_with_jwt(pool, jwt)
+    router_with_jwt(pool, jwt, refresh_ttl_secs, redis_url)
 }
 
 /// Maksimum ukuran request body untuk endpoint auth: 16 KB.

@@ -199,6 +199,7 @@ mod tests {
     // Renamed from BUSINESS_DAYS to just KYC_COOLDOWN_DAYS = 3 calendar days.
 
     #[test]
+    #[allow(clippy::manual_range_contains)]
     fn test_kyc_cooldown_is_3_days() {
         // Per fix-user M1: cooldown 3 hari kalender (bukan hari kerja).
         // Const KYC_COOLDOWN_DAYS di service.rs = 3.
@@ -251,6 +252,7 @@ mod tests {
 
     /// verify admin listing defaults = 20 items per page.
     #[test]
+    #[allow(clippy::manual_range_contains)]
     fn test_admin_list_default_per_page_is_20() {
         // matches ADMIN_LIST_DEFAULT_LIMIT const in service.rs
         let default_limit: i64 = 20;
@@ -1142,7 +1144,7 @@ mod tests {
         assert!(result.is_ok(), "submit_kyc harus sukses: {result:?}");
         let resp = result.unwrap();
         assert_eq!(resp.status, "pending");
-        assert!(resp.created_at.len() > 0);
+        assert!(!resp.created_at.is_empty());
     }
 
     /// get_profile mengembalikan semua field untuk pemilik.

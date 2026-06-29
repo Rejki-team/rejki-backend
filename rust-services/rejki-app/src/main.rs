@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use axum::{http::StatusCode, response::Json, routing::get, Router};
+use common_config::AppConfig;
 use serde_json::json;
 use tower_http::{
     compression::CompressionLayer,
@@ -13,85 +14,80 @@ mod rate_limit_middleware;
 
 #[tokio::main]
 async fn main() {
-    // ── 1. Load APP_ENV — fail-fast jika tidak di-set ─────────────────────────
-    let app_env = common_config::load_app_env();
+    // ── 1. Load semua konfigurasi terpusat ────────────────────────────────────
+    let cfg = AppConfig::load();
+    let is_prod = cfg.is_production();
 
-    // ── 2. Load semua env var dari .env (development only) + validasi ─────────
-    let cfg = common_config::AppConfig::from_env(app_env);
-
-    // ── 3. Init tracing & OpenTelemetry ─────────────────────────────────────
-    // Jika OTEL_EXPORTER_OTLP_ENDPOINT diset, pakai OTel mode (→ Grafana Cloud)
-    // Jika tidak, pakai standard tracing (development pretty / production JSON)
-    let _otel_handle = if std::env::var("OTEL_EXPORTER_OTLP_ENDPOINT").is_ok() {
-        match common_tracing::init_otel().await {
-            Some(handle) => {
-                tracing::info!("OpenTelemetry mode: spans → Grafana Cloud");
-                Some(handle)
+    // ── 2. Init tracing & OpenTelemetry ──────────────────────────────────────
+    #[cfg(feature = "otel")]
+    let _otel_handle: Option<common_tracing::OtelHandle> =
+        if cfg.otel.exporter_otlp_endpoint.is_some() {
+            match common_tracing::init_otel(&cfg.otel, is_prod).await {
+                Some(handle) => {
+                    tracing::info!("OpenTelemetry mode: spans → Grafana Cloud");
+                    Some(handle)
+                }
+                None => {
+                    tracing::warn!(
+                        "OTEL endpoint diset tapi init_otel gagal — fallback ke standard tracing"
+                    );
+                    common_tracing::init_tracing(&cfg.otel, is_prod);
+                    None
+                }
             }
-            None => {
-                tracing::warn!("OTEL_EXPORTER_OTLP_ENDPOINT diset tapi init_otel gagal — fallback ke standard tracing");
-                common_tracing::init_tracing();
-                None
-            }
-        }
-    } else {
-        common_tracing::init_tracing();
-        None
-    };
+        } else {
+            common_tracing::init_tracing(&cfg.otel, is_prod);
+            None
+        };
+    #[cfg(not(feature = "otel"))]
+    {
+        let _ = &cfg.otel;
+        common_tracing::init_tracing(&cfg.otel, is_prod);
+    }
 
     tracing::info!(
-        service = %cfg.service_name,
+        service = %cfg.otel.service_name,
         env     = ?cfg.app_env,
         "starting rejki-app"
     );
 
-    // ── 4. Database pool (shared — schema terisolasi per service) ─────────────
-    let pool = sqlx::PgPool::connect(&cfg.database_url)
+    // ── 3. Database pool (shared — schema terisolasi per service) ──────────────
+    let pool = sqlx::PgPool::connect(&cfg.database.url)
         .await
         .expect("gagal connect ke PostgreSQL");
 
     tracing::info!("database connected");
 
-    // ── 5. JwtService ─────────────────────────────────────────────────────────
-    let private_pem = std::fs::read_to_string(
-        std::env::var("JWT_PRIVATE_KEY_PATH").unwrap_or_else(|_| "./keys/private.pem".into()),
-    )
-    .expect("JWT_PRIVATE_KEY_PATH tidak ditemukan — generate: openssl genrsa -out keys/private.pem 2048");
-
-    let public_pem = std::fs::read_to_string(
-        std::env::var("JWT_PUBLIC_KEY_PATH").unwrap_or_else(|_| "./keys/public.pem".into()),
-    )
-    .expect("JWT_PUBLIC_KEY_PATH tidak ditemukan");
-
-    let access_ttl: i64 = std::env::var("JWT_ACCESS_TTL_SECS")
-        .ok()
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(900);
+    // ── 4. JwtService ─────────────────────────────────────────────────────────
+    let (private_pem, public_pem) = cfg
+        .jwt
+        .load_keys()
+        .expect("JWT key files tidak terbaca — generate: openssl genrsa -out keys/private.pem 2048");
 
     let jwt = Arc::new(
-        auth_service::JwtService::from_files(&private_pem, &public_pem, access_ttl)
+        auth_service::JwtService::from_files(&private_pem, &public_pem, cfg.jwt.access_ttl_secs)
             .expect("gagal inisiasi JwtService"),
     );
 
-    // ── 6. AuthClient — in-process implementation ─────────────────────────────
-    // Repo auth dibuat sekali & di-share ke router auth dan AuthInProcessClient,
-    // agar status akun punya satu sumber kebenaran (lihat K2 / spec account-status-lifecycle).
+    // ── 5. AuthClient — in-process implementation ──────────────────────────────
     let auth_repo = Arc::new(auth_service::PgAuthRepository::new(pool.clone()));
     let auth_client: Arc<dyn auth_service::AuthClient> = Arc::new(
         auth_service::AuthInProcessClient::new(jwt.clone(), auth_repo.clone()),
     );
 
-    let notifier: Option<Arc<dyn notification_service::NotificationClient>> =
-        match std::env::var("REDIS_URL")
-            .ok()
-            .and_then(|u| notification_service::NotificationPublisher::new(&u).ok())
-        {
-            Some(p) => Some(Arc::new(p)),
-            None => {
-                tracing::warn!("REDIS_URL tidak diset — email OTP tidak akan dikirim");
-                None
-            }
-        };
+    let notifier: Option<Arc<dyn notification_service::NotificationClient>> = cfg
+        .redis
+        .url
+        .as_ref()
+        .and_then(|u| notification_service::NotificationPublisher::new(u).ok())
+        .map(|p| {
+            let p: Arc<dyn notification_service::NotificationClient> = Arc::new(p);
+            p
+        })
+        .or_else(|| {
+            tracing::warn!("REDIS_URL tidak diset — email OTP tidak akan dikirim");
+            None
+        });
 
     // RegionClient — implementasi in-process untuk user-service (validasi wilayah KYC).
     let region_client: Arc<dyn region_service::RegionClient> = {
@@ -101,13 +97,11 @@ async fn main() {
     };
 
     // StorageClient — in-process (MinIO/S3 via presigned URL). MinioStorage di-init
-    // dari env; bila env tidak diset, request_upload mengembalikan Unavailable.
+    // dari config; bila config kosong, request_upload mengembalikan Unavailable.
     let storage_client: Arc<dyn storage_service::StorageClient> =
         Arc::new(storage_service::StorageInProcessClient::new().await);
 
     // UserClient — in-process untuk suspend permanen → purge dokumen KYC (D4).
-    // Dibangun dari UserService yang sama dengan user-service router (satu instance,
-    // satu sumber kebenaran profil/dokumen).
     let user_client: Arc<dyn user_service::UserClient> = {
         let user_repo = Arc::new(user_service::PgUserRepository::new(pool.clone()));
         let user_svc = Arc::new(user_service::UserService::new(
@@ -120,16 +114,18 @@ async fn main() {
         Arc::new(user_service::UserInProcessClient::new(user_svc))
     };
 
-    // ── 7. Rate limiter (shared — Redis Lua atomik, fail-open) ────────────────
+    // ── 6. Rate limiter (shared — Redis Lua atomik, fail-open) ────────────────
     let rate_limiter: Option<Arc<dyn common_rate_limit::RateLimiter>> =
-        if std::env::var("REDIS_URL").is_ok() || cfg!(test) {
-            Some(Arc::new(common_rate_limit::OtpRateLimiter::from_env()))
+        if cfg.redis.url.is_some() || cfg!(test) {
+            Some(Arc::new(common_rate_limit::OtpRateLimiter::new(
+                cfg.redis.url.clone(),
+            )))
         } else {
             tracing::warn!("REDIS_URL tidak diset — rate limiter non-aktif");
             None
         };
 
-    // ── 8. Build router ───────────────────────────────────────────────────────
+    // ── 7. Build router ────────────────────────────────────────────────────────
     let api_v1 = Router::new()
         .nest(
             "/auth",
@@ -140,6 +136,8 @@ async fn main() {
                 notifier.clone(),
                 Some(storage_client.clone()),
                 Some(user_client.clone()),
+                cfg.jwt.refresh_ttl_secs,
+                cfg.redis.url.clone(),
             ),
         )
         .nest("/regions", region_service::router(pool.clone()))
@@ -235,9 +233,7 @@ async fn main() {
         .nest("/api/v1", api_v1);
 
     // ── Swagger UI — HANYA development ────────────────────────────────────────
-    // Di production rute ini TIDAK dipasang sama sekali (404), sehingga baik UI
-    // maupun dokumen `openapi.json` tidak terekspos (design D2/D6).
-    if cfg.app_env.is_development() {
+    if cfg.is_development() {
         use utoipa::OpenApi;
         use utoipa_swagger_ui::SwaggerUi;
         app = app.merge(
@@ -250,12 +246,11 @@ async fn main() {
         limiter: rate_limiter.clone(),
     };
 
-    // ── CORS — environment-aware ───────────────────────────────────
-    // Development: longgar (Any) untuk frontend lokal di port berbeda.
-    // Production: whitelist dari CORS_ALLOWED_ORIGINS + allow_credentials(true).
-    let cors = if cfg.app_env.is_production() {
+    // ── CORS — environment-aware ──────────────────────────────────────────────
+    let cors = if is_prod {
         let origins: Vec<_> = cfg
-            .cors_allowed_origins
+            .cors
+            .allowed_origins
             .iter()
             .map(|o| {
                 o.parse::<axum::http::HeaderValue>()
@@ -294,14 +289,14 @@ async fn main() {
         .layer(TraceLayer::new_for_http())
         .layer(cors);
 
-    // ── 8. Bind listener ──────────────────────────────────────────────────────
+    // ── 8. Bind listener ───────────────────────────────────────────────────────
     let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", cfg.app_port))
         .await
         .expect("gagal bind port");
 
     tracing::info!(port = cfg.app_port, "rejki-app listening");
 
-    // ── 9. Graceful shutdown — drain 30 detik setelah SIGTERM ────────────────
+    // ── 9. Graceful shutdown — drain 30 detik setelah SIGTERM ─────────────────
     let shutdown = async {
         tokio::signal::ctrl_c().await.ok();
 
@@ -318,6 +313,7 @@ async fn main() {
         tracing::info!("shutdown signal received — draining connections (30s)");
 
         // Shutdown OpenTelemetry tracer (flush spans)
+        #[cfg(feature = "otel")]
         common_tracing::shutdown_otel(_otel_handle).await;
     };
 
@@ -326,7 +322,6 @@ async fn main() {
         .await
         .expect("server error");
 
-    // Pool closes automatically when pool is dropped
     tracing::info!("rejki-app stopped");
 }
 
