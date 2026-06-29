@@ -218,6 +218,12 @@
       <div><strong>PENTING: File .env TIDAK boleh di-commit ke git</strong>
       <p>File <code>.env</code> di setiap environment dibuat manual dan diisi dengan nilai yang sesuai. Gunakan <code>.env.example</code> dari repo sebagai template.</p></div>
     </div>
+
+    <div class="callout c-info">
+      <span class="callout-icon">📋</span>
+      <div><strong>Konfigurasi dibaca oleh <code>AppConfig::load()</code></strong>
+      <p>Semua service Rust membaca konfigurasi dari satu entry point: <code>common_config::AppConfig::load()</code>. Katalog lengkap 9 sub-config domain (database, JWT, Redis, MinIO, SMTP, ClamAV, OpenTelemetry, CORS) beserta env vars, types, dan default values ada di <a href="config-standard.html" style="color:var(--blue);">Configuration Standard</a>.</p></div>
+    </div>
   </section>
 
   <!-- ════════════════════════════════════ -->
@@ -453,23 +459,28 @@ docker compose exec redis redis-cli ping
 
     <div class="code"><pre># Dev
 nano /opt/rejki/dev/.env
-# Isi minimal:
+# Isi minimal (katalog lengkap: docs/config-standard.html):
 APP_ENV=development
+DATABASE_URL=postgresql://rejki:&lt;password&gt;@rejki-postgres/rejki_dev
+DATABASE_POOL_SIZE=10
 POSTGRES_PASSWORD=&lt;sama-dengan-infra&gt;
 RUST_LOG=debug
-CORS_ALLOWED_ORIGINS=http://dev.rejki.id
+CORS_ALLOWED_ORIGINS=http://localhost:5173,http://dev.rejki.id
 TUNNEL_TOKEN=&lt;cloudflare-tunnel-token&gt;
 
 # Prod
 nano /opt/rejki/prod/.env
-# Isi minimal:
+# Isi minimal (katalog lengkap: docs/config-standard.html):
 APP_ENV=production
+DATABASE_URL=postgresql://rejki:&lt;password&gt;@rejki-postgres/rejki_prod
+DATABASE_POOL_SIZE=20
 POSTGRES_PASSWORD=&lt;sama-dengan-infra&gt;
 RUST_LOG=warn
 CORS_ALLOWED_ORIGINS=https://rejki.id,https://app.rejki.id
 TUNNEL_TOKEN=&lt;cloudflare-tunnel-token&gt;
 DATA_ENCRYPTION_KEY=&lt;base64-key&gt;  # generate: openssl rand -base64 32
-</pre></div>
+# JWT_ACCESS_TTL_SECS, JWT_REFRESH_TTL_SECS, REDIS_URL, SMTP_* —
+#   lihat katalog lengkap di docs/config-standard.html</pre></div>
 
     <h3>6.3 Deploy via GitHub Actions</h3>
     <p>Cukup push ke branch yang sesuai. Deploy otomatis berjalan:</p>
