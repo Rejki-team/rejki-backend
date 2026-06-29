@@ -2,12 +2,18 @@ schema: spec-driven
 
 # Project context (optional)
 # This is shown to AI when creating artifacts.
-# Add your tech stack, conventions, style guides, domain knowledge, etc.
-# Example:
-#   context: |
-#     Tech stack: TypeScript, React, Node.js
-#     We use conventional commits
-#     Domain: e-commerce platform
+context: |
+  Tech stack: Rust (axum, sqlx, tokio), TypeScript (Bun.js), PostgreSQL, Redis, MinIO, ClamAV
+  We use conventional commits
+  Domain: Indonesian marketplace platform (iklan + chat + corporate comms)
+  
+  ## Configuration System
+  - Centralized config via `common-config` crate: `AppConfig::load()` from env vars
+  - Uses `config` crate with `config::Environment` source (env vars → dot-path keys)
+  - `APP_ENV` auto-detection: `development` vs `production`
+  - 9 sub-config domains: cors, jwt, database, redis, minio, smtp, clamav, otel, redis
+  - Prefixed `REJKI_*` env vars override bare vars for gradual migration
+  - Fail-fast: required fields panic on startup, optional fields use defaults or `None`
 
 # Per-artifact rules (optional)
 # Add custom rules for specific artifacts.

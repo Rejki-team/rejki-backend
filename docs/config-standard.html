@@ -76,9 +76,10 @@
     <div class="nav-group">
       <div class="nav-group-label">Isi Dokumen</div>
       <a class="nav-link" href="#prinsip">Prinsip</a>
+      <a class="nav-link" href="#arch">Arsitektur Config</a>
       <a class="nav-link" href="#naming">Naming Convention</a>
-      <a class="nav-link" href="#env-per-env">Env per Environment</a>
-      <a class="nav-link" href="#katalog">Katalog Variabel</a>
+      <a class="nav-link" href="#env-per-env">Konfigurasi per Environment</a>
+      <a class="nav-link" href="#katalog">Katalog Sub-Config</a>
       <a class="nav-link" href="#failfast">Fail-Fast Validation</a>
       <a class="nav-link" href="#impl">Implementasi Rust</a>
       <a class="nav-link accent" href="#checklist">Checklist</a>
@@ -86,12 +87,13 @@
   </nav>
   <main>
     <div class="hero">
-      <div class="eyebrow">Phase 1.5 — Configuration Standard</div>
-      <h1>Configuration &amp; <em>Environment</em> Standard</h1>
-      <p>Standar penamaan environment variable, struktur file konfigurasi per environment, validasi fail-fast saat startup, dan katalog variabel wajib untuk semua service Rejki Backend.</p>
+      <div class="eyebrow">Phase 2 — Configuration Standard v2</div>
+      <h1>Centralized <em>TOML</em> Configuration Standard</h1>
+      <p>Standar konfigurasi terpusat via <code>common_config::AppConfig::load()</code> — menggantikan scattered <code>std::env::var()</code>. Satu struct, 9 sub-config, auto-deteksi environment, fail-fast pada startup.</p>
       <div class="badges">
-        <span class="badge b-ph">Phase 1.5</span>
+        <span class="badge b-ph">Phase 2</span>
         <span class="badge b-y">All Services</span>
+        <span class="badge b-y">common-config crate</span>
       </div>
     </div>
 
@@ -101,17 +103,48 @@
       <div class="callout c-ok" style="margin-bottom:.9rem;">
         <div class="callout-icon">✅</div>
         <div><strong>Dokumen ini adalah Single Source of Truth untuk konfigurasi</strong>
-          <p>Naming convention, prinsip fail-fast, dan katalog variabel wajib didefinisikan di sini. Dokumen lain yang menyebut environment variable merujuk ke standar ini: <a href="infrastructure-setup.html" style="color:var(--blue);">Infrastructure Setup</a> (konteks Docker Compose) · <a href="vps-deployment.html" style="color:var(--blue);">VPS Deployment</a> (konteks production) · <a href="bun-notification-service.html" style="color:var(--blue);">Bun.js Service</a> (konteks TypeScript).</p>
+          <p>Struktur <code>AppConfig</code>, 9 sub-config domain, naming convention env var, prinsip fail-fast — semuanya didefinisikan di sini. Implementasi ada di <code>common/config/src/</code>.</p>
         </div>
       </div>
 
       <div class="tbl-wrap"><table class="tbl"><tbody>
-        <tr><td><strong>Fail-fast on startup</strong></td><td>Jika konfigurasi wajib tidak ada atau tidak valid, service harus langsung panic saat startup — bukan saat pertama kali config dipakai di runtime. Silent misconfiguration lebih berbahaya dari crash.</td></tr>
-        <tr><td><strong>SCREAMING_SNAKE_CASE untuk semua nama</strong></td><td>Semua environment variable menggunakan format <code>SCREAMING_SNAKE_CASE</code>. Tidak ada mix case, tidak ada titik atau dash.</td></tr>
-        <tr><td><strong>Prefix service untuk var spesifik</strong></td><td>Variable yang hanya berlaku untuk satu service menggunakan prefix service. Variable shared (DB URL, JWT key) tidak perlu prefix.</td></tr>
-        <tr><td><strong>.env hanya untuk development</strong></td><td>File <code>.env</code> hanya diload di environment <code>development</code>. Staging dan production menggunakan environment variable sistem — tidak ada file <code>.env</code> di server.</td></tr>
-        <tr><td><strong>.env.example selalu sinkron</strong></td><td>Setiap kali ada variabel baru, <code>.env.example</code> wajib diupdate di commit yang sama. <code>.env.example</code> tidak boleh berisi nilai nyata — hanya placeholder.</td></tr>
+        <tr><td><strong>Single entry point</strong></td><td>Semua service memanggil <code>AppConfig::load()</code> sekali di awal <code>main.rs</code>. Tidak ada scattered <code>std::env::var()</code> di masing-masing service.</td></tr>
+        <tr><td><strong>Fail-fast on startup</strong></td><td>Field required (<code>DATABASE_URL</code>, <code>MINIO_ENDPOINT</code>, dll.) panic saat startup jika tidak diset. Optional (<code>REDIS_URL</code>, <code>SMTP_HOST</code>) menggunakan <code>Option</code> atau default.</td></tr>
+        <tr><td><strong>SCREAMING_SNAKE_CASE env vars</strong></td><td>Semua environment variable menggunakan format <code>SCREAMING_SNAKE_CASE</code>. Prefix domain: <code>DATABASE_</code>, <code>JWT_</code>, <code>REDIS_</code>, <code>MINIO_</code>, dll.</td></tr>
+        <tr><td><strong>Prefixed vars untuk migration</strong></td><td><code>REJKI_*</code> prefix menimpa bare vars — misal <code>REJKI_DATABASE_URL</code> override <code>DATABASE_URL</code>. Digunakan saat migrasi ke namespaced vars.</td></tr>
+        <tr><td><strong>Concrete types, not strings</strong></td><td>Config disimpan sebagai tipe konkret: <code>u16</code> untuk port, <code>PathBuf</code> untuk path, <code>Vec&lt;String&gt;</code> untuk list, <code>i64</code> untuk TTL.</td></tr>
+        <tr><td><strong>No hardcoded values</strong></td><td>Tidak ada konstanta yang ditulis inline di kode. Semua nilai (TTL, port, hostname) berasal dari config struct — bisa dibaca dari env var atau pakai default.</td></tr>
       </tbody></table></div>
+    </section>
+
+    <section id="arch">
+      <h2 class="sec-title"><span class="sec-icon ic-b">🏗️</span>Arsitektur Config</h2>
+
+      <p style="color:var(--muted);font-size:.85rem;margin-bottom:.8rem;">
+        <code>common-config</code> crate menyediakan satu struct <code>AppConfig</code> yang dikomposisi dari 9 sub-config domains:
+      </p>
+
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Domain</th><th>Struct</th><th>Env Prefix</th><th>Sifat</th></tr></thead>
+        <tbody>
+          <tr><td>Database</td><td><code>DatabaseConfig</code></td><td><code>DATABASE_</code></td><td>Required (<code>url</code> wajib)</td></tr>
+          <tr><td>JWT (RS256)</td><td><code>JwtConfig</code></td><td><code>JWT_</code></td><td>All with defaults</td></tr>
+          <tr><td>Redis</td><td><code>RedisConfig</code></td><td><code>REDIS_</code></td><td>Optional (fail-open)</td></tr>
+          <tr><td>MinIO / S3</td><td><code>MinioConfig</code></td><td><code>MINIO_</code></td><td>Required (<code>endpoint</code>, <code>access_key</code>, <code>secret_key</code>)</td></tr>
+          <tr><td>SMTP / Email</td><td><code>SmtpConfig</code></td><td><code>SMTP_</code></td><td>Optional (fail-open)</td></tr>
+          <tr><td>OpenTelemetry</td><td><code>OtelConfig</code></td><td><code>OTEL_</code></td><td>Optional (fail-open)</td></tr>
+          <tr><td>ClamAV</td><td><code>ClamavConfig</code></td><td><code>CLAMAV_</code></td><td>All with defaults</td></tr>
+          <tr><td>CORS</td><td><code>CorsConfig</code></td><td><code>CORS_</code></td><td>Required (non-empty list)</td></tr>
+        </tbody>
+      </table></div>
+
+      <div class="callout c-info">
+        <span class="callout-icon">ℹ️</span>
+        <div>
+          <strong>Config loading via <code>config</code> crate</strong>
+          <p><code>AppConfig::load()</code> menggunakan dua source <code>config::Environment</code>: (1) bare env vars, (2) <code>REJKI_</code>-prefixed env vars yang menimpa bare vars. Semua parsing dilakukan via <code>config-rs</code> + <code>serde</code>.</p>
+        </div>
+      </div>
     </section>
 
     <section id="naming">
@@ -119,13 +152,19 @@
       <div class="tbl-wrap"><table class="tbl">
         <thead><tr><th>Kategori</th><th>Format</th><th>Contoh Benar</th><th>Contoh Salah</th></tr></thead>
         <tbody>
-          <tr><td>Database URL</td><td><code>DATABASE_URL</code></td><td><code>DATABASE_URL=postgresql://...</code></td><td><code>DB_URL</code>, <code>database_url</code></td></tr>
+          <tr><td>Database URL</td><td><code>DATABASE_URL</code></td><td><code>DATABASE_URL=postgresql://...</code></td><td><code>DB_URL</code>, <code>DATABASE_CONNECTION</code></td></tr>
+          <tr><td>Database pool size</td><td><code>DATABASE_POOL_SIZE</code></td><td><code>DATABASE_POOL_SIZE=20</code></td><td><code>POOL_SIZE</code>, <code>DB_POOL_SIZE</code></td></tr>
           <tr><td>Port aplikasi</td><td><code>APP_PORT</code></td><td><code>APP_PORT=8080</code></td><td><code>PORT</code>, <code>app_port</code></td></tr>
-          <tr><td>Environment saat ini</td><td><code>APP_ENV</code></td><td><code>APP_ENV=production</code></td><td><code>ENV</code>, <code>NODE_ENV</code>, <code>RUST_ENV</code></td></tr>
-          <tr><td>Path ke file</td><td><code>{NAMA}_PATH</code></td><td><code>JWT_PRIVATE_KEY_PATH</code></td><td><code>PRIVATE_KEY</code>, <code>JWT_KEY_FILE</code></td></tr>
-          <tr><td>Timeout (detik)</td><td><code>{NAMA}_TIMEOUT_SECS</code></td><td><code>DB_CONNECT_TIMEOUT_SECS</code></td><td><code>TIMEOUT</code>, <code>DB_TIMEOUT_MS</code></td></tr>
-          <tr><td>Variable service-spesifik</td><td><code>{SERVICE}_{NAMA}</code></td><td><code>CHAT_MAX_MESSAGE_LENGTH</code></td><td><code>MAX_MESSAGE_LENGTH</code></td></tr>
-          <tr><td>Credential eksternal</td><td><code>{PROVIDER}_{KEY_TYPE}</code></td><td><code>FCM_SERVER_KEY</code>, <code>SMTP_PASSWORD</code></td><td><code>FIREBASE_KEY</code>, <code>MAIL_PASS</code></td></tr>
+          <tr><td>Environment</td><td><code>APP_ENV</code></td><td><code>APP_ENV=production</code></td><td><code>ENV</code>, <code>NODE_ENV</code>, <code>RUST_ENV</code></td></tr>
+          <tr><td>JWT key path</td><td><code>JWT_{TYPE}_KEY_PATH</code></td><td><code>JWT_PRIVATE_KEY_PATH</code></td><td><code>PRIVATE_KEY</code>, <code>JWT_KEY_FILE</code></td></tr>
+          <tr><td>JWT TTL (detik)</td><td><code>JWT_{TYPE}_TTL_SECS</code></td><td><code>JWT_ACCESS_TTL_SECS</code></td><td><code>JWT_EXPIRY</code>, <code>ACCESS_TOKEN_MINUTES</code></td></tr>
+          <tr><td>Redis</td><td><code>REDIS_URL</code></td><td><code>REDIS_URL=redis://redis:6379</code></td><td><code>REDIS_HOST</code> + <code>REDIS_PORT</code></td></tr>
+          <tr><td>MinIO</td><td><code>MINIO_{FIELD}</code></td><td><code>MINIO_ENDPOINT</code></td><td><code>S3_ENDPOINT</code>, <code>STORAGE_URL</code></td></tr>
+          <tr><td>SMTP</td><td><code>SMTP_{FIELD}</code></td><td><code>SMTP_HOST</code>, <code>SMTP_PASS</code></td><td><code>MAIL_HOST</code>, <code>SENDGRID_KEY</code></td></tr>
+          <tr><td>OpenTelemetry</td><td><code>OTEL_{FIELD}</code></td><td><code>OTEL_EXPORTER_OTLP_ENDPOINT</code></td><td><code>OTLP_ENDPOINT</code></td></tr>
+          <tr><td>ClamAV</td><td><code>CLAMAV_{FIELD}</code></td><td><code>CLAMAV_HOST</code></td><td><code>ANTIVIRUS_HOST</code></td></tr>
+          <tr><td>CORS</td><td><code>CORS_{FIELD}</code></td><td><code>CORS_ALLOWED_ORIGINS</code></td><td><code>ALLOWED_HOSTS</code></td></tr>
+          <tr><td>Prefixed override</td><td><code>REJKI_{VAR}</code></td><td><code>REJKI_DATABASE_URL</code></td><td><code>REJKI-DB-URL</code></td></tr>
         </tbody>
       </table></div>
     </section>
@@ -133,91 +172,157 @@
     <section id="env-per-env">
       <h2 class="sec-title"><span class="sec-icon ic-b">🗂️</span>Konfigurasi per Environment</h2>
       <div class="tbl-wrap"><table class="tbl">
-        <thead><tr><th>File</th><th>Di-commit?</th><th>Digunakan saat</th><th>Isi</th></tr></thead>
+        <thead><tr><th>File / Source</th><th>Di-commit?</th><th>Digunakan saat</th><th>Isi</th></tr></thead>
         <tbody>
           <tr><td><code>.env.example</code></td><td>Ya — wajib commit</td><td>Referensi developer baru</td><td>Semua key dengan placeholder value. Contoh: <code>DATABASE_URL=postgresql://user:pass@localhost/rejki_dev</code></td></tr>
-          <tr><td><code>.env</code></td><td>Tidak — ada di .gitignore</td><td>Development lokal</td><td>Value nyata untuk lokal. Dibuat developer sendiri dari <code>.env.example</code>.</td></tr>
-          <tr><td><code>.env.test</code></td><td>Tidak — ada di .gitignore</td><td><code>cargo test</code></td><td>Test database URL, test JWT key path, <code>APP_ENV=test</code>.</td></tr>
+          <tr><td><code>.env</code></td><td>Tidak — ada di .gitignore</td><td>Development lokal</td><td>Value nyata untuk lokal. Dibaca oleh <code>dotenvy::dotenv().ok()</code> di awal <code>AppConfig::load()</code>.</td></tr>
+          <tr><td><code>.env.test</code></td><td>Tidak — ada di .gitignore</td><td><code>cargo test</code></td><td>Test database URL, test JWT key path.</td></tr>
           <tr><td>GitHub Secrets</td><td>Tidak — tersimpan di GitHub</td><td>CI/CD pipeline</td><td>Credential staging & production. Diload ke env var oleh GitHub Actions.</td></tr>
           <tr><td>Server env vars</td><td>Tidak — dikonfigurasi di server</td><td>Production runtime</td><td>Diset di Docker Compose, systemd unit, atau platform config. Tidak ada file <code>.env</code> di server.</td></tr>
         </tbody>
       </table></div>
 
-      <div class="callout c-danger">
-        <span class="callout-icon">🚫</span>
+      <div class="sub-title">Flow loading config</div>
+      <div class="code"><pre><span class="cc">// AppConfig::load() flow:</span>
+<span class="cc">// 1. Load .env file (development only, silent fail jika tidak ada)</span>
+dotenvy::<span class="cfn">dotenv</span>().<span class="cfn">ok</span>();
+
+<span class="cc">// 2. Build config dari dua sumber env vars</span>
+<span class="ck">let</span> s = config::Config::<span class="cfn">builder</span>()
+    .<span class="cfn">add_source</span>(config::Environment::<span class="cfn">default</span>()           <span class="cc">// bare vars: DATABASE_URL, REDIS_URL...</span>
+        .<span class="cfn">try_parsing</span>(<span class="cv">true</span>))
+    .<span class="cfn">add_source</span>(config::Environment::<span class="cfn">with_prefix</span>(<span class="cs">"REJKI"</span>)  <span class="cc">// prefixed: REJKI_DATABASE_URL, dll.</span>
+        .<span class="cfn">separator</span>(<span class="cs">"_"</span>)
+        .<span class="cfn">try_parsing</span>(<span class="cv">true</span>))
+    .<span class="cfn">build</span>()
+    .<span class="cfn">expect</span>(<span class="cs">"gagal build konfigurasi dari environment"</span>);
+
+<span class="cc">// 3. Extract + validate setiap field</span>
+<span class="ck">let</span> db_url: <span class="ct">String</span> = s.<span class="cfn">get</span>(<span class="cs">"database_url"</span>).<span class="cfn">expect</span>(<span class="cs">"DATABASE_URL tidak di-set"</span>);</pre></div>
+    </section>
+
+    <section id="katalog">
+      <h2 class="sec-title"><span class="sec-icon ic-o">📋</span>Katalog Sub-Config</h2>
+      <p style="color:var(--muted);font-size:.85rem;margin-bottom:.8rem;">
+        Setiap sub-config memiliki env var prefix sendiri. Field dengan <code>Option::None</code> atau default tidak menghalangi startup — hanya field explicitly <code>.expect()</code> yang wajib.
+      </p>
+
+      <div class="sub-title">DatabaseConfig</div>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Env Var</th><th>Field</th><th>Tipe</th><th>Required</th><th>Default</th></tr></thead>
+        <tbody>
+          <tr><td><code>DATABASE_URL</code></td><td><code>url</code></td><td><code>String</code></td><td>✅</td><td>—</td></tr>
+          <tr><td><code>DATABASE_POOL_SIZE</code></td><td><code>pool_size</code></td><td><code>u32</code></td><td>❌</td><td><code>10</code></td></tr>
+        </tbody>
+      </table></div>
+
+      <div class="sub-title">JwtConfig</div>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Env Var</th><th>Field</th><th>Tipe</th><th>Required</th><th>Default</th></tr></thead>
+        <tbody>
+          <tr><td><code>JWT_PRIVATE_KEY_PATH</code></td><td><code>private_key_path</code></td><td><code>PathBuf</code></td><td>❌</td><td><code>./keys/private.pem</code></td></tr>
+          <tr><td><code>JWT_PUBLIC_KEY_PATH</code></td><td><code>public_key_path</code></td><td><code>PathBuf</code></td><td>❌</td><td><code>./keys/public.pem</code></td></tr>
+          <tr><td><code>JWT_ACCESS_TTL_SECS</code></td><td><code>access_ttl_secs</code></td><td><code>i64</code></td><td>❌</td><td><code>900</code> (15 menit)</td></tr>
+          <tr><td><code>JWT_REFRESH_TTL_SECS</code></td><td><code>refresh_ttl_secs</code></td><td><code>i64</code></td><td>❌</td><td><code>2_592_000</code> (30 hari)</td></tr>
+        </tbody>
+      </table></div>
+
+      <div class="sub-title">RedisConfig</div>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Env Var</th><th>Field</th><th>Tipe</th><th>Required</th><th>Default</th></tr></thead>
+        <tbody>
+          <tr><td><code>REDIS_URL</code></td><td><code>url</code></td><td><code>Option&lt;String&gt;</code></td><td>❌</td><td><code>None</code> (rate limiter disabled)</td></tr>
+        </tbody>
+      </table></div>
+
+      <div class="sub-title">MinioConfig</div>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Env Var</th><th>Field</th><th>Tipe</th><th>Required</th><th>Default</th></tr></thead>
+        <tbody>
+          <tr><td><code>MINIO_ENDPOINT</code></td><td><code>endpoint</code></td><td><code>String</code></td><td>✅</td><td>—</td></tr>
+          <tr><td><code>MINIO_ACCESS_KEY</code></td><td><code>access_key</code></td><td><code>String</code></td><td>✅</td><td>—</td></tr>
+          <tr><td><code>MINIO_SECRET_KEY</code></td><td><code>secret_key</code></td><td><code>String</code></td><td>✅</td><td>—</td></tr>
+          <tr><td><code>MINIO_BUCKET</code></td><td><code>bucket</code></td><td><code>String</code></td><td>❌</td><td><code>rejki-dokumen</code></td></tr>
+          <tr><td><code>MINIO_BACKUP_BUCKET</code></td><td><code>backup_bucket</code></td><td><code>Option&lt;String&gt;</code></td><td>❌</td><td><code>None</code></td></tr>
+        </tbody>
+      </table></div>
+
+      <div class="sub-title">SmtpConfig</div>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Env Var</th><th>Field</th><th>Tipe</th><th>Required</th><th>Default</th></tr></thead>
+        <tbody>
+          <tr><td><code>SMTP_HOST</code></td><td><code>host</code></td><td><code>Option&lt;String&gt;</code></td><td>❌</td><td><code>None</code> (email disabled)</td></tr>
+          <tr><td><code>SMTP_PORT</code></td><td><code>port</code></td><td><code>u16</code></td><td>❌</td><td><code>587</code></td></tr>
+          <tr><td><code>SMTP_USER</code></td><td><code>user</code></td><td><code>Option&lt;String&gt;</code></td><td>❌</td><td><code>None</code></td></tr>
+          <tr><td><code>SMTP_PASS</code></td><td><code>pass</code></td><td><code>Option&lt;String&gt;</code></td><td>❌</td><td><code>None</code></td></tr>
+          <tr><td><code>SMTP_EMAIL_FROM</code></td><td><code>email_from</code></td><td><code>Option&lt;String&gt;</code></td><td>❌</td><td><code>None</code></td></tr>
+        </tbody>
+      </table></div>
+
+      <div class="sub-title">OtelConfig</div>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Env Var</th><th>Field</th><th>Tipe</th><th>Required</th><th>Default</th></tr></thead>
+        <tbody>
+          <tr><td><code>OTEL_EXPORTER_OTLP_ENDPOINT</code></td><td><code>exporter_otlp_endpoint</code></td><td><code>Option&lt;String&gt;</code></td><td>❌</td><td><code>None</code> (OTEL disabled)</td></tr>
+          <tr><td><code>OTEL_EXPORTER_OTLP_HEADERS</code></td><td><code>exporter_otlp_headers</code></td><td><code>Option&lt;String&gt;</code></td><td>❌</td><td><code>None</code></td></tr>
+          <tr><td><code>OTEL_SERVICE_NAME</code></td><td><code>service_name</code></td><td><code>String</code></td><td>❌</td><td><code>rejki-backend</code></td></tr>
+        </tbody>
+      </table></div>
+
+      <div class="sub-title">ClamavConfig</div>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Env Var</th><th>Field</th><th>Tipe</th><th>Required</th><th>Default</th></tr></thead>
+        <tbody>
+          <tr><td><code>CLAMAV_HOST</code></td><td><code>host</code></td><td><code>String</code></td><td>❌</td><td><code>clamav-daemon</code></td></tr>
+          <tr><td><code>CLAMAV_PORT</code></td><td><code>port</code></td><td><code>u16</code></td><td>❌</td><td><code>3310</code></td></tr>
+        </tbody>
+      </table></div>
+
+      <div class="sub-title">CorsConfig</div>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Env Var</th><th>Field</th><th>Tipe</th><th>Required</th><th>Default</th></tr></thead>
+        <tbody>
+          <tr><td><code>CORS_ALLOWED_ORIGINS</code></td><td><code>allowed_origins</code></td><td style="color:var(--green);"><code>Vec&lt;String&gt;</code></td><td>✅</td><td>—</td></tr>
+        </tbody>
+      </table></div>
+
+      <div class="callout c-info">
+        <span class="callout-icon">💡</span>
         <div>
-          <strong>Tidak ada nilai nyata di .env.example</strong>
-          <p>Placeholder seperti <code>your_jwt_secret_here</code> atau <code>postgresql://user:pass@localhost</code> boleh ada. Nilai nyata (password asli, API key asli) tidak boleh masuk ke file yang di-commit, termasuk <code>.env.example</code>.</p>
+          <strong>CORS_ALLOWED_ORIGINS adalah comma-separated</strong>
+          <p>Diparse dari string ke <code>Vec&lt;String&gt;</code> saat <code>AppConfig::load()</code>. Contoh: <code>CORS_ALLOWED_ORIGINS=https://rejki.id,https://app.rejki.id</code> → <code>["https://rejki.id", "https://app.rejki.id"]</code>.</p>
         </div>
       </div>
     </section>
 
-    <section id="katalog">
-      <h2 class="sec-title"><span class="sec-icon ic-o">📋</span>Katalog Variabel Wajib</h2>
-      <p style="color:var(--muted);font-size:.85rem;margin-bottom:.8rem;">Variabel-variabel ini wajib ada di semua environment. Startup akan panic jika tidak ada.</p>
-
-      <div class="sub-title">Shared (semua service)</div>
-      <div class="tbl-wrap"><table class="tbl">
-        <thead><tr><th>Variable</th><th>Tipe</th><th>Contoh</th><th>Keterangan</th></tr></thead>
-        <tbody>
-          <tr><td><code>APP_ENV</code></td><td>string</td><td><code>development</code></td><td>Nilai valid: <code>development</code>, <code>test</code>, <code>staging</code>, <code>production</code>. Menentukan log format, CORS policy, dsb.</td></tr>
-          <tr><td><code>APP_PORT</code></td><td>u16</td><td><code>8080</code></td><td>Port yang didengarkan service. Default: <code>8080</code> jika tidak di-set (satu-satunya variabel dengan fallback).</td></tr>
-          <tr><td><code>DATABASE_URL</code></td><td>string URL</td><td><code>postgresql://rejki:pass@localhost/rejki_dev</code></td><td>PostgreSQL connection string. Wajib valid, koneksi dicek saat startup.</td></tr>
-	          <tr><td><code>CORS_ALLOWED_ORIGINS</code></td><td>string (comma-separated)</td><td><code>https://rejki.id,https://app.rejki.id</code></td><td>Daftar origin CORS yang diizinkan di production. Default: <code>https://rejki.id,https://app.rejki.id</code>. Development selalu <code>allow_origin(Any)</code>.</td></tr>
-        </tbody>
-      </table></div>
-
-      <div class="sub-title">auth-service</div>
-      <div class="tbl-wrap"><table class="tbl">
-        <thead><tr><th>Variable</th><th>Tipe</th><th>Contoh</th><th>Keterangan</th></tr></thead>
-        <tbody>
-          <tr><td><code>JWT_PRIVATE_KEY_PATH</code></td><td>path</td><td><code>./keys/private.pem</code></td><td>Path ke RSA private key PEM. File harus ada dan bisa dibaca saat startup.</td></tr>
-          <tr><td><code>JWT_PUBLIC_KEY_PATH</code></td><td>path</td><td><code>./keys/public.pem</code></td><td>Path ke RSA public key PEM.</td></tr>
-          <tr><td><code>JWT_ACCESS_TTL_SECS</code></td><td>u64</td><td><code>900</code></td><td>Umur access token dalam detik. Default: 900 (15 menit).</td></tr>
-          <tr><td><code>JWT_REFRESH_TTL_SECS</code></td><td>u64</td><td><code>2592000</code></td><td>Umur refresh token dalam detik. Default: 2592000 (30 hari).</td></tr>
-        </tbody>
-      </table></div>
-
-      <div class="sub-title">notification-service</div>
-      <div class="tbl-wrap"><table class="tbl">
-        <thead><tr><th>Variable</th><th>Tipe</th><th>Keterangan</th></tr></thead>
-        <tbody>
-          <tr><td><code>FCM_SERVER_KEY</code></td><td>string</td><td>Firebase Cloud Messaging server key untuk push notification Android/iOS.</td></tr>
-          <tr><td><code>SMTP_HOST</code></td><td>string</td><td>SMTP server hostname untuk pengiriman email.</td></tr>
-          <tr><td><code>SMTP_PORT</code></td><td>u16</td><td>SMTP port. Biasanya 587 (STARTTLS) atau 465 (SSL).</td></tr>
-          <tr><td><code>SMTP_USERNAME</code></td><td>string</td><td>SMTP username/email pengirim.</td></tr>
-          <tr><td><code>SMTP_PASSWORD</code></td><td>string</td><td>SMTP password. Gunakan app password jika provider Gmail.</td></tr>
-          <tr><td><code>EMAIL_FROM_ADDRESS</code></td><td>string</td><td>Alamat email pengirim. Contoh: <code>noreply@rejki.id</code></td></tr>
-        </tbody>
-      </table></div>
-
-      <div class="sub-title">File storage (service yang handle upload)</div>
-      <div class="tbl-wrap"><table class="tbl">
-        <thead><tr><th>Variable</th><th>Keterangan</th></tr></thead>
-        <tbody>
-          <tr><td><code>R2_ACCOUNT_ID</code></td><td>Cloudflare R2 Account ID.</td></tr>
-          <tr><td><code>R2_ACCESS_KEY_ID</code></td><td>R2 Access Key ID untuk generate presigned URL.</td></tr>
-          <tr><td><code>R2_SECRET_ACCESS_KEY</code></td><td>R2 Secret Access Key. Jangan log, jangan expose.</td></tr>
-          <tr><td><code>R2_BUCKET_NAME</code></td><td>Nama bucket R2.</td></tr>
-          <tr><td><code>R2_PUBLIC_URL</code></td><td>Base URL publik bucket. Contoh: <code>https://cdn.rejki.id</code></td></tr>
-        </tbody>
-      </table></div>
-    </section>
-
     <section id="failfast">
       <h2 class="sec-title"><span class="sec-icon ic-o">💥</span>Fail-Fast Validation</h2>
-      <p style="color:var(--muted);font-size:.85rem;margin-bottom:.8rem;">Semua validasi config dilakukan di <code>main.rs</code> sebelum server mulai menerima request.</p>
+      <p style="color:var(--muted);font-size:.85rem;margin-bottom:.8rem;">Semua validasi config dilakukan di <code>AppConfig::load()</code> sebelum server mulai menerima request.</p>
 
       <div class="tbl-wrap"><table class="tbl">
-        <thead><tr><th>Jenis Validasi</th><th>Cara</th><th>Contoh Error</th></tr></thead>
+        <thead><tr><th>Jenis Validasi</th><th>Implementasi</th><th>Contoh Error</th></tr></thead>
         <tbody>
-          <tr><td>Variabel wajib tidak ada</td><td><code>env::var("KEY").expect("KEY tidak di-set")</code></td><td><code>thread 'main' panicked: APP_ENV tidak di-set</code></td></tr>
-          <tr><td>Nilai tidak valid</td><td>Parse ke tipe yang benar, panic jika gagal</td><td><code>APP_PORT=abc → panicked: invalid port: abc</code></td></tr>
-          <tr><td>File tidak ditemukan</td><td><code>fs::read_to_string(path).expect("JWT_PRIVATE_KEY_PATH tidak dapat dibaca")</code></td><td><code>panicked: JWT_PRIVATE_KEY_PATH tidak dapat dibaca: No such file</code></td></tr>
-          <tr><td>DB tidak bisa dikoneksi</td><td><code>PgPool::connect(&url).await.expect("gagal connect ke DB")</code></td><td><code>panicked: gagal connect ke DB: connection refused</code></td></tr>
-          <tr><td>Nilai enum tidak valid</td><td>Match <code>APP_ENV</code> ke enum, panic jika tidak dikenal</td><td><code>panicked: APP_ENV tidak valid: 'prod' (harus: development/test/staging/production)</code></td></tr>
+          <tr><td>Required field tidak ada</td><td><code>s.get("key").expect("KEY tidak di-set")</code></td><td><code>panicked: DATABASE_URL tidak di-set</code></td></tr>
+          <tr><td>Config source build gagal</td><td><code>.build().expect("gagal build konfigurasi")</code></td><td><code>panicked: gagal build konfigurasi dari environment</code></td></tr>
+          <tr><td>CORS kosong</td><td><code>assert!(!cors_allowed_origins.is_empty())</code></td><td><code>panicked: CORS_ALLOWED_ORIGINS tidak boleh kosong</code></td></tr>
+          <tr><td>APP_ENV tidak valid</td><td><code>load_app_env()</code> panic pada nilai tidak dikenal</td><td><code>panicked: APP_ENV tidak valid: 'staging' (harus development/production)</code></td></tr>
         </tbody>
       </table></div>
+
+      <div class="sub-title">Fail-Open Pattern</div>
+      <div class="code"><pre><span class="cc">// Optional services menggunakan .ok() = None jika tidak di-set</span>
+<span class="cc">// Service menangani None dengan graceful degradation</span>
+<span class="ck">redis</span>: <span class="ct">RedisConfig</span> {
+    url: s.<span class="cfn">get</span>(<span class="cs">"redis_url"</span>).<span class="cfn">ok</span>(),  <span class="cc">// None → rate limiter disabled, log warning</span>
+},
+
+<span class="ck">smtp</span>: <span class="ct">SmtpConfig</span> {
+    host: s.<span class="cfn">get</span>(<span class="cs">"smtp_host"</span>).<span class="cfn">ok</span>(),  <span class="cc">// None → email notifikasi disabled, log warning</span>
+},
+
+<span class="ck">otel</span>: <span class="ct">OtelConfig</span> {
+    exporter_otlp_endpoint: s.<span class="cfn">get</span>(<span class="cs">"otel_exporter_otlp_endpoint"</span>).<span class="cfn">ok</span>(), <span class="cc">// None → standard tracing only</span>
+},</pre></div>
 
       <div class="callout c-ok">
         <span class="callout-icon">✅</span>
@@ -230,69 +335,135 @@
 
     <section id="impl">
       <h2 class="sec-title"><span class="sec-icon ic-b">⚙️</span>Implementasi Rust</h2>
-      <div class="code"><pre><span class="cc">// common/config/src/lib.rs — struct konfigurasi yang di-share</span>
-<span class="ck">pub struct</span> <span class="ct">AppConfig</span> {
-  <span class="ck">pub</span> env:      <span class="ct">AppEnv</span>,
-  <span class="ck">pub</span> port:     <span class="ct">u16</span>,
-  <span class="ck">pub</span> db_url:   <span class="ct">String</span>,
-}
 
-#[<span class="cfn">derive</span>(<span class="ct">Debug</span>, <span class="ct">Clone</span>, <span class="ct">PartialEq</span>)]
-<span class="ck">pub enum</span> <span class="ct">AppEnv</span> {
-  Development, Test, Staging, Production,
+      <div class="sub-title">common/config/src/lib.rs — Config loading</div>
+      <div class="code"><pre><span class="cc">// common/config/src/lib.rs — single source of truth untuk semua konfigurasi</span>
+<span class="ck">pub struct</span> <span class="ct">AppConfig</span> {
+    <span class="ck">pub</span> app_env:  <span class="ct">AppEnv</span>,
+    <span class="ck">pub</span> app_port: <span class="ct">u16</span>,
+
+    <span class="cc">// Sub-config — setiap domain punya struct sendiri</span>
+    <span class="ck">pub</span> database: <span class="ct">DatabaseConfig</span>,
+    <span class="ck">pub</span> jwt:      <span class="ct">JwtConfig</span>,
+    <span class="ck">pub</span> redis:    <span class="ct">RedisConfig</span>,
+    <span class="ck">pub</span> minio:    <span class="ct">MinioConfig</span>,
+    <span class="ck">pub</span> smtp:     <span class="ct">SmtpConfig</span>,
+    <span class="ck">pub</span> otel:     <span class="ct">OtelConfig</span>,
+    <span class="ck">pub</span> clamav:   <span class="ct">ClamavConfig</span>,
+    <span class="ck">pub</span> cors:     <span class="ct">CorsConfig</span>,
 }
 
 <span class="ck">impl</span> <span class="ct">AppConfig</span> {
-  <span class="ck">pub fn</span> <span class="cfn">from_env</span>() -&gt; <span class="ct">Self</span> {
-    <span class="ck">let</span> env_str = std::env::<span class="cfn">var</span>(<span class="cs">"APP_ENV"</span>).<span class="cfn">expect</span>(<span class="cs">"APP_ENV tidak di-set"</span>);
-    <span class="ck">let</span> env = <span class="ck">match</span> env_str.<span class="cfn">as_str</span>() {
-      <span class="cs">"development"</span> => <span class="ct">AppEnv</span>::<span class="cv">Development</span>,
-      <span class="cs">"test"</span>        => <span class="ct">AppEnv</span>::<span class="cv">Test</span>,
-      <span class="cs">"staging"</span>     => <span class="ct">AppEnv</span>::<span class="cv">Staging</span>,
-      <span class="cs">"production"</span>  => <span class="ct">AppEnv</span>::<span class="cv">Production</span>,
-      other => <span class="cfn">panic!</span>(<span class="cs">"APP_ENV tidak valid: '{other}' (harus: development/test/staging/production)"</span>),
-    };
-    <span class="ct">Self</span> {
-      env,
-      port:   std::env::<span class="cfn">var</span>(<span class="cs">"APP_PORT"</span>).<span class="cfn">unwrap_or</span>(<span class="cs">"8080"</span>.<span class="cfn">into</span>())
-                .<span class="cfn">parse</span>().<span class="cfn">expect</span>(<span class="cs">"APP_PORT harus berupa angka valid (0-65535)"</span>),
-      db_url: std::env::<span class="cfn">var</span>(<span class="cs">"DATABASE_URL"</span>).<span class="cfn">expect</span>(<span class="cs">"DATABASE_URL tidak di-set"</span>),
-    }
-  }
-}
+    <span class="ck">pub fn</span> <span class="cfn">load</span>() -&gt; <span class="ct">Self</span> {
+        dotenvy::<span class="cfn">dotenv</span>().<span class="cfn">ok</span>();
 
-<span class="cc">// rejki-app/src/main.rs</span>
+        <span class="ck">let</span> s = config::Config::<span class="cfn">builder</span>()
+            .<span class="cfn">add_source</span>(config::Environment::<span class="cfn">default</span>().<span class="cfn">try_parsing</span>(<span class="cv">true</span>))
+            .<span class="cfn">add_source</span>(config::Environment::<span class="cfn">with_prefix</span>(<span class="cs">"REJKI"</span>).<span class="cfn">separator</span>(<span class="cs">"_"</span>).<span class="cfn">try_parsing</span>(<span class="cv">true</span>))
+            .<span class="cfn">build</span>()
+            .<span class="cfn">expect</span>(<span class="cs">"gagal build konfigurasi dari environment"</span>);
+
+        <span class="cc">// APP_ENV: development atau production</span>
+        <span class="ck">let</span> app_env_raw: <span class="ct">String</span> = s.<span class="cfn">get</span>(<span class="cs">"app_env"</span>).<span class="cfn">unwrap_or_else</span>(|_| <span class="cs">"development"</span>.<span class="cfn">into</span>());
+        <span class="ck">let</span> app_env = <span class="ck">match</span> app_env_raw.<span class="cfn">to_lowercase</span>().<span class="cfn">as_str</span>() {
+            <span class="cs">"production"</span> => <span class="ct">AppEnv</span>::<span class="cv">Production</span>,
+            _ => <span class="ct">AppEnv</span>::<span class="cv">Development</span>,
+        };
+
+        <span class="cfn">Self</span> {
+            app_env,
+            app_port: s.<span class="cfn">get</span>(<span class="cs">"app_port"</span>).<span class="cfn">unwrap_or</span>(<span class="cv">8080</span>u16),
+
+            database: <span class="ct">DatabaseConfig</span> {
+                url:       s.<span class="cfn">get</span>(<span class="cs">"database_url"</span>).<span class="cfn">expect</span>(<span class="cs">"DATABASE_URL tidak di-set"</span>),
+                pool_size: s.<span class="cfn">get</span>(<span class="cs">"database_pool_size"</span>).<span class="cfn">unwrap_or</span>(<span class="cv">10</span>u32),
+            },
+            jwt: <span class="ct">JwtConfig</span> { <span class="cc">/* ... */</span> },
+            <span class="cc">// ... 7 sub-config lainnya</span>
+        }
+    }
+}</pre></div>
+
+      <div class="sub-title">Service main.rs — Usage pattern</div>
+      <div class="code"><pre><span class="cc">// rejki-app/src/main.rs</span>
 #[tokio::main]
 <span class="ck">async fn</span> <span class="cfn">main</span>() {
-  <span class="cc">// Load .env HANYA di development</span>
-  <span class="ck">if</span> std::env::<span class="cfn">var</span>(<span class="cs">"APP_ENV"</span>).<span class="cfn">unwrap_or_default</span>() == <span class="cs">"development"</span> {
-    dotenvy::<span class="cfn">dotenv</span>().<span class="cfn">ok</span>();   <span class="cc">// ok() = tidak panic jika .env tidak ada</span>
-  }
-  <span class="ck">let</span> config = <span class="ct">AppConfig</span>::<span class="cfn">from_env</span>();    <span class="cc">// ← panic disini jika config tidak valid</span>
-  common_tracing::<span class="cfn">init_tracing</span>(&amp;config.env);
-  <span class="cc">// ... rest of main</span>
+    <span class="cc">// 1. Load semua konfigurasi — panic disini jika ada yang tidak valid</span>
+    <span class="ck">let</span> cfg = common_config::<span class="ct">AppConfig</span>::<span class="cfn">load</span>();
+    <span class="ck">let</span> is_prod = cfg.<span class="cfn">is_production</span>();
+
+    <span class="cc">// 2. Init tracing — OTEL endpoint dari config</span>
+    common_tracing::<span class="cfn">init_tracing</span>(&amp;cfg.otel, is_prod);
+
+    <span class="cc">// 3. Init database — URL dari config</span>
+    <span class="ck">let</span> pool = sqlx::PgPool::<span class="cfn">connect</span>(&amp;cfg.database.url).<span class="cfn">await</span>
+        .<span class="cfn">expect</span>(<span class="cs">"gagal connect ke DB"</span>);
+
+    <span class="cc">// 4. Init JWT — key path + TTL dari config</span>
+    <span class="ck">let</span> (private_pem, public_pem) = cfg.jwt.<span class="cfn">load_keys</span>()
+        .<span class="cfn">expect</span>(<span class="cs">"gagal load JWT keys"</span>);
+    <span class="ck">let</span> jwt = Arc::<span class="cfn">new</span>(JwtService::<span class="cfn">from_keys</span>(
+        &amp;private_pem, &amp;public_pem,
+        cfg.jwt.access_ttl_secs, cfg.jwt.refresh_ttl_secs,
+    ));
+
+    <span class="cc">// 5. Rate limiter — Redis URL optional</span>
+    <span class="ck">let</span> limiter = common_rate_limit::<span class="ct">OtpRateLimiter</span>::<span class="cfn">new</span>(cfg.redis.url);
+
+    <span class="cc">// 6. CORS — origins dari config</span>
+    <span class="cc">// TIDAK lagi: std::env::var("CORS_ALLOWED_ORIGINS").unwrap_or(...)</span>
+    <span class="ck">let</span> cors = build_cors_layer(&amp;cfg.cors, is_prod);
+
+    <span class="cc">// 7. Start server — port dari config</span>
+    <span class="ck">let</span> listener = tokio::net::TcpListener::<span class="cfn">bind</span>(
+        <span class="cfn">format!</span>(<span class="cs">"0.0.0.0:{}"</span>, cfg.app_port)
+    ).<span class="cfn">await</span>.<span class="cfn">unwrap</span>();
+}</pre></div>
+
+      <div class="sub-title">Storage service — from_config() pattern</div>
+      <div class="code"><pre><span class="cc">// storage-service/src/infrastructure/minio.rs</span>
+<span class="ck">impl</span> <span class="ct">MinioStorage</span> {
+    <span class="cc">/// Buat dari centralized config (preferred)</span>
+    <span class="ck">pub async fn</span> <span class="cfn">from_config</span>(config: &amp;<span class="ct">MinioConfig</span>) -&gt; <span class="ct">Option</span>&lt;<span class="ct">Self</span>&gt; {
+        <span class="ck">let</span> credentials = Credentials::<span class="cfn">new</span>(
+            &amp;config.access_key, &amp;config.secret_key, <span class="cv">None</span>, <span class="cv">None</span>, <span class="cs">"minio"</span>
+        );
+        <span class="cc">// ... build S3 client dari config fields</span>
+    }
+}
+
+<span class="cc">// storage-service/src/main.rs</span>
+<span class="ck">let</span> cfg = common_config::<span class="ct">AppConfig</span>::<span class="cfn">load</span>();
+<span class="ck">if let</span> <span class="cfn">Some</span>(worker) = <span class="ct">ScanWorker</span>::<span class="cfn">from_config</span>(
+    &amp;cfg.minio, &amp;cfg.clamav, &amp;cfg.redis.url, shutdown_rx,
+).<span class="cfn">await</span> {
+    tokio::<span class="cfn">spawn</span>(<span class="ck">async move</span> { worker.<span class="cfn">run</span>().<span class="cfn">await</span> });
 }</pre></div>
     </section>
 
     <section id="checklist">
       <h2 class="sec-title"><span class="sec-icon ic-g">✅</span>Checklist</h2>
       <div class="tbl-wrap"><table class="tbl">
-        <thead><tr><th>Item</th><th>Lokasi</th></tr></thead>
+        <thead><tr><th>#</th><th>Item</th><th>Lokasi</th></tr></thead>
         <tbody>
-          <tr><td>Struct <code>AppConfig</code> + enum <code>AppEnv</code> dengan <code>from_env()</code> yang validasi semua variabel wajib</td><td><code>common/config/src/lib.rs</code></td></tr>
-          <tr><td><code>.env</code> hanya diload jika <code>APP_ENV=development</code> — tidak pernah di staging/production</td><td><code>rejki-app/src/main.rs</code></td></tr>
-          <tr><td><code>.env.example</code> berisi semua variabel dengan placeholder (bukan nilai nyata), di-commit ke repository</td><td>Root project</td></tr>
-          <tr><td><code>.env</code>, <code>.env.test</code>, <code>keys/</code>, <code>*.pem</code> ada di <code>.gitignore</code></td><td><code>.gitignore</code></td></tr>
-          <tr><td>Semua variabel wajib: panic dengan pesan deskriptif jika tidak ada atau tidak valid saat startup</td><td><code>common/config/src/lib.rs</code></td></tr>
-          <tr><td>Koneksi DB dicek saat startup (<code>PgPool::connect</code>) — service tidak start jika DB tidak bisa diakses</td><td><code>rejki-app/src/main.rs</code></td></tr>
-          <tr><td>Naming convention SCREAMING_SNAKE_CASE diterapkan konsisten di semua service</td><td>Semua service + <code>.env.example</code></td></tr>
+          <tr><td>1</td><td><code>AppConfig</code> struct dengan <code>load()</code> — single entry point</td><td><code>common/config/src/lib.rs</code></td></tr>
+          <tr><td>2</td><td>9 sub-config structs: Database, JWT, Redis, MinIO, SMTP, OTEL, ClamAV, CORS</td><td><code>common/config/src/{domain}.rs</code></td></tr>
+          <tr><td>3</td><td>Dua source env var: bare + <code>REJKI_</code>-prefixed override</td><td><code>AppConfig::load()</code></td></tr>
+          <tr><td>4</td><td>Fail-fast: required fields panic dengan pesan deskriptif</td><td><code>.expect("KEY tidak di-set")</code></td></tr>
+          <tr><td>5</td><td>Fail-open: optional fields <code>.ok()</code> → <code>None</code></td><td>Redis, SMTP, OTEL</td></tr>
+          <tr><td>6</td><td>Semua service main memanggil <code>AppConfig::load()</code></td><td><code>rejki-app/src/main.rs</code> + 5 standalone service mains</td></tr>
+          <tr><td>7</td><td><code>MinioStorage::from_config()</code>, <code>ScanWorker::from_config()</code></td><td><code>storage-service/src/infrastructure/</code></td></tr>
+          <tr><td>8</td><td><code>init_tracing(&OtelConfig, is_prod)</code> bukan dari env vars</td><td><code>common/tracing-setup/src/lib.rs</code></td></tr>
+          <tr><td>9</td><td><code>ClamavClient::new_from_config()</code> + <code>from_env()</code> backward compat</td><td><code>common/clamav/src/lib.rs</code></td></tr>
+          <tr><td>10</td><td><code>.env.example</code> berisi semua variabel dengan placeholder</td><td>Root project</td></tr>
+          <tr><td>11</td><td><code>.env</code>, <code>.env.test</code>, <code>keys/</code>, <code>*.pem</code> ada di <code>.gitignore</code></td><td><code>.gitignore</code></td></tr>
         </tbody>
       </table></div>
     </section>
 
     <footer>
-      <p>Rejki Backend — Configuration Standard · 9 Juni 2026 · Phase 1.5</p>
-      <p style="margin-top:.3rem;">Stack: Rust · dotenvy · std::env</p>
+      <p>Rejki Backend — Configuration Standard v2 · 29 Juni 2026 · Phase 2</p>
+      <p style="margin-top:.3rem;">Stack: Rust · common-config crate · config-rs · dotenvy</p>
     </footer>
   </main>
 </div>
