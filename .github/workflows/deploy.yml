@@ -7,6 +7,7 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository_owner }}/rejki-backend
+  COMPOSE_FILE: docker-compose.prod.yml
 
 concurrency:
   group: deploy-production
@@ -32,7 +33,7 @@ jobs:
           strip_components: 0
           overwrite: true
 
-      - name: Rename & restart via SSH
+      - name: Deploy & restart via SSH
         uses: appleboy/ssh-action@v1
         with:
           host:     ${{ secrets.VPS_HOST }}
@@ -44,28 +45,27 @@ jobs:
 
             cd /opt/rejki/prod
 
-            echo "==> Rename files if needed"
-            [ -f docker-compose.prod.yml ] && mv docker-compose.prod.yml docker-compose.yml
-            [ -f nginx.prod.conf ] && mv nginx.prod.conf nginx.conf && echo "nginx.conf updated"
+            # Rename nginx config (compose expects ./nginx.conf)
+            [ -f nginx.prod.conf ] && mv -f nginx.prod.conf nginx.conf && echo "nginx.conf updated"
 
             echo "==> Login to GitHub Container Registry"
             echo "${{ secrets.GHCR_TOKEN }}" | docker login $REGISTRY -u ${{ github.actor }} --password-stdin
 
             echo "==> Pull latest images"
-            docker compose pull
+            docker compose -f docker-compose.prod.yml --env-file .env pull
 
             echo "==> Restart services"
-            docker compose up -d
+            docker compose -f docker-compose.prod.yml --env-file .env up -d
 
             echo "==> Verify health check"
             sleep 10
-            docker compose ps
+            docker compose -f docker-compose.prod.yml ps
 
             echo "==> Test /health endpoint"
             curl -sf http://localhost:8082/health || (echo "❌ Health check failed!" && exit 1)
 
             echo "==> Run database migrations"
-            docker compose exec -T rejki-app /app/rejki-app migrate 2>/dev/null || \
+            docker compose -f docker-compose.prod.yml --env-file .env exec -T rejki-app /app/rejki-app migrate 2>/dev/null || \
               echo "⚠️  No built-in migrate command — run sqlx manually if needed"
 
             echo "==> Prune old images"

@@ -5,6 +5,9 @@ on:
     branches: [develop]
   workflow_dispatch:
 
+env:
+  COMPOSE_FILE: docker-compose.dev.yml
+
 concurrency:
   group: deploy-dev
   cancel-in-progress: true
@@ -29,7 +32,7 @@ jobs:
           strip_components: 0
           overwrite: true
 
-      - name: Rename & restart via SSH
+      - name: Deploy & restart via SSH
         uses: appleboy/ssh-action@v1
         with:
           host:     ${{ secrets.VPS_HOST }}
@@ -41,22 +44,21 @@ jobs:
 
             cd /opt/rejki/dev
 
-            echo "==> Rename config files"
-            [ -f docker-compose.dev.yml ] && mv docker-compose.dev.yml docker-compose.yml
-            [ -f nginx.dev.conf ] && mv nginx.dev.conf nginx.conf
+            # Rename nginx config (compose expects ./nginx.conf)
+            [ -f nginx.dev.conf ] && mv -f nginx.dev.conf nginx.conf
 
             echo "==> Login to GitHub Container Registry"
             echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
             echo "==> Pull latest images"
-            docker compose pull
+            docker compose -f docker-compose.dev.yml --env-file .env pull
 
             echo "==> Restart services"
-            docker compose up -d
+            docker compose -f docker-compose.dev.yml --env-file .env up -d
 
             echo "==> Verify health check"
             sleep 10
-            docker compose ps
+            docker compose -f docker-compose.dev.yml ps
             curl -sf http://localhost:8081/health || (echo "❌ Dev health check failed!" && exit 1)
 
             echo "==> Prune old images"

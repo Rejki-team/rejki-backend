@@ -96,12 +96,13 @@
     <a class="nav-link" href="#step-5">Step 5 — Infrastructure</a>
     <a class="nav-link" href="#step-6">Step 6 — Backend</a>
     <a class="nav-link" href="#step-7">Step 7 — Web Frontend</a>
-    <a class="nav-link" href="#step-8">Step 8 — Cloudflare Tunnel</a>
+    <a class="nav-link" href="#step-8">Step 8 — Observability</a>
+    <a class="nav-link" href="#step-9">Step 9 — Cloudflare Tunnel</a>
   </div>
   <div class="nav-group">
     <div class="nav-group-label">Operasional</div>
-    <a class="nav-link" href="#step-9">Step 9 — Verifikasi</a>
-    <a class="nav-link" href="#step-10">Step 10 — Rollback</a>
+    <a class="nav-link" href="#step-10">Step 10 — Verifikasi</a>
+    <a class="nav-link" href="#step-11">Step 11 — Rollback</a>
     <a class="nav-link" href="#cicd">CI/CD Pipeline</a>
   </div>
 </nav>
@@ -786,7 +787,103 @@ docker compose --env-file .env up -d rejki-web</pre></div>
   <!-- STEP 8 -->
   <!-- ════════════════════════════════════ -->
   <section id="step-8">
-    <h2><span class="step-badge">8</span> Setup Cloudflare Tunnel</h2>
+    <h2><span class="step-badge">8</span> Deploy Observability Stack</h2>
+
+    <p>Observability stack (metrics, logs, traces) dikirim ke <strong>Grafana Cloud (free tier)</strong>. Stack ini <strong>opsional</strong> — tapi sangat direkomendasikan untuk monitoring production.</p>
+
+    <div class="callout c-info">
+      <span class="callout-icon">📊</span>
+      <div><strong>Kenapa Grafana Cloud? Kenapa bukan self-hosted?</strong>
+      <p>Grafana Cloud free tier: 10k metrics series, 50GB logs, 50GB traces — cukup untuk startup. Tanpa maintenance infrastruktur monitoring. File konfigurasi ada di <code>observability/</code> di repo backend.</p></div>
+    </div>
+
+    <!-- ── 8.1 Prasyarat ── -->
+    <h3>8.1 Prasyarat</h3>
+    <div class="tbl-wrap"><table class="tbl">
+      <thead><tr><th>#</th><th>Prasyarat</th><th>Detail</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>Akun Grafana Cloud</td><td>Daftar gratis di <code>grafana.com</code> → pilih Free plan</td></tr>
+        <tr><td>2</td><td>OpenTelemetry Stack</td><td>Buat Stack di Grafana Cloud → pilih OpenTelemetry → dapatkan endpoint + token</td></tr>
+        <tr><td>3</td><td>Docker network <code>rejki-infra</code></td><td>Pastikan infra sudah di-deploy (Step 5) — observability attach ke network ini</td></tr>
+      </tbody>
+    </table></div>
+
+    <!-- ── 8.2 File .env observability ── -->
+    <h3>8.2 Setup Environment Variables</h3>
+    <p>Buat folder dan file <code>.env</code> untuk observability di VPS:</p>
+
+    <div class="code"><pre>mkdir -p /opt/rejki/observability
+nano /opt/rejki/observability/.env</pre></div>
+
+    <p>Isi dengan kredensial dari Grafana Cloud:</p>
+    <div class="code"><pre># /opt/rejki/observability/.env
+GRAFANA_OTEL_ENDPOINT=https://otlp-gateway-prod-us-central-0.grafana.net/otlp
+GRAFANA_OTEL_AUTH_HEADER=Basic &lt;base64-encoded-credentials&gt;
+GRAFANA_LOKI_URL=https://logs-prod-xxx.grafana.net
+GRAFANA_LOKI_USER=&lt;loki-user-id&gt;
+GRAFANA_LOKI_TOKEN=&lt;loki-api-token&gt;
+POSTGRES_PASSWORD=&lt;sama-dengan-infra&gt;</pre></div>
+
+    <div class="callout c-warn">
+      <span class="callout-icon">⚠️</span>
+      <div><strong>Cara dapatkan credentials</strong>
+      <p>Grafana Cloud → Stack → OpenTelemetry → Configure → Generate API Key. Copy <strong>Endpoint</strong> dan <strong>Authorization header</strong> (format Basic base64). Untuk Loki: Stack → Loki → Configure → Generate API Token.</p></div>
+    </div>
+
+    <!-- ── 8.3 Deploy ── -->
+    <h3>8.3 Deploy Stack</h3>
+    <p>Copy file observability dari repo backend ke VPS, lalu start:</p>
+
+    <div class="code"><pre># Dari lokal — copy folder observability ke VPS
+scp -r observability user@vps:/opt/rejki/
+
+# Di VPS
+cd /opt/rejki/observability
+docker compose --env-file .env -p rejki-obs up -d
+
+# Verifikasi semua service running
+docker compose -p rejki-obs ps
+# Expected: otel-collector, node-exporter, cadvisor, postgres-exporter,
+#           redis-exporter, alloy — semuanya Up</pre></div>
+
+    <!-- ── 8.4 Stack Components ── -->
+    <h3>8.4 Komponen Stack</h3>
+
+    <div class="tbl-wrap"><table class="tbl">
+      <thead><tr><th>Service</th><th>Container Name</th><th>Fungsi</th><th>Port</th></tr></thead>
+      <tbody>
+        <tr><td>OTel Collector</td><td><code>rejki-otel-collector</code></td><td>Terima OTLP traces dari Rust app + Bun, forward ke Grafana</td><td>4317 (gRPC)</td></tr>
+        <tr><td>Node Exporter</td><td><code>rejki-node-exporter</code></td><td>Metrics VPS: CPU, RAM, disk, network</td><td>9100</td></tr>
+        <tr><td>cAdvisor</td><td><code>rejki-cadvisor</code></td><td>Metrics container: CPU, memory per container</td><td>8080</td></tr>
+        <tr><td>Postgres Exporter</td><td><code>rejki-pg-exporter</code></td><td>Metrics DB: koneksi, query, cache, replication</td><td>9187</td></tr>
+        <tr><td>Redis Exporter</td><td><code>rejki-redis-exporter</code></td><td>Metrics Redis: hits/misses, memory, keyspace</td><td>9121</td></tr>
+        <tr><td>Grafana Alloy</td><td><code>rejki-alloy</code></td><td>Log shipper: collect container logs → Loki</td><td>—</td></tr>
+      </tbody>
+    </table></div>
+
+    <!-- ── 8.5 Dashboard ── -->
+    <h3>8.5 Akses Dashboard</h3>
+    <p>Setelah deploy, data akan muncul di Grafana Cloud dalam 1-2 menit:</p>
+    <ol>
+      <li>Buka <code>https://&lt;stack-id&gt;.grafana.net</code></li>
+      <li>Sidebar → <strong>Explore</strong> → pilih data source</li>
+      <li><strong>Traces</strong>: Explore → Tempo → pilih trace yang masuk</li>
+      <li><strong>Metrics</strong>: Explore → Prometheus → query <code>container_memory_usage_bytes</code></li>
+      <li><strong>Logs</strong>: Explore → Loki → filter berdasarkan container name</li>
+    </ol>
+
+    <div class="callout c-ok">
+      <span class="callout-icon">✅</span>
+      <div><strong>Verifikasi Observability</strong>
+      <p>Pastikan data muncul: lihat <code>container_memory_usage_bytes</code> di Prometheus, traces dari service di Tempo, dan log container di Loki. Jika 3 data source muncul → setup sukses.</p></div>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════ -->
+  <!-- STEP 9 -->
+  <!-- ════════════════════════════════════ -->
+  <section id="step-9">
+    <h2><span class="step-badge">9</span> Setup Cloudflare Tunnel</h2>
 
     <p>Cloudflare Tunnel menyediakan akses HTTPS tanpa perlu membuka port di firewall.</p>
 
@@ -828,10 +925,10 @@ docker compose --env-file .env up -d rejki-web</pre></div>
   </section>
 
   <!-- ════════════════════════════════════ -->
-  <!-- STEP 9 -->
+  <!-- STEP 10 -->
   <!-- ════════════════════════════════════ -->
-  <section id="step-9">
-    <h2><span class="step-badge">9</span> Verifikasi</h2>
+  <section id="step-10">
+    <h2><span class="step-badge">10</span> Verifikasi</h2>
 
     <p>Setelah semua service running, lakukan verifikasi berikut:</p>
 
@@ -884,10 +981,10 @@ docker logs --tail 50 rejki-nginx-prod
   </section>
 
   <!-- ════════════════════════════════════ -->
-  <!-- STEP 10 -->
+  <!-- STEP 11 -->
   <!-- ════════════════════════════════════ -->
-  <section id="step-10">
-    <h2><span class="step-badge">10</span> Rollback</h2>
+  <section id="step-11">
+    <h2><span class="step-badge">11</span> Rollback</h2>
 
     <p>Jika deploy gagal atau menyebabkan masalah, lakukan rollback:</p>
 
