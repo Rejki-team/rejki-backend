@@ -153,13 +153,13 @@
 │  /opt/rejki/                                                    │
 │  ├── dev/                                                       │
 │  │   ├── .env              (tidak di git)                       │
-│  │   └── docker-compose.yml (image: dari GHCR)                  │
+│  │   └── docker-compose.dev.yml (image: dari GHCR)              │
 │  ├── prod/                                                      │
 │  │   ├── .env              (tidak di git)                       │
-│  │   └── docker-compose.yml (image: dari GHCR)                  │
+│  │   └── docker-compose.prod.yml (image: dari GHCR)             │
 │  ├── infra/                                                     │
 │  │   ├── .env                                                   │
-│  │   └── docker-compose.yml  (postgres, redis, minio)           │
+│  │   └── docker-compose.infra.yml  (postgres, redis, minio, clamav) │
 │  └── keys/                                                      │
 │      ├── private.pem                                            │
 │      └── public.pem                                             │
@@ -190,17 +190,17 @@
 <span class="ft-dir">/opt/rejki/</span>
 │
 ├── <span class="ft-dir">infra/</span>                    <span class="ft-note"># Infrastructure — shared oleh dev & prod</span>
-│   ├── .env                   <span class="ft-note"># POSTGRES_PASSWORD, MINIO keys, dll</span>
-│   └── docker-compose.yml     <span class="ft-note"># postgres, redis, minio, clamav</span>
+│   ├── .env                   <span class="ft-note"># POSTGRES_PASSWORD, MINIO_ACCESS_KEY, MINIO_SECRET_KEY</span>
+│   └── docker-compose.infra.yml <span class="ft-note"># postgres, redis, minio, clamav</span>
 │
 ├── <span class="ft-dir">dev/</span>                      <span class="ft-note"># Development environment</span>
 │   ├── .env                   <span class="ft-note"># Env spesifik dev (APP_ENV=development, DB=rejki_dev)</span>
-│   ├── docker-compose.yml     <span class="ft-note"># image: dari GHCR (tag: develop)</span>
+│   ├── docker-compose.dev.yml <span class="ft-note"># image: dari GHCR (tag: develop)</span>
 │   └── nginx.conf             <span class="ft-note"># Nginx config untuk dev</span>
 │
 ├── <span class="ft-dir">prod/</span>                     <span class="ft-note"># Production environment</span>
 │   ├── .env                   <span class="ft-note"># Env spesifik prod (APP_ENV=production, DB=rejki_prod)</span>
-│   ├── docker-compose.yml     <span class="ft-note"># image: dari GHCR (tag: main)</span>
+│   ├── docker-compose.prod.yml <span class="ft-note"># image: dari GHCR (tag: main)</span>
 │   └── nginx.conf             <span class="ft-note"># Nginx config untuk prod</span>
 │
 ├── <span class="ft-dir">keys/</span>                     <span class="ft-note"># Sensitive keys — mount read-only ke container</span>
@@ -209,7 +209,8 @@
 │   ├── firebase-service-account-dev.json
 │   └── firebase-service-account-prod.json
 │
-└── <span class="ft-dir">scripts/</span>                  <span class="ft-note"># Helper scripts (opsional)</span>
+└── <span class="ft-dir">scripts/</span>                  <span class="ft-note"># Helper scripts & SQL</span>
+    ├── init-databases.sql     <span class="ft-note"># Auto-create rejki_dev + rejki_prod di PostgreSQL</span>
     └── deploy.sh              <span class="ft-note"># One-touch deploy script</span>
     </pre></div>
 
@@ -387,13 +388,13 @@ sudo chown -R $USER:$USER /opt/rejki
 </pre></div>
 
     <h3>5.2 Copy file docker-compose infrastructure</h3>
-    <p>File <code>docker-compose.yml</code> (infra only) ada di repo backend. Copy ke server:</p>
+    <p>File <code>docker-compose.infra.yml</code> ada di repo backend. Copy ke server:</p>
     <div class="code"><pre># Dari lokal, SCP file infra ke server:
-scp docker-compose.yml user@vps:/opt/rejki/infra/docker-compose.yml
+scp docker-compose.infra.yml user@vps:/opt/rejki/infra/docker-compose.infra.yml
 
 # Atau buat manual di server:
-nano /opt/rejki/infra/docker-compose.yml
-# Paste dari isi docker-compose.yml (base — postgres, redis, minio, clamav)
+nano /opt/rejki/infra/docker-compose.infra.yml
+# Paste dari isi docker-compose.infra.yml (base — postgres, redis, minio, clamav)
 </pre></div>
 
     <h3>5.3 Buat file .env infrastructure</h3>
@@ -445,12 +446,12 @@ docker compose exec redis redis-cli ping
     <p>Atau bisa dibuat manual di server:</p>
 
     <h4>Dev:</h4>
-    <div class="code"><pre>nano /opt/rejki/dev/docker-compose.yml
+    <div class="code"><pre>nano /opt/rejki/dev/docker-compose.dev.yml
 # Isi: copy dari docker-compose.dev.yml di repo (sudah tanpa build block)
 </pre></div>
 
     <h4>Prod:</h4>
-    <div class="code"><pre>nano /opt/rejki/prod/docker-compose.yml
+    <div class="code"><pre>nano /opt/rejki/prod/docker-compose.prod.yml
 # Isi: copy dari docker-compose.prod.yml di repo (sudah tanpa build block)
 </pre></div>
 
@@ -496,10 +497,10 @@ git push origin main
     <h3>6.4 Database Migration</h3>
     <p>Migrasi dijalankan OTOMATIS oleh deploy workflow setelah service up. Jika ingin manual:</p>
     <div class="code"><pre># Dev
-docker compose -f /opt/rejki/dev/docker-compose.yml --env-file /opt/rejki/dev/.env exec -T rejki-app /app/rejki-app migrate
+docker compose -f /opt/rejki/dev/docker-compose.dev.yml --env-file /opt/rejki/dev/.env exec -T rejki-app /app/rejki-app migrate
 
 # Prod
-docker compose -f /opt/rejki/prod/docker-compose.yml --env-file /opt/rejki/prod/.env exec -T rejki-app /app/rejki-app migrate
+docker compose -f /opt/rejki/prod/docker-compose.prod.yml --env-file /opt/rejki/prod/.env exec -T rejki-app /app/rejki-app migrate
 </pre></div>
   </section>
 
@@ -836,13 +837,13 @@ docker compose --env-file .env up -d rejki-web</pre></div>
 
     <h3>9.1 Cek container status</h3>
     <div class="code"><pre># Infra
-docker compose -f /opt/rejki/infra/docker-compose.yml ps
+docker compose -f /opt/rejki/infra/docker-compose.infra.yml ps
 
 # Dev
-docker compose -f /opt/rejki/dev/docker-compose.yml ps
+docker compose -f /opt/rejki/dev/docker-compose.dev.yml ps
 
 # Prod
-docker compose -f /opt/rejki/prod/docker-compose.yml ps
+docker compose -f /opt/rejki/prod/docker-compose.prod.yml ps
 </pre></div>
 
     <h3>9.2 Cek health endpoint</h3>
@@ -902,7 +903,7 @@ docker tag ghcr.io/rizkirchm97/rejki-backend:develop-abc1234 \
   ghcr.io/rizkirchm97/rejki-backend:develop
 
 # 4. Restart
-docker compose -f /opt/rejki/dev/docker-compose.yml up -d rejki-app
+docker compose -f /opt/rejki/dev/docker-compose.dev.yml up -d rejki-app
 </pre></div>
 
     <h3>10.2 Rollback Web</h3>
@@ -910,7 +911,7 @@ docker compose -f /opt/rejki/dev/docker-compose.yml up -d rejki-app
 docker pull ghcr.io/rizkirchm97/rejki-web:develop-abc1234
 docker tag ghcr.io/rizkirchm97/rejki-web:develop-abc1234 \
   ghcr.io/rizkirchm97/rejki-web:develop
-docker compose -f /opt/rejki/dev/docker-compose.yml up -d rejki-web
+docker compose -f /opt/rejki/dev/docker-compose.dev.yml up -d rejki-web
 </pre></div>
 
     <h3>10.3 Rollback via Git</h3>
