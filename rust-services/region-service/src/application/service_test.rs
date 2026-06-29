@@ -82,6 +82,7 @@ mod tests {
         }
     }
 
+    #[allow(dead_code)]
     fn svc() -> RegionService<MockRegionRepository> {
         let repo = std::sync::Arc::new(MockRegionRepository::new());
         RegionService::new(repo)

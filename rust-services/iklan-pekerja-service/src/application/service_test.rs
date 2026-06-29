@@ -437,6 +437,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::assertions_on_constants, clippy::nonminimal_bool)]
     fn test_csv_max_is_10000() {
         assert!(10_000i64 >= 1_000 && 10_000i64 <= 100_000);
     }

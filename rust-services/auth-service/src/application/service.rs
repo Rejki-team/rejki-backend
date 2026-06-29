@@ -1925,13 +1925,16 @@ mod tests {
 
     #[test]
     fn constants_are_reasonable() {
-        assert!(OTP_TTL_MINUTES > 0);
-        assert!(MAX_OTP_ATTEMPTS > 0);
-        assert!(MAX_OTP_ATTEMPTS < 10); // reasonable limit
-        assert!(ACCESS_TOKEN_EXPIRY_SECS > 0);
+        const {
+            assert!(OTP_TTL_MINUTES > 0);
+            assert!(MAX_OTP_ATTEMPTS > 0);
+            assert!(MAX_OTP_ATTEMPTS < 10); // reasonable limit
+            assert!(ACCESS_TOKEN_EXPIRY_SECS > 0);
+            assert!(LOGIN_RATE_LIMIT_MAX > 0);
+            assert!(LOGIN_RATE_LIMIT_WINDOW_SECS > 0);
+        }
+        // DEFAULT_REFRESH_TTL_SECS vs ACCESS_TOKEN_EXPIRY_SECS checked at runtime
         assert!(DEFAULT_REFRESH_TTL_SECS > ACCESS_TOKEN_EXPIRY_SECS as i64);
-        assert!(LOGIN_RATE_LIMIT_MAX > 0);
-        assert!(LOGIN_RATE_LIMIT_WINDOW_SECS > 0);
     }
 
     // ── Register tests ──────────────────────────────────────────────────────
@@ -2174,7 +2177,7 @@ mod tests {
 
     #[tokio::test]
     async fn verify_otp_given_wrong_otp_when_verify_then_increments_attempts() {
-        common_tracing::init_tracing();
+        common_tracing::init_tracing(&Default::default(), false);
         let svc = test_auth_service();
         let user_id = Uuid::now_v7();
         svc.repo.insert_user(AuthUser {

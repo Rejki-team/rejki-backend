@@ -167,7 +167,7 @@ async fn test_update_given_admin_when_update_then_200() {
     let data = &body["data"];
     assert!(data["title"].as_str().unwrap().contains("Diperbarui"));
     assert!(data["body"].as_str().unwrap().contains("artikel"));
-    assert!(data["updated_at"].as_str().unwrap().len() > 0);
+    assert!(!data["updated_at"].as_str().unwrap().is_empty());
 }
 
 // ── Delete ───────────────────────────────────────────────────────────────────

@@ -2,15 +2,12 @@
 // Storage dan notifikasi akan Unavailable; notifikasi tidak berfungsi.
 #[tokio::main]
 async fn main() {
-    let app_env =
-        std::env::var("APP_ENV").expect("APP_ENV tidak di-set (development | production)");
-    if app_env == "development" {
-        dotenvy::dotenv().ok();
-    }
-    common_tracing::init_tracing();
+    let cfg = common_config::AppConfig::load();
+    let is_prod = cfg.is_production();
 
-    let db_url = std::env::var("DATABASE_URL").expect("DATABASE_URL tidak di-set");
-    let pool = sqlx::PgPool::connect(&db_url)
+    common_tracing::init_tracing(&cfg.otel, is_prod);
+
+    let pool = sqlx::PgPool::connect(&cfg.database.url)
         .await
         .expect("DB connect failed");
 
@@ -54,7 +51,12 @@ async fn main() {
     let auth_client: std::sync::Arc<dyn auth_service_client::AuthClient> =
         std::sync::Arc::new(DummyAuthClient);
 
-    let port = std::env::var("REPORT_PORT").unwrap_or_else(|_| "3015".into());
+    // Backward compat: REPORT_PORT override, fallback ke APP_PORT
+    let port = std::env::var("REPORT_PORT")
+        .ok()
+        .and_then(|v| v.parse::<u16>().ok())
+        .unwrap_or(cfg.app_port);
+
     let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{port}"))
         .await
         .unwrap();

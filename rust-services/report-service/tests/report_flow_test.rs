@@ -52,7 +52,7 @@ async fn test_create_report_given_valid_input_when_create_then_201() {
     let body = body_json(resp).await;
     assert!(body["success"].as_bool().unwrap());
     let data = &body["data"];
-    assert!(data["id"].as_str().unwrap().len() > 0);
+    assert!(!data["id"].as_str().unwrap().is_empty());
     assert_eq!(data["reporter_id"].as_str().unwrap(), user.id.to_string());
     assert_eq!(data["target_type"], "iklan");
     assert_eq!(data["target_id"].as_str().unwrap(), target_id.to_string());

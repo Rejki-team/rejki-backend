@@ -48,7 +48,7 @@ async fn test_get_or_create_given_valid_users_when_create_then_200() {
     let body = body_json(resp).await;
     assert!(body["success"].as_bool().unwrap());
     let data = &body["data"];
-    assert!(data["id"].as_str().unwrap().len() > 0);
+    assert!(!data["id"].as_str().unwrap().is_empty());
     let user_a_str = user_a.id.to_string();
     let user_b_str = user_b.id.to_string();
     let returned_a = data["user_a"].as_str().unwrap();

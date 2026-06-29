@@ -6,3 +6,5 @@ edition = "2021"
 [dependencies]
 anyhow  = { workspace = true }
 dotenvy = { workspace = true }
+serde   = { workspace = true, features = ["derive"] }
+config  = "0.15"

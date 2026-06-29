@@ -24,6 +24,7 @@
 //! # }
 //! ```
 
+use common_config::ClamavConfig;
 use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
@@ -98,6 +99,11 @@ impl ClamavClient {
             port,
             timeout,
         }
+    }
+
+    /// Buat dari `ClamavConfig` (dari common-config crate).
+    pub fn new_from_config(config: &ClamavConfig) -> Self {
+        Self::new(config.host.clone(), config.port)
     }
 
     /// Buat dari env vars (fallback ke default jika tidak diset).

@@ -19,6 +19,7 @@ storage-service-client = { path = "../storage-service-client" }
 aws-sdk-s3            = { workspace = true }
 aws-config            = { workspace = true }
 aws-credential-types  = { workspace = true }
+common-config          = { workspace = true }
 
 axum        = { workspace = true }
 tokio       = { workspace = true }

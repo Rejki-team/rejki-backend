@@ -1,4 +1,5 @@
 #[cfg(test)]
+#[allow(unused_imports)]
 mod tests {
     use std::sync::Mutex;
     use uuid::Uuid;
@@ -689,6 +690,7 @@ mod tests {
     // ── Unit Tests: constants ────────────────────────────────────────────────────
 
     #[test]
+    #[allow(clippy::manual_range_contains)]
     fn test_default_limit_is_reasonable() {
         // DEFAULT_LIMIT = 20 (private const in service.rs)
         let default_limit: i64 = 20;

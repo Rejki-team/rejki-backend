@@ -24,6 +24,7 @@ notification-service-client = { path = "../notification-service-client" }
 storage-service-client = { path = "../storage-service-client" }
 user-service-client = { path = "../user-service-client" }
 common-idempotency = { workspace = true }
+common-config     = { workspace = true }
 
 axum        = { workspace = true }
 tokio       = { workspace = true }

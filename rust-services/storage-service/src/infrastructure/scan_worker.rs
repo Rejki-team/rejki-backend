@@ -25,6 +25,7 @@ use aws_sdk_s3::config::Credentials;
 use aws_sdk_s3::operation::get_object::GetObjectOutput;
 use aws_sdk_s3::Client as S3Client;
 use common_clamav::{ClamavClient, ScanResult};
+use common_config::{ClamavConfig, MinioConfig};
 use redis::aio::ConnectionManager;
 use redis::AsyncCommands;
 use tokio::sync::watch;
@@ -48,7 +49,33 @@ pub struct ScanWorker {
 }
 
 impl ScanWorker {
-    /// Buat ScanWorker dari env vars.
+    /// Buat ScanWorker dari centralized config.
+    /// Returns `None` jika Redis tidak dikonfigurasi (fail-open).
+    pub async fn from_config(
+        minio: &MinioConfig,
+        clamav: &ClamavConfig,
+        redis_url: &Option<String>,
+        shutdown: watch::Receiver<bool>,
+    ) -> Option<Self> {
+        let redis_url = redis_url.as_ref()?;
+        let redis_client = redis::Client::open(redis_url.as_str()).ok()?;
+        let redis = redis_client.get_connection_manager().await.ok()?;
+
+        let clamav_client = ClamavClient::new_from_config(clamav);
+
+        let bucket = minio.bucket.clone();
+        let s3 = init_s3_client_from_config(minio).await?;
+
+        Some(Self {
+            redis,
+            clamav: clamav_client,
+            s3,
+            bucket,
+            shutdown,
+        })
+    }
+
+    /// Legacy: buat ScanWorker dari env vars (backward compat).
     /// Returns `None` jika Redis atau ClamAV tidak dikonfigurasi (fail-open).
     pub async fn from_env(shutdown: watch::Receiver<bool>) -> Option<Self> {
         let redis_url = std::env::var("REDIS_URL").ok()?;
@@ -252,6 +279,31 @@ async fn init_s3_client() -> Option<S3Client> {
 
     // Gunakan force-path-style untuk MinIO (bukan virtual-hosted yang cuma AWS)
     let s3_config = aws_sdk_s3::Config::from(&config)
+        .to_builder()
+        .force_path_style(true)
+        .build();
+
+    Some(S3Client::from_conf(s3_config))
+}
+
+/// Inisialisasi S3 client untuk MinIO dari `MinioConfig` (centralized config).
+async fn init_s3_client_from_config(config: &MinioConfig) -> Option<S3Client> {
+    let credentials = Credentials::new(
+        &config.access_key,
+        &config.secret_key,
+        None,
+        None,
+        "minio",
+    );
+
+    let aws_config = aws_config::defaults(BehaviorVersion::latest())
+        .region("auto")
+        .credentials_provider(credentials)
+        .endpoint_url(&config.endpoint)
+        .load()
+        .await;
+
+    let s3_config = aws_sdk_s3::Config::from(&aws_config)
         .to_builder()
         .force_path_style(true)
         .build();

@@ -19,10 +19,11 @@ bcrypt       = { workspace = true }
 serde_json   = { workspace = true }
 
 [dependencies]
-common-errors  = { workspace = true }
-common-tracing = { workspace = true }
-common-auth-mw = { workspace = true }
-common-rate-limit = { workspace = true }
+common-errors      = { workspace = true }
+common-tracing     = { workspace = true }
+common-auth-mw     = { workspace = true }
+common-rate-limit   = { workspace = true }
+common-config       = { workspace = true }
 report-service-client         = { path = "../report-service-client" }
 notification-service-client   = { path = "../notification-service-client" }
 storage-service-client        = { path = "../storage-service-client" }

@@ -1,13 +1,13 @@
 //! Presigned URL generator via official AWS SDK (aws-sdk-s3), using
 //! MinIO-compatible endpoint override. Zero external S3 dependencies beyond SDK.
 //!
-//! Konfigurasi env: MINIO_ENDPOINT, MINIO_ACCESS_KEY, MINIO_SECRET_KEY, MINIO_BUCKET,
-//! AWS_REGION (default us-east-1).
+//! Konfigurasi via `MinioConfig` (dari common-config) atau env var (backward compat).
 
 use aws_credential_types::Credentials;
 use aws_sdk_s3::config::{BehaviorVersion, Region};
 use aws_sdk_s3::presigning::PresigningConfig;
 use aws_sdk_s3::Client;
+use common_config::MinioConfig;
 use std::time::Duration;
 
 const UPLOAD_TTL_SECS: u64 = 600;
@@ -20,6 +20,34 @@ pub struct MinioStorage {
 }
 
 impl MinioStorage {
+    /// Buat dari `MinioConfig` (dari common-config). Returns `Some(Self)`.
+    pub async fn from_config(config: &MinioConfig) -> Self {
+        let creds = Credentials::new(
+            &config.access_key,
+            &config.secret_key,
+            None,
+            None,
+            "minio",
+        );
+
+        let region = std::env::var("AWS_REGION").unwrap_or_else(|_| "us-east-1".into());
+
+        let aws_config = aws_sdk_s3::Config::builder()
+            .behavior_version(BehaviorVersion::latest())
+            .region(Region::new(region))
+            .endpoint_url(&config.endpoint)
+            .force_path_style(true)
+            .credentials_provider(creds)
+            .build();
+
+        let client = Client::from_conf(aws_config);
+        Self {
+            client,
+            bucket: config.bucket.clone(),
+        }
+    }
+
+    /// Legacy: buat dari env vars (backward compat).
     pub async fn from_env() -> Option<Self> {
         let endpoint = std::env::var("MINIO_ENDPOINT").ok()?;
         let access_key = std::env::var("MINIO_ACCESS_KEY").ok()?;

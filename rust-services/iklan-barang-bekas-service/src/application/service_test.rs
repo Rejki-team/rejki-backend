@@ -1,4 +1,5 @@
 #[cfg(test)]
+#[allow(unused_imports)]
 mod tests {
     use std::sync::Mutex;
     use uuid::Uuid;

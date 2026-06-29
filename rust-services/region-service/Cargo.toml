@@ -18,6 +18,7 @@ serde_json = { workspace = true }
 [dependencies]
 common-errors  = { workspace = true }
 common-tracing = { workspace = true }
+common-config  = { workspace = true }
 region-service-client = { path = "../region-service-client" }
 
 axum        = { workspace = true }

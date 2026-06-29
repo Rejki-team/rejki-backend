@@ -3,6 +3,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 pub struct TestUser {
+    #[allow(dead_code)]
     pub id: Uuid,
     #[allow(dead_code)]
     pub email: String,
