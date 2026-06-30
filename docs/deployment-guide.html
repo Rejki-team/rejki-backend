@@ -891,29 +891,21 @@ docker compose -p rejki-obs ps
 
     <p>Cloudflare Tunnel menyediakan akses HTTPS tanpa perlu membuka port di firewall.</p>
 
-    <h3>8.1 Setup Tunnel di Cloudflare Dashboard</h3>
+    <!-- ── 9.1 Buat Tunnel ── -->
+    <h3>9.1 Buat Tunnel di Cloudflare</h3>
     <ol>
       <li>Login ke Cloudflare Dashboard → Zero Trust → Networks → Tunnels</li>
       <li>Buat tunnel baru (nama: <code>rejki-tunnel</code>)</li>
       <li>Pilih: <strong>Docker</strong> → akan muncul perintah <code>docker run cloudflare/cloudflared ...</code></li>
-      <li>Catat <strong>Tunnel Token</strong> — ini yang akan dimasukkan ke <code>.env</code></li>
+      <li>Catat <strong>Tunnel Token</strong> — ini yang akan dimasukkan ke <code>.env</code> sebagai <code>TUNNEL_TOKEN</code></li>
     </ol>
 
-    <h3>8.2 Setup DNS</h3>
-    <p>Di Cloudflare Dashboard → DNS → Records, tambahkan:</p>
-    <div class="tbl-wrap"><table class="tbl">
-      <thead><tr><th>Type</th><th>Name</th><th>Target</th></tr></thead>
-      <tbody>
-        <tr><td>CNAME</td><td><code>dev</code></td><td><code>dev.rejki.id</code> → tunnel</td></tr>
-        <tr><td>CNAME</td><td><code>@</code></td><td><code>rejki.id</code> → tunnel</td></tr>
-        <tr><td>CNAME</td><td><code>app</code></td><td><code>app.rejki.id</code> → tunnel</td></tr>
-      </tbody>
-    </table></div>
+    <!-- ── 9.2 Public Hostnames ── -->
+    <h3>9.2 Tambah Public Hostnames</h3>
+    <p>Di halaman Tunnel → Edit → tab <strong>Public Hostname</strong>, tambahkan:</p>
 
-    <h3>8.3 Konfigurasi Tunnel di Cloudflare Zero Trust</h3>
-    <p>Di halaman Tunnel → Edit → Public Hostname:</p>
     <div class="tbl-wrap"><table class="tbl">
-      <thead><tr><th>Hostname</th><th>Service</th></tr></thead>
+      <thead><tr><th>Subdomain</th><th>Service (VPS)</th></tr></thead>
       <tbody>
         <tr><td><code>dev.rejki.id</code></td><td><code>http://localhost:8081</code> (nginx dev)</td></tr>
         <tr><td><code>rejki.id</code></td><td><code>http://localhost:8082</code> (nginx prod)</td></tr>
@@ -923,8 +915,14 @@ docker compose -p rejki-obs ps
 
     <div class="callout c-info">
       <span class="callout-icon">💡</span>
-      <div><strong>Cloudflare Tunnel vs port forwarding</strong>
-      <p>Dengan tunnel, VPS tidak perlu membuka port 80/443 di firewall. Semua traffic masuk via tunnel Cloudflare. Lebih aman.</p></div>
+      <div><strong>Tidak perlu setup DNS manual</strong>
+      <p>Cloudflare Tunnel otomatis membuat CNAME record ke <code>&lt;tunnel-id&gt;.cfargotunnel.com</code> setiap kali kamu menambah Public Hostname. Jadi kamu tidak perlu sentuh dashboard DNS → Records sama sekali. Buka <strong>DNS → Records</strong> untuk verifikasi: akan muncul record CNAME yang dibuat otomatis oleh tunnel.</p></div>
+    </div>
+
+    <div class="callout c-warn">
+      <span class="callout-icon">⚠️</span>
+      <div><strong>Domain harus di Cloudflare</strong>
+      <p>Domain <code>rejki.id</code> harus menggunakan nameserver Cloudflare. Jika domain masih di nameserver lain, fitur Tunnel + auto-DNS tidak akan berfungsi. Pindahkan nameserver ke Cloudflare dulu (gratis).</p></div>
     </div>
   </section>
 
