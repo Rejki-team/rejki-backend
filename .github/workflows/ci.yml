@@ -3,8 +3,6 @@ name: CI
 on:
   push:
     branches: [develop, main]
-  pull_request:
-    branches: [develop, main]
   schedule:
     # Weekly: setiap Senin jam 06:00 UTC — cargo audit + cargo deny
     - cron: "0 6 * * 1"
