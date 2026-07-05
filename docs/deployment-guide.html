@@ -294,14 +294,14 @@ docker compose version
     <h3>Cara buat GHCR_TOKEN:</h3>
     <ol>
       <li>GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic)</li>
-      <li>Buat token baru dengan scope: <code>read:packages</code>, <code>write:packages</code>, <code>delete:packages</code></li>
+      <li>Buat token baru dengan scope: <code>read:packages</code></li>
       <li>Copy token dan simpan sebagai secret <code>GHCR_TOKEN</code> di repo</li>
     </ol>
 
     <div class="callout c-warn">
       <span class="callout-icon">⚠️</span>
       <div><strong>Repositori mana yang perlu secrets?</strong>
-      <p><strong>Kedua repo</strong>: <code>rejki-backend</code> dan <code>rejki-web-dashboard</code>. Secrets-nya SAMA (VPS yang sama).</p></div>
+      <p><strong>Kedua repo</strong>: <code>rejki-backend</code> dan <code>rejki-web</code>. Secrets-nya SAMA (VPS yang sama). Untuk web repo, <code>GHCR_TOKEN</code> hanya butuh scope <code>read:packages</code> — CI build pakai <code>GITHUB_TOKEN</code> built-in.</p></div>
     </div>
   </section>
 
@@ -331,6 +331,7 @@ ghcr.io/rizkirchm97/rejki-backend-notification:main   # Bun notification prod
 ghcr.io/rizkirchm97/rejki-backend-notification:develop # Bun notification dev
 ghcr.io/rizkirchm97/rejki-web:main               # Web production
 ghcr.io/rizkirchm97/rejki-web:develop             # Web development
+ghcr.io/rizkirchm97/rejki-web:latest              # Web latest (alias main)
     </pre></div>
   </section>
 
@@ -458,35 +459,118 @@ docker compose exec redis redis-cli ping
 
     <h3>6.2 Buat file .env untuk masing-masing environment</h3>
     <p>Template ada di repo: <code>.env.example</code>, <code>.env.dev.example</code>, <code>.env.prod.example</code></p>
+    <p><strong>JANGAN commit file .env ini ke git.</strong> Buat langsung di VPS:</p>
 
-    <div class="code"><pre># Dev
+    <div class="code"><pre># ── Dev ───────────────────────────────────────────
 nano /opt/rejki/dev/.env
-# Isi minimal (katalog lengkap: docs/config-standard.html):
+
+# ── Runtime ──────────────────────────────────────
 APP_ENV=development
-DATABASE_URL=postgres://rejki:&lt;password&gt;@rejki-postgres:5432/rejki_dev
-DATABASE_POOL_SIZE=10
+RUST_LOG=debug
+
+# ── Database ─────────────────────────────────────
 POSTGRES_PASSWORD=&lt;sama-dengan-infra&gt;
+DATABASE_URL=postgres://rejki:${POSTGRES_PASSWORD}@rejki-postgres:5432/rejki_dev
+REDIS_URL=redis://redis:6379/0
+
+# ── App ──────────────────────────────────────────
+APP_PORT=8080
+CORS_ALLOWED_ORIGINS=http://localhost:5173,http://dev.rejki.id
+DEV_DOMAIN=dev.rejki.id
+
+# ── JWT (RS256) — generate keypair, letakkan di /opt/rejki/keys/ ─
+JWT_PRIVATE_KEY_PATH=/app/keys/private.pem
+JWT_PUBLIC_KEY_PATH=/app/keys/public.pem
+JWT_ACCESS_TTL_SECS=900
+JWT_REFRESH_TTL_SECS=2592000
+
+# ── Encryption at Rest ───────────────────────────
+# Generate: openssl rand -base64 32
+DATA_ENCRYPTION_KEY=&lt;base64-key&gt;
+
+# ── Firebase Cloud Messaging (DEV) ───────────────
+# Letakkan service-account JSON di: /opt/rejki/keys/firebase-service-account-dev.json
+FIREBASE_SERVICE_ACCOUNT_PATH=/app/keys/firebase-service-account-dev.json
+FIREBASE_PROJECT_ID_DEV=rejki-dev
+
+# ── Email / SMTP (DEV — Mailtrap) ────────────────
+SMTP_HOST=smtp.mailtrap.io
+SMTP_PORT=587
+SMTP_USERNAME_DEV=&lt;mailtrap-username&gt;
+SMTP_PASSWORD_DEV=&lt;mailtrap-password&gt;
+EMAIL_FROM=Rejki Dev &lt;noreply@dev.rejki.id&gt;
+
+# ── MinIO (shared) ───────────────────────────────
+MINIO_ENDPOINT=http://minio:9000
 MINIO_ACCESS_KEY=&lt;sama-dengan-infra&gt;
 MINIO_SECRET_KEY=&lt;sama-dengan-infra&gt;
-RUST_LOG=debug
-CORS_ALLOWED_ORIGINS=http://localhost:5173,http://dev.rejki.id
+MINIO_BUCKET=rejki-dokumen-dev
+
+# ── DB Backup ────────────────────────────────────
+BACKUP_SCHEDULE=0 4 * * *
+
+# ── Cloudflare Tunnel ────────────────────────────
 TUNNEL_TOKEN=&lt;cloudflare-tunnel-token&gt;
 
-# Prod
+# ── OpenTelemetry (opsional) ─────────────────────
+# OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp-grpc.{zone}.grafana.net:4317
+# OTEL_EXPORTER_OTLP_HEADERS=Authorization=Basic {base64_credentials}</pre></div>
+
+    <div class="code"><pre># ── Prod ──────────────────────────────────────────
 nano /opt/rejki/prod/.env
-# Isi minimal (katalog lengkap: docs/config-standard.html):
+
+# ── Runtime ──────────────────────────────────────
 APP_ENV=production
-DATABASE_URL=postgres://rejki:&lt;password&gt;@rejki-postgres:5432/rejki_prod
-DATABASE_POOL_SIZE=20
+RUST_LOG=warn
+
+# ── Database ─────────────────────────────────────
 POSTGRES_PASSWORD=&lt;sama-dengan-infra&gt;
+DATABASE_URL=postgres://rejki:${POSTGRES_PASSWORD}@rejki-postgres:5432/rejki_prod
+REDIS_URL=redis://redis:6379/1
+
+# ── App ──────────────────────────────────────────
+APP_PORT=8080
+CORS_ALLOWED_ORIGINS=https://rejki.id,https://app.rejki.id
+PROD_DOMAIN=rejki.id
+APP_DOMAIN=app.rejki.id
+
+# ── JWT (RS256) ──────────────────────────────────
+JWT_PRIVATE_KEY_PATH=/app/keys/private.pem
+JWT_PUBLIC_KEY_PATH=/app/keys/public.pem
+JWT_ACCESS_TTL_SECS=900
+JWT_REFRESH_TTL_SECS=2592000
+
+# ── Encryption at Rest ───────────────────────────
+DATA_ENCRYPTION_KEY=&lt;base64-key&gt;
+
+# ── Firebase Cloud Messaging (PROD) ──────────────
+# Letakkan service-account JSON di: /opt/rejki/keys/firebase-service-account-prod.json
+FIREBASE_SERVICE_ACCOUNT_PATH=/app/keys/firebase-service-account-prod.json
+FIREBASE_PROJECT_ID_PROD=rejki-prod
+
+# ── Email / SMTP (PROD — real SMTP) ─────────────
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USERNAME=noreply@rejki.id
+SMTP_PASSWORD=&lt;smtp-password&gt;
+EMAIL_FROM=Rejki &lt;noreply@rejki.id&gt;
+
+# ── MinIO (shared) ───────────────────────────────
+MINIO_ENDPOINT=http://minio:9000
 MINIO_ACCESS_KEY=&lt;sama-dengan-infra&gt;
 MINIO_SECRET_KEY=&lt;sama-dengan-infra&gt;
-RUST_LOG=warn
-CORS_ALLOWED_ORIGINS=https://rejki.id,https://app.rejki.id
+MINIO_BUCKET=rejki-dokumen-prod
+
+# ── Cloudflare Tunnel ────────────────────────────
 TUNNEL_TOKEN=&lt;cloudflare-tunnel-token&gt;
-DATA_ENCRYPTION_KEY=&lt;base64-key&gt;  # generate: openssl rand -base64 32
-# JWT_ACCESS_TTL_SECS, JWT_REFRESH_TTL_SECS, REDIS_URL, SMTP_* —
-#   lihat katalog lengkap di docs/config-standard.html</pre></div>
+
+# ── DB Backup ────────────────────────────────────
+S3_BACKUP_BUCKET=rejki-backups
+BACKUP_SCHEDULE=0 3 * * *
+
+# ── OpenTelemetry (opsional) ─────────────────────
+# OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp-grpc.{zone}.grafana.net:4317
+# OTEL_EXPORTER_OTLP_HEADERS=Authorization=Basic {base64_credentials}</pre></div>
 
     <h3>6.3 Deploy via GitHub Actions</h3>
     <p>Cukup push ke branch yang sesuai. Deploy otomatis berjalan:</p>
@@ -512,14 +596,14 @@ docker compose -f /opt/rejki/prod/docker-compose.prod.yml --env-file /opt/rejki/
   <section id="step-7">
     <h2><span class="step-badge">7</span> Deploy Web Frontend</h2>
 
-    <p>Rejki Web Dashboard (Vue 3) adalah <strong>repo terpisah</strong> dari backend — <code>rejki-web-dashboard</code>. Image di-build via GitHub Actions, push ke GHCR, lalu <strong>compose file milik backend</strong> yang melakukan pull & deploy. Arsitektur multi-repo memberi keuntungan: CI independen, deploy terpisah, build hanya yang berubah.</p>
+    <p>Rejki Web Dashboard (Vue 3) adalah <strong>repo terpisah</strong> dari backend — <code>rejki-web</code>. Image di-build via GitHub Actions, push ke GHCR, lalu <strong>compose file milik backend</strong> yang melakukan pull & deploy. Arsitektur multi-repo memberi keuntungan: CI independen, deploy terpisah, build hanya yang berubah.</p>
 
     <div class="callout c-info">
       <span class="callout-icon">🏗️</span>
       <div><strong>Alur Deploy Web (Multi-Repo)</strong>
       <p>
-        1. Developer push ke <code>rejki-web-dashboard</code> (develop/main)<br>
-        2. GitHub Actions: lint → build → docker build → push GHCR<br>
+        1. Developer push ke <code>rejki-web</code> (develop/main)<br>
+        2. GitHub Actions: typecheck → lint → test → docker build → push GHCR<br>
         3. Workflow SSH ke VPS → <code>docker compose pull rejki-web</code> → <code>up -d</code><br>
         4. Compose file (<code>docker-compose.{dev,prod}.yml</code>) ada di <strong>backend repo</strong> — dikelola oleh tim backend
       </p></div>
@@ -527,7 +611,7 @@ docker compose -f /opt/rejki/prod/docker-compose.prod.yml --env-file /opt/rejki/
 
     <!-- ── 7.1 Secrets ── -->
     <h3>7.1 Setup GitHub Secrets (Web Repo)</h3>
-    <p>Web repo butuh secrets <strong>yang sama</strong> dengan backend repo:</p>
+    <p>Web repo butuh secrets <strong>yang sama</strong> dengan backend repo. <strong>Kecuali</strong> <code>GHCR_TOKEN</code> — CI web menggunakan <code>GITHUB_TOKEN</code> bawaan GitHub (built-in, no setup needed):</p>
 
     <div class="tbl-wrap"><table class="tbl">
       <thead><tr><th>Secret Name</th><th>Deskripsi</th><th>Catatan</th></tr></thead>
@@ -536,9 +620,15 @@ docker compose -f /opt/rejki/prod/docker-compose.prod.yml --env-file /opt/rejki/
         <tr><td><code>VPS_USER</code></td><td>Username SSH VPS</td><td>Sama dengan backend</td></tr>
         <tr><td><code>VPS_SSH_KEY</code></td><td>Private key SSH</td><td>Sama dengan backend (pakai key pair yang sama)</td></tr>
         <tr><td><code>VPS_PORT</code></td><td>Port SSH</td><td>Default: <code>22</code></td></tr>
-        <tr><td><code>GHCR_TOKEN</code></td><td>GitHub PAT</td><td>Scope: <code>read:packages</code> + <code>write:packages</code></td></tr>
+        <tr><td><code>GHCR_TOKEN</code></td><td>GitHub PAT (deploy only)</td><td>Scope: <code>read:packages</code>. Hanya di deploy workflows, bukan CI build</td></tr>
       </tbody>
     </table></div>
+
+    <div class="callout c-info">
+      <span class="callout-icon">💡</span>
+      <div><strong>CI build pakai GITHUB_TOKEN (built-in)</strong>
+      <p>Workflow <code>ci.yml</code> menggunakan <code>${{ secrets.GITHUB_TOKEN }}</code> untuk push image ke GHCR — ini token bawaan GitHub yang auto-scoped ke repo. Tidak perlu setup PAT. Hanya <strong>deploy workflows</strong> (<code>deploy.yml</code>, <code>deploy-dev.yml</code>) yang butuh <code>GHCR_TOKEN</code> PAT untuk login dari VPS.</p></div>
+    </div>
 
     <div class="callout c-warn">
       <span class="callout-icon">⚠️</span>
@@ -547,27 +637,37 @@ docker compose -f /opt/rejki/prod/docker-compose.prod.yml --env-file /opt/rejki/
     </div>
 
     <!-- ── 7.2 Dockerfile ── -->
-    <h3>7.2 Dockerfile (Vue 3 + Nginx)</h3>
-    <p>Web menggunakan <strong>multi-stage build</strong>: Stage 1 build Vue app, Stage 2 serve via Nginx. Ini adalah Dockerfile di root <code>rejki-web-dashboard</code>:</p>
+    <h3>7.2 Dockerfile (Vue 3 + Bun + Nginx)</h3>
+    <p>Web menggunakan <strong>multi-stage build</strong> dengan <strong>Bun</strong>: Stage 1 build Vue app, Stage 2 serve via Nginx dengan API proxy + security headers. Ini adalah Dockerfile di root <code>rejki-web</code>:</p>
 
-    <div class="code"><pre><span class="cc"># rejki-web-dashboard/Dockerfile</span>
-<span class="cc"># Stage 1: Build Vue 3 app</span>
-<span class="ck">FROM</span> node:20-alpine <span class="ck">AS</span> build
+    <div class="code"><pre><span class="cc"># rejki-web/Dockerfile</span>
+<span class="cc"># Stage 1: Build dengan Bun</span>
+<span class="ck">FROM</span> oven/bun:1.3 <span class="ck">AS</span> build
 <span class="ck">WORKDIR</span> /app
-<span class="ck">COPY</span> package.json package-lock.json ./
-<span class="ck">RUN</span> npm ci
+<span class="ck">COPY</span> package.json bun.lock ./
+<span class="ck">RUN</span> bun install --frozen-lockfile
 <span class="ck">COPY</span> . .
-<span class="ck">RUN</span> npm run build
 
-<span class="cc"># Stage 2: Serve dengan Nginx</span>
+<span class="cc"># Build arguments — Vite environment variables</span>
+<span class="ck">ARG</span> VITE_API_BASE_URL=/api/v1
+<span class="ck">ARG</span> VITE_MAX_EVIDENCE_BYTES=5242880
+<span class="ck">ENV</span> VITE_API_BASE_URL=${VITE_API_BASE_URL}
+<span class="ck">ENV</span> VITE_MAX_EVIDENCE_BYTES=${VITE_MAX_EVIDENCE_BYTES}
+<span class="ck">RUN</span> bun run build
+
+<span class="cc"># Stage 2: Serve via Nginx</span>
 <span class="ck">FROM</span> nginx:1.27-alpine
 <span class="ck">COPY</span> --from=build /app/dist /usr/share/nginx/html
-<span class="ck">COPY</span> default.conf /etc/nginx/conf.d/default.conf
+<span class="ck">COPY</span> nginx.conf /etc/nginx/conf.d/default.conf
 <span class="ck">EXPOSE</span> 80
+
+<span class="ck">HEALTHCHECK</span> --interval=15s --timeout=5s --retries=3 \
+    CMD wget -qO- http://localhost:80/ || exit 1
+
 <span class="ck">CMD</span> ["nginx", "-g", "daemon off;"]</pre></div>
 
-    <p>File <code>default.conf</code> — Nginx config untuk SPA routing:</p>
-    <div class="code"><pre><span class="cc"># rejki-web-dashboard/default.conf</span>
+    <p>File <code>nginx.conf</code> — Nginx config: API proxy ke backend + security headers + SPA routing:</p>
+    <div class="code"><pre><span class="cc"># rejki-web/nginx.conf</span>
 <span class="ck">server</span> {
     <span class="ck">listen</span> 80;
     <span class="ck">server_name</span> _;
@@ -576,27 +676,47 @@ docker compose -f /opt/rejki/prod/docker-compose.prod.yml --env-file /opt/rejki/
 
     <span class="cc"># Gzip compression</span>
     <span class="ck">gzip</span> on;
-    <span class="ck">gzip_types</span> text/css application/javascript application/json image/svg+xml;
-    <span class="ck">gzip_comp_level</span> 6;
+    <span class="ck">gzip_types</span> text/plain text/css application/json application/javascript image/svg+xml;
+    <span class="ck">gzip_min_length</span> 1024;
 
-    <span class="cc"># Cache static assets</span>
-    <span class="ck">location</span> /assets/ {
-        <span class="ck">expires</span> 1y;
-        <span class="ck">add_header</span> Cache-Control "public, immutable";
+    <span class="cc"># Security headers</span>
+    <span class="ck">add_header</span> X-Content-Type-Options  "nosniff"                   always;
+    <span class="ck">add_header</span> X-Frame-Options         "DENY"                      always;
+    <span class="ck">add_header</span> Referrer-Policy         "strict-origin-when-cross-origin" always;
+
+    <span class="cc"># API proxy → rejki-app backend</span>
+    <span class="ck">location</span> /api/ {
+        <span class="ck">proxy_pass</span>         http://rejki-app:8080;
+        <span class="ck">proxy_http_version</span> 1.1;
+        <span class="ck">proxy_set_header</span>   Host              $host;
+        <span class="ck">proxy_set_header</span>   X-Real-IP         $remote_addr;
+        <span class="ck">proxy_set_header</span>   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        <span class="ck">proxy_set_header</span>   X-Forwarded-Proto $scheme;
+        <span class="ck">proxy_connect_timeout</span> 5s;
+        <span class="ck">proxy_read_timeout</span>    30s;
     }
 
-    <span class="cc"># SPA fallback — semua route ke index.html</span>
+    <span class="cc"># SPA fallback — semua route ke index.html (Vue Router)</span>
     <span class="ck">location</span> / {
         <span class="ck">try_files</span> $uri $uri/ /index.html;
     }
 }</pre></div>
 
+    <div class="callout c-info">
+      <span class="callout-icon">🔄</span>
+      <div><strong>Kenapa ada API proxy di nginx.conf web?</strong>
+      <p>Nginx di container web berfungsi ganda: serve file static + reverse proxy ke backend. Ini memungkinkan web diakses via <code>/api/</code> tanpa CORS issues. Di production VPS, Nginx reverse proxy (compose backend) ada di depannya dan merge traffic — jadi kedua layer Nginx bekerja bersama.</p></div>
+    </div>
+
     <!-- ── 7.3 CI Workflow ── -->
     <h3>7.3 CI/CD Workflow (GitHub Actions)</h3>
-    <p>Buat file <code>.github/workflows/deploy.yml</code> di web repo:</p>
+    <p>Web menggunakan <strong>3 file workflow terpisah</strong> — CI build+push, deploy dev, deploy prod — untuk pemisahan concern dan mencegah race condition:</p>
 
-    <div class="code"><pre><span class="cc"># rejki-web-dashboard/.github/workflows/deploy.yml</span>
-<span class="ck">name</span>: Build & Deploy Web
+    <h4>7.3a CI — Build & Push Image (ci.yml)</h4>
+    <p>Trigger: push ke <code>develop</code> atau <code>main</code>, atau PR. Menggunakan Bun, GITHUB_TOKEN built-in, dan Docker Buildx caching:</p>
+
+    <div class="code"><pre><span class="cc"># rejki-web/.github/workflows/ci.yml</span>
+<span class="ck">name</span>: CI
 
 <span class="ck">on</span>:
   <span class="ck">push</span>:
@@ -606,35 +726,53 @@ docker compose -f /opt/rejki/prod/docker-compose.prod.yml --env-file /opt/rejki/
 
 <span class="ck">env</span>:
   <span class="ck">REGISTRY</span>: ghcr.io
-  <span class="ck">IMAGE_NAME</span>: ${{ github.repository }}
+  <span class="ck">IMAGE_NAME</span>: ${{ github.repository_owner }}/rejki-web
+
+<span class="ck">concurrency</span>:
+  <span class="ck">group</span>: ci-web-${{ github.ref }}
+  <span class="ck">cancel-in-progress</span>: true
 
 <span class="ck">jobs</span>:
-  <span class="ck">build-and-deploy</span>:
+  <span class="ck">check</span>:
+    <span class="ck">name</span>: Lint + Type Check + Test
     <span class="ck">runs-on</span>: ubuntu-latest
-    <span class="ck">permissions</span>:
-      <span class="ck">contents</span>: read
-      <span class="ck">packages</span>: write
-
     <span class="ck">steps</span>:
       - <span class="ck">uses</span>: actions/checkout@v4
 
-      <span class="cc"># ── CI: Lint & Type-check ──</span>
-      - <span class="ck">uses</span>: actions/setup-node@v4
-        <span class="ck">with</span>:
-          <span class="ck">node-version</span>: 20
-          <span class="ck">cache</span>: npm
-      - <span class="ck">run</span>: npm ci
-      - <span class="ck">run</span>: npm run lint
-      - <span class="ck">run</span>: npm run type-check
-      - <span class="ck">run</span>: npm run build
+      - <span class="ck">name</span>: Setup Bun
+        <span class="ck">uses</span>: oven-sh/setup-bun@v2
 
-      <span class="cc"># ── Docker Build & Push ──</span>
+      - <span class="ck">name</span>: Install dependencies
+        <span class="ck">run</span>: bun install --frozen-lockfile
+
+      - <span class="ck">name</span>: Type check (vue-tsc)
+        <span class="ck">run</span>: bun run typecheck
+
+      - <span class="ck">name</span>: Lint (ESLint)
+        <span class="ck">run</span>: bun run lint:check
+
+      - <span class="ck">name</span>: Run tests (Vitest)
+        <span class="ck">run</span>: bun run test
+
+      - <span class="ck">name</span>: Build production bundle
+        <span class="ck">run</span>: bun run build
+
+  <span class="ck">docker-build</span>:
+    <span class="ck">name</span>: Docker Build & Push
+    <span class="ck">runs-on</span>: ubuntu-latest
+    <span class="ck">if</span>: github.event_name != 'pull_request'
+    <span class="ck">steps</span>:
+      - <span class="ck">uses</span>: actions/checkout@v4
+
+      - <span class="ck">name</span>: Set up Docker Buildx
+        <span class="ck">uses</span>: docker/setup-buildx-action@v3
+
       - <span class="ck">name</span>: Log in to GHCR
         <span class="ck">uses</span>: docker/login-action@v3
         <span class="ck">with</span>:
           <span class="ck">registry</span>: ${{ env.REGISTRY }}
           <span class="ck">username</span>: ${{ github.actor }}
-          <span class="ck">password</span>: ${{ secrets.GHCR_TOKEN }}
+          <span class="ck">password</span>: ${{ secrets.GITHUB_TOKEN }}
 
       - <span class="ck">name</span>: Extract metadata
         <span class="ck">id</span>: meta
@@ -643,65 +781,128 @@ docker compose -f /opt/rejki/prod/docker-compose.prod.yml --env-file /opt/rejki/
           <span class="ck">images</span>: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           <span class="ck">tags</span>: |
             type=ref,event=branch
-            type=sha,prefix={{branch}}-
+            type=sha,prefix={{branch}}-,format=short
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
 
-      - <span class="ck">name</span>: Build and push Docker image
+      - <span class="ck">name</span>: Build and push image
         <span class="ck">uses</span>: docker/build-push-action@v5
         <span class="ck">with</span>:
           <span class="ck">context</span>: .
-          <span class="ck">push</span>: ${{ github.event_name != 'pull_request' }}
+          <span class="ck">push</span>: true
           <span class="ck">tags</span>: ${{ steps.meta.outputs.tags }}
           <span class="ck">labels</span>: ${{ steps.meta.outputs.labels }}
+          <span class="ck">cache-from</span>: type=gha
+          <span class="ck">cache-to</span>: type=gha,mode=max</pre></div>
 
-      <span class="cc"># ── Deploy ke VPS (hanya saat push, bukan PR) ──</span>
-      - <span class="ck">name</span>: Deploy Web to VPS
-        <span class="ck">if</span>: github.event_name == 'push'
-        <span class="ck">uses</span>: appleboy/ssh-action@v1.0.3
+    <h4>7.3b Deploy — Dev & Prod (deploy-dev.yml + deploy.yml)</h4>
+    <p>Kedua deploy workflow terpisah dari CI. Masing-masing trigger on push ke branch-nya sendiri. Menggunakan <code>GHCR_TOKEN</code> PAT untuk pull image di VPS:</p>
+
+    <div class="code"><pre><span class="cc"># rejki-web/.github/workflows/deploy-dev.yml</span>
+<span class="ck">name</span>: Deploy to Dev
+
+<span class="ck">on</span>:
+  <span class="ck">push</span>:
+    <span class="ck">branches</span>: [develop]
+  <span class="ck">workflow_dispatch</span>:
+
+<span class="ck">concurrency</span>:
+  <span class="ck">group</span>: deploy-web-dev
+  <span class="ck">cancel-in-progress</span>: true
+
+<span class="ck">jobs</span>:
+  <span class="ck">deploy-dev</span>:
+    <span class="ck">name</span>: Deploy to VPS (dev)
+    <span class="ck">runs-on</span>: ubuntu-latest
+    <span class="ck">steps</span>:
+      - <span class="ck">uses</span>: actions/checkout@v4
+
+      - <span class="ck">name</span>: Deploy via SSH
+        <span class="ck">uses</span>: appleboy/ssh-action@v1
         <span class="ck">with</span>:
-          <span class="ck">host</span>: ${{ secrets.VPS_HOST }}
+          <span class="ck">host</span>:     ${{ secrets.VPS_HOST }}
           <span class="ck">username</span>: ${{ secrets.VPS_USER }}
-          <span class="ck">key</span>: ${{ secrets.VPS_SSH_KEY }}
-          <span class="ck">port</span>: ${{ secrets.VPS_PORT || 22 }}
+          <span class="ck">key</span>:      ${{ secrets.VPS_SSH_KEY }}
+          <span class="ck">port</span>:     ${{ secrets.VPS_PORT || 22 }}
           <span class="ck">script</span>: |
-            <span class="cc"># Tentukan folder target berdasarkan branch</span>
-            <span class="ck">if</span> [ "${{ github.ref_name }}" = "main" ]; <span class="ck">then</span>
-              <span class="ck">TARGET_DIR</span>=/opt/rejki/prod
-            <span class="ck">else</span>
-              <span class="ck">TARGET_DIR</span>=/opt/rejki/dev
-            <span class="ck">fi</span>
+            set -e
+            echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            docker compose -f /opt/rejki/dev/docker-compose.dev.yml --env-file /opt/rejki/dev/.env pull rejki-web
+            docker compose -f /opt/rejki/dev/docker-compose.dev.yml --env-file /opt/rejki/dev/.env up -d rejki-web
+            docker compose -f /opt/rejki/dev/docker-compose.dev.yml --env-file /opt/rejki/dev/.env ps rejki-web
+            docker image prune -f
+            echo "✅ Web dev deploy complete"
 
-            <span class="ck">cd</span> $TARGET_DIR
-            docker login ghcr.io -u ${{ github.actor }} --password-stdin &lt;&lt;&lt; "${{ secrets.GHCR_TOKEN }}"
-            docker compose --env-file .env pull rejki-web
-            docker compose --env-file .env up -d rejki-web
-            docker image prune -f</pre></div>
+<span class="cc"># rejki-web/.github/workflows/deploy.yml (production)</span>
+<span class="ck">name</span>: Deploy to Production
+
+<span class="ck">on</span>:
+  <span class="ck">push</span>:
+    <span class="ck">branches</span>: [main]
+
+<span class="ck">concurrency</span>:
+  <span class="ck">group</span>: deploy-web-prod
+  <span class="ck">cancel-in-progress</span>: false
+
+<span class="ck">jobs</span>:
+  <span class="ck">deploy</span>:
+    <span class="ck">name</span>: Deploy to VPS (prod)
+    <span class="ck">runs-on</span>: ubuntu-latest
+    <span class="ck">environment</span>: production
+    <span class="ck">steps</span>:
+      - <span class="ck">uses</span>: actions/checkout@v4
+
+      - <span class="ck">name</span>: Deploy via SSH
+        <span class="ck">uses</span>: appleboy/ssh-action@v1
+        <span class="ck">with</span>:
+          <span class="ck">host</span>:     ${{ secrets.VPS_HOST }}
+          <span class="ck">username</span>: ${{ secrets.VPS_USER }}
+          <span class="ck">key</span>:      ${{ secrets.VPS_SSH_KEY }}
+          <span class="ck">port</span>:     ${{ secrets.VPS_PORT || 22 }}
+          <span class="ck">script</span>: |
+            set -e
+            echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            docker compose -f /opt/rejki/prod/docker-compose.prod.yml --env-file /opt/rejki/prod/.env pull rejki-web
+            docker compose -f /opt/rejki/prod/docker-compose.prod.yml --env-file /opt/rejki/prod/.env up -d rejki-web
+            docker compose -f /opt/rejki/prod/docker-compose.prod.yml --env-file /opt/rejki/prod/.env ps rejki-web
+            docker image prune -f
+            echo "✅ Web production deploy complete"</pre></div>
 
     <div class="callout c-info">
       <span class="callout-icon">🔄</span>
-      <div><strong>Kenapa web deploy tapi compose file di backend?</strong>
-      <p>Service <code>rejki-web</code> didefinisikan di <strong>compose file backend repo</strong> — karena compose file backend yang mendeskripsikan SELURUH stack (termasuk nginx routing). Web repo hanya bertanggung jawab build & push image. Saat web deploy workflow SSH ke VPS, ia menjalankan <code>docker compose pull rejki-web && up -d rejki-web</code> di folder dev/prod yang compose-file-nya sudah ada dari backend.</p></div>
+      <div><strong>Kenapa CI dan deploy dipisah?</strong>
+      <p>Workflow <code>ci.yml</code> handle build & push image. <code>deploy-dev.yml</code> dan <code>deploy.yml</code> handle pull & restart di VPS. Pemisahan ini mencegah race condition (image belum ter-push saat deploy jalan) dan memungkinkan deploy ulang via <code>workflow_dispatch</code> tanpa rebuild.</p></div>
     </div>
 
     <!-- ── 7.4 Routing & Architecture ── -->
-    <h3>7.4 Nginx Routing & Container Architecture</h3>
-    <p>Di VPS, traffic dari Cloudflare Tunnel masuk ke <strong>Nginx container</strong> yang berfungsi sebagai reverse proxy. Nginx meneruskan request:</p>
+    <h3>7.4 Nginx Routing — Dua Layer</h3>
+    <p>Arsitektur menggunakan <strong>dua layer Nginx</strong>:</p>
 
     <div class="tbl-wrap"><table class="tbl">
-      <thead><tr><th>Path / Hostname</th><th>Di-forward ke</th><th>Container</th><th>Port internal</th></tr></thead>
+      <thead><tr><th>Layer</th><th>Lokasi</th><th>Fungsi</th><th>Dev vs Prod</th></tr></thead>
       <tbody>
-        <tr><td><code>/api/*</code></td><td>API backend</td><td><code>rejki-app</code></td><td><code>8080</code></td></tr>
-        <tr><td><code>/notification/*</code></td><td>Bun notification</td><td><code>rejki-bun-{env}</code></td><td><code>9000</code></td></tr>
-        <tr><td><code>/*</code> (HTML/JS/CSS)</td><td>Web dashboard</td><td><code>rejki-web-{env}</code></td><td><code>80</code></td></tr>
-        <tr><td><code>/health</code></td><td>Health check</td><td>Masing-masing container</td><td>—</td></tr>
+        <tr><td><strong>Layer 1</strong> — Web internal</td><td><code>rejki-web/nginx.conf</code> (di-bake ke image)</td><td>Serve static + API proxy + security headers</td><td>🟢 <strong>SAMA</strong> (via Dockerfile yang sama)</td></tr>
+        <tr><td><strong>Layer 2</strong> — VPS reverse proxy</td><td><code>/opt/rejki/{dev,prod}/nginx.conf</code></td><td>Reverse proxy ke semua container per environment</td><td>🔴 <strong>BERBEDA</strong> (container hostname berbeda)</td></tr>
       </tbody>
     </table></div>
 
-    <div class="code"><pre><span class="cc"># Contoh: /opt/rejki/dev/nginx.conf</span>
+    <p>Di VPS, traffic dari Cloudflare Tunnel masuk ke <strong>Nginx container Layer 2</strong> yang berfungsi sebagai reverse proxy. Nginx meneruskan request berdasarkan environment:</p>
+
+    <div class="tbl-wrap"><table class="tbl">
+      <thead><tr><th>Path</th><th>Dev → Container</th><th>Prod → Container</th></tr></thead>
+      <tbody>
+        <tr><td><code>/api/*</code></td><td><code>rejki-app-dev:8080</code></td><td><code>rejki-app-prod:8080</code></td></tr>
+        <tr><td><code>/notification/*</code></td><td><code>rejki-bun-dev:9000</code></td><td><code>rejki-bun-prod:9000</code></td></tr>
+        <tr><td><code>/*</code> (HTML/JS/CSS)</td><td><code>rejki-web-dev:80</code></td><td><code>rejki-web-prod:80</code></td></tr>
+      </tbody>
+    </table></div>
+
+    <h4>Dev — /opt/rejki/dev/nginx.conf (Layer 2)</h4>
+    <div class="code"><pre><span class="cc"># /opt/rejki/dev/nginx.conf — Reverse proxy (listen port 8081)</span>
 <span class="ck">server</span> {
-    <span class="ck">listen</span> 80;
+    <span class="ck">listen</span> 8081;
     <span class="ck">server_name</span> _;
 
-    <span class="cc"># API → rejki-app</span>
+    <span class="cc"># API → rejki-app-dev</span>
     <span class="ck">location</span> /api/ {
         <span class="ck">proxy_pass</span> http://rejki-app-dev:8080;
         <span class="ck">proxy_set_header</span> Host $host;
@@ -711,13 +912,13 @@ docker compose -f /opt/rejki/prod/docker-compose.prod.yml --env-file /opt/rejki/
         <span class="ck">proxy_read_timeout</span> 60s;
     }
 
-    <span class="cc"># Notification → bun-notification</span>
+    <span class="cc"># Notification → bun-dev</span>
     <span class="ck">location</span> /notification/ {
         <span class="ck">proxy_pass</span> http://rejki-bun-dev:9000;
         <span class="ck">proxy_set_header</span> Host $host;
     }
 
-    <span class="cc"># Web Dashboard (Vue 3 SPA)</span>
+    <span class="cc"># Web Dashboard → rejki-web-dev</span>
     <span class="ck">location</span> / {
         <span class="ck">proxy_pass</span> http://rejki-web-dev:80;
         <span class="ck">proxy_set_header</span> Host $host;
@@ -726,14 +927,56 @@ docker compose -f /opt/rejki/prod/docker-compose.prod.yml --env-file /opt/rejki/
     }
 }</pre></div>
 
+    <h4>Prod — /opt/rejki/prod/nginx.conf (Layer 2)</h4>
+    <div class="code"><pre><span class="cc"># /opt/rejki/prod/nginx.conf — Reverse proxy (listen port 8082)</span>
+<span class="ck">server</span> {
+    <span class="ck">listen</span> 8082;
+    <span class="ck">server_name</span> _;
+
+    <span class="cc"># API → rejki-app-prod</span>
+    <span class="ck">location</span> /api/ {
+        <span class="ck">proxy_pass</span> http://rejki-app-prod:8080;
+        <span class="ck">proxy_set_header</span> Host $host;
+        <span class="ck">proxy_set_header</span> X-Real-IP $remote_addr;
+        <span class="ck">proxy_set_header</span> X-Forwarded-For $proxy_add_x_forwarded_for;
+        <span class="ck">proxy_set_header</span> X-Forwarded-Proto $scheme;
+        <span class="ck">proxy_read_timeout</span> 60s;
+    }
+
+    <span class="cc"># Notification → bun-prod</span>
+    <span class="ck">location</span> /notification/ {
+        <span class="ck">proxy_pass</span> http://rejki-bun-prod:9000;
+        <span class="ck">proxy_set_header</span> Host $host;
+    }
+
+    <span class="cc"># Web Dashboard → rejki-web-prod</span>
+    <span class="ck">location</span> / {
+        <span class="ck">proxy_pass</span> http://rejki-web-prod:80;
+        <span class="ck">proxy_set_header</span> Host $host;
+        <span class="ck">proxy_set_header</span> X-Real-IP $remote_addr;
+        <span class="ck">proxy_buffering</span> off;
+    }
+}</pre></div>
+
+    <div class="callout c-info">
+      <span class="callout-icon">🔀</span>
+      <div><strong>Alur request lengkap (contoh: dev)</strong>
+      <p>
+        <code>Browser → HTTPS dev.rejki.id → Cloudflare Tunnel → localhost:8081 (VPS nginx) → rejki-web-dev:80 (web nginx)</code><br>
+        API call: <code>Browser → ... → rejki-app-dev:8080 (backend)</code><br>
+        Web container punya API proxy sendiri (<code>/api/ → rejki-app:8080</code>) tapi di VPS request <code>/api/</code> sudah di-intercept oleh Layer 2 nginx, jadi biasanya langsung ke backend tanpa lewat web container.
+      </p></div>
+    </div>
+
     <!-- ── 7.5 Deployment Commands ── -->
     <h3>7.5 Deployment (Otomatis vs Manual)</h3>
 
     <h4>Via CI/CD (push — otomatis)</h4>
     <div class="code"><pre><span class="cc"># Deploy web dev</span>
-cd rejki-web-dashboard
+cd rejki-web
 git push origin develop
-<span class="cc"># → Lint → Build → Docker build → GHCR push → SSH: pull & up -d rejki-web</span>
+<span class="cc"># → CI (typecheck → lint → test → build) → Docker build → GHCR push</span>
+<span class="cc"># → Deploy workflow: SSH → pull & up -d rejki-web</span>
 
 <span class="cc"># Deploy web prod</span>
 git push origin main
@@ -747,8 +990,8 @@ cd /opt/rejki/dev  <span class="cc"># atau /opt/rejki/prod</span>
 echo "$CR_PAT" | docker login ghcr.io -u rizkirchm97 --password-stdin
 
 <span class="cc"># Pull & restart web saja</span>
-docker compose --env-file .env pull rejki-web
-docker compose --env-file .env up -d rejki-web</pre></div>
+docker compose -f docker-compose.dev.yml --env-file .env pull rejki-web
+docker compose -f docker-compose.dev.yml --env-file .env up -d rejki-web</pre></div>
 
     <!-- ── 7.6 Verification ── -->
     <h3>7.6 Verifikasi Deploy Web</h3>
@@ -1038,12 +1281,14 @@ git push origin develop
       </tbody>
     </table></div>
 
-    <h3>Web — Workflow</h3>
+    <h3>Web (rejki-web) — Workflow</h3>
     <div class="tbl-wrap"><table class="tbl">
-      <thead><tr><th>Event</th><th>Workflow</th><th>Aksi di VPS</th></tr></thead>
+      <thead><tr><th>Event</th><th>Workflow File</th><th>Aksi di VPS</th></tr></thead>
       <tbody>
-        <tr><td>Push ke <code>develop</code></td><td>CI → push image <code>:develop</code> → deploy-dev</td><td>Pull image web → restart</td></tr>
-        <tr><td>Push ke <code>main</code></td><td>CI → push image <code>:main</code> → deploy</td><td>Pull image web → restart</td></tr>
+        <tr><td>Push/PR ke <code>develop/main</code></td><td><code>ci.yml</code> — typecheck, lint, test, build, docker push</td><td>Tidak deploy (hanya build+push)</td></tr>
+        <tr><td>Push ke <code>develop</code></td><td><code>deploy-dev.yml</code> — SSH pull & restart</td><td><code>/opt/rejki/dev/docker-compose.dev.yml</code></td></tr>
+        <tr><td>Push ke <code>main</code></td><td><code>deploy.yml</code> — SSH pull & restart</td><td><code>/opt/rejki/prod/docker-compose.prod.yml</code></td></tr>
+        <tr><td>Manual trigger</td><td><code>deploy-dev.yml</code> — workflow_dispatch</td><td>Deploy ulang tanpa rebuild</td></tr>
       </tbody>
     </table></div>
 
@@ -1060,7 +1305,7 @@ ghcr.io/rizkirchm97/rejki-backend-notification:develop
 ghcr.io/rizkirchm97/rejki-web:main
 ghcr.io/rizkirchm97/rejki-web:develop
 ghcr.io/rizkirchm97/rejki-web:&lt;branch&gt;-&lt;sha&gt;
-</pre></div>
+ghcr.io/rizkirchm97/rejki-web:latest             # hanya main</pre></div>
   </section>
 
   <footer>
