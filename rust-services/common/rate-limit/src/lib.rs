@@ -65,17 +65,16 @@ pub struct OtpRateLimiter {
 impl OtpRateLimiter {
     /// Bangun dari `redis_url` (Option — dari common-config).
     pub fn new(redis_url: Option<String>) -> Self {
-        let inner = redis_url
-            .and_then(|url| match redis::Client::open(url) {
-                Ok(c) => Some(Arc::new(LimiterInner {
-                    client: c,
-                    conn: Mutex::new(None),
-                })),
-                Err(e) => {
-                    tracing::warn!(error = ?e, "REDIS_URL invalid — rate limiter non-aktif");
-                    None
-                }
-            });
+        let inner = redis_url.and_then(|url| match redis::Client::open(url) {
+            Ok(c) => Some(Arc::new(LimiterInner {
+                client: c,
+                conn: Mutex::new(None),
+            })),
+            Err(e) => {
+                tracing::warn!(error = ?e, "REDIS_URL invalid — rate limiter non-aktif");
+                None
+            }
+        });
         Self { inner }
     }
 

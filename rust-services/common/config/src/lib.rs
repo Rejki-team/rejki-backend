@@ -81,10 +81,7 @@ impl AppConfig {
 
         let s = config::Config::builder()
             // Backward compat: bare env vars (case-insensitive by default)
-            .add_source(
-                config::Environment::default()
-                    .try_parsing(true),
-            )
+            .add_source(config::Environment::default().try_parsing(true))
             // Prefixed vars menimpa bare vars (migrasi bertahap)
             .add_source(
                 config::Environment::with_prefix("REJKI")
@@ -203,14 +200,11 @@ impl AppConfig {
 ///
 /// Dipanggil oleh standalone service yang belum migrate ke `AppConfig::load()`.
 pub fn load_app_env() -> AppEnv {
-    let raw =
-        std::env::var("APP_ENV").expect("APP_ENV tidak di-set (development | production)");
+    let raw = std::env::var("APP_ENV").expect("APP_ENV tidak di-set (development | production)");
     match raw.to_lowercase().as_str() {
         "development" => AppEnv::Development,
         "production" => AppEnv::Production,
-        other => panic!(
-            "APP_ENV tidak valid: '{other}' (harus 'development' atau 'production')"
-        ),
+        other => panic!("APP_ENV tidak valid: '{other}' (harus 'development' atau 'production')"),
     }
 }
 

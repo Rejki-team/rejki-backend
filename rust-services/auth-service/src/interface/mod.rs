@@ -46,7 +46,15 @@ pub fn router_with_jwt(
     let repo = Arc::new(PgAuthRepository::new(pool));
     let auth_client: Arc<dyn AuthClient> =
         Arc::new(AuthInProcessClient::new(jwt.clone(), repo.clone()));
-    router_with_deps(jwt, repo, auth_client, None, None, refresh_ttl_secs, redis_url)
+    router_with_deps(
+        jwt,
+        repo,
+        auth_client,
+        None,
+        None,
+        refresh_ttl_secs,
+        redis_url,
+    )
 }
 
 /// Bangun router auth dari repository yang sudah dibuat (di-share dengan AuthInProcessClient

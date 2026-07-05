@@ -18,10 +18,18 @@ pub struct JwtConfig {
 impl JwtConfig {
     /// Load both key files as strings.
     pub fn load_keys(&self) -> anyhow::Result<(String, String)> {
-        let private_pem = std::fs::read_to_string(&self.private_key_path)
-            .map_err(|e| anyhow::anyhow!("JWT_PRIVATE_KEY_PATH ({:?}) tidak terbaca: {e}", self.private_key_path))?;
-        let public_pem = std::fs::read_to_string(&self.public_key_path)
-            .map_err(|e| anyhow::anyhow!("JWT_PUBLIC_KEY_PATH ({:?}) tidak terbaca: {e}", self.public_key_path))?;
+        let private_pem = std::fs::read_to_string(&self.private_key_path).map_err(|e| {
+            anyhow::anyhow!(
+                "JWT_PRIVATE_KEY_PATH ({:?}) tidak terbaca: {e}",
+                self.private_key_path
+            )
+        })?;
+        let public_pem = std::fs::read_to_string(&self.public_key_path).map_err(|e| {
+            anyhow::anyhow!(
+                "JWT_PUBLIC_KEY_PATH ({:?}) tidak terbaca: {e}",
+                self.public_key_path
+            )
+        })?;
         Ok((private_pem, public_pem))
     }
 }
