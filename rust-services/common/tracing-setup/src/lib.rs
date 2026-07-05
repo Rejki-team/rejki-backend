@@ -140,7 +140,11 @@ pub async fn init_otel(config: &OtelConfig, is_production: bool) -> Option<OtelH
         ))
         .with_attribute(opentelemetry::KeyValue::new(
             "deployment.environment",
-            if is_production { "production" } else { "development" },
+            if is_production {
+                "production"
+            } else {
+                "development"
+            },
         ))
         .build();
 

@@ -22,13 +22,7 @@ pub struct MinioStorage {
 impl MinioStorage {
     /// Buat dari `MinioConfig` (dari common-config). Returns `Some(Self)`.
     pub async fn from_config(config: &MinioConfig) -> Self {
-        let creds = Credentials::new(
-            &config.access_key,
-            &config.secret_key,
-            None,
-            None,
-            "minio",
-        );
+        let creds = Credentials::new(&config.access_key, &config.secret_key, None, None, "minio");
 
         let region = std::env::var("AWS_REGION").unwrap_or_else(|_| "us-east-1".into());
 

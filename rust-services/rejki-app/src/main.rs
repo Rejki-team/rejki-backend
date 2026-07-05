@@ -59,10 +59,9 @@ async fn main() {
     tracing::info!("database connected");
 
     // ── 4. JwtService ─────────────────────────────────────────────────────────
-    let (private_pem, public_pem) = cfg
-        .jwt
-        .load_keys()
-        .expect("JWT key files tidak terbaca — generate: openssl genrsa -out keys/private.pem 2048");
+    let (private_pem, public_pem) = cfg.jwt.load_keys().expect(
+        "JWT key files tidak terbaca — generate: openssl genrsa -out keys/private.pem 2048",
+    );
 
     let jwt = Arc::new(
         auth_service::JwtService::from_files(&private_pem, &public_pem, cfg.jwt.access_ttl_secs)

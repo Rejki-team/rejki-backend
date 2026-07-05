@@ -288,13 +288,7 @@ async fn init_s3_client() -> Option<S3Client> {
 
 /// Inisialisasi S3 client untuk MinIO dari `MinioConfig` (centralized config).
 async fn init_s3_client_from_config(config: &MinioConfig) -> Option<S3Client> {
-    let credentials = Credentials::new(
-        &config.access_key,
-        &config.secret_key,
-        None,
-        None,
-        "minio",
-    );
+    let credentials = Credentials::new(&config.access_key, &config.secret_key, None, None, "minio");
 
     let aws_config = aws_config::defaults(BehaviorVersion::latest())
         .region("auto")
