@@ -189,10 +189,35 @@
 
     <div class="filetree"><pre>
 <span class="ft-dir">/opt/rejki/</span>
+├── <span class="ft-dir">dev/</span>
+│   ├── <span class="ft-f">.env</span>                          <span class="ft-note"># Environment variables dev (tidak di git)</span>
+│   ├── <span class="ft-dir">rejki-backend/</span>               <span class="ft-note"># Git clone → branch develop</span>
+│   │   ├── docker-compose.dev.yml
+│   │   ├── docker-compose.infra.yml
+│   │   ├── nginx.dev.conf
+│   │   ├── .github/workflows/deploy-dev.yml
+│   │   ├── scripts/migrate.sh
+│   │   └── ...
+│   └── <span class="ft-dir">rejki-web/</span>                    <span class="ft-note"># Git clone → branch develop</span>
+│       ├── Dockerfile
+│       ├── nginx.conf
+│       └── .github/workflows/ci.yml
 │
-├── <span class="ft-dir">infra/</span>                    <span class="ft-note"># Infrastructure — shared oleh dev & prod</span>
-│   ├── .env                   <span class="ft-note"># POSTGRES_PASSWORD, MINIO_ACCESS_KEY, MINIO_SECRET_KEY</span>
-│   └── docker-compose.infra.yml <span class="ft-note"># postgres, redis, minio, clamav</span>
+├── <span class="ft-dir">prod/</span>
+│   ├── <span class="ft-f">.env</span>                          <span class="ft-note"># Environment variables prod (tidak di git)</span>
+│   ├── <span class="ft-dir">rejki-backend/</span>               <span class="ft-note"># Git clone → branch main</span>
+│   │   ├── docker-compose.prod.yml
+│   │   ├── docker-compose.infra.yml
+│   │   ├── nginx.prod.conf
+│   │   ├── .github/workflows/deploy.yml
+│   │   ├── Dockerfile.backup
+│   │   ├── scripts/migrate.sh
+│   │   └── ...
+│   └── <span class="ft-dir">rejki-web/</span>                    <span class="ft-note"># Git clone → branch main</span>
+│       ├── Dockerfile
+│       ├── nginx.conf
+│       └── .github/workflows/ci.yml
+│
 │
 ├── <span class="ft-dir">dev/</span>                      <span class="ft-note"># Development environment</span>
 │   ├── .env                   <span class="ft-note"># Env spesifik dev (APP_ENV=development, DB=rejki_dev)</span>
@@ -589,25 +614,107 @@ git push origin main
 docker compose -f /opt/rejki/dev/docker-compose.dev.yml --env-file /opt/rejki/dev/.env exec -T rejki-app /app/rejki-app migrate
 
 # Prod
-docker compose -f /opt/rejki/prod/docker-compose.prod.yml --env-file /opt/rejki/prod/.env exec -T rejki-app /app/rejki-app migrate
-</pre></div>
-  </section>
+cp /opt/rejki/prod/rejki-backend/.env.prod.example /opt/rejki/prod/.env
+nano /opt/rejki/prod/.env    # isi password, key, dll</pre></div>
+          </div>
+        </div>
 
-  <section id="step-7">
-    <h2><span class="step-badge">7</span> Deploy Web Frontend</h2>
+        <div class="step step-warn">
+          <div class="step-num">14</div>
+          <div class="step-body">
+            <h4>Clone rejki-web</h4>
+            <p>rejki-web adalah repo terpisah. Clone di kedua direktori, pastikan branch sesuai:</p>
+            <div class="code"><pre>cd /opt/rejki/dev
+git clone -b develop git@github.com:rizkirchm97/rejki-web-dashboard.git rejki-web
 
-    <p>Rejki Web Dashboard (Vue 3) adalah <strong>repo terpisah</strong> dari backend — <code>rejki-web</code>. Image di-build via GitHub Actions, push ke GHCR, lalu <strong>compose file milik backend</strong> yang melakukan pull & deploy. Arsitektur multi-repo memberi keuntungan: CI independen, deploy terpisah, build hanya yang berubah.</p>
+cd /opt/rejki/prod
+git clone -b main git@github.com:rizkirchm97/rejki-web-dashboard.git rejki-web</pre></div>
+          </div>
+        </div>
 
-    <div class="callout c-info">
-      <span class="callout-icon">🏗️</span>
-      <div><strong>Alur Deploy Web (Multi-Repo)</strong>
-      <p>
-        1. Developer push ke <code>rejki-web</code> (develop/main)<br>
-        2. GitHub Actions: typecheck → lint → test → docker build → push GHCR<br>
-        3. Workflow SSH ke VPS → <code>docker compose pull rejki-web</code> → <code>up -d</code><br>
-        4. Compose file (<code>docker-compose.{dev,prod}.yml</code>) ada di <strong>backend repo</strong> — dikelola oleh tim backend
-      </p></div>
-    </div>
+        <div class="step step-warn">
+          <div class="step-num">15</div>
+          <div class="step-body">
+            <h4>Verifikasi Semua File</h4>
+            <p>Pastikan struktur direktori sudah benar:</p>
+            <div class="code"><pre>ls -la /opt/rejki/
+# Harus ada: dev/ prod/ keys/ scripts/ .ssh/
+
+ls -la /opt/rejki/keys/
+# Harus ada: private.pem public.pem firebase-service-account-*.json
+
+ls -la /opt/rejki/dev/.env
+# Harus ada file .env
+
+ls -la /opt/rejki/prod/.env
+# Harus ada file .env</pre></div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- INFRASTRUCTURE START -->
+    <!-- ══════════════════════════════════════════════ -->
+    <section id="infra-start">
+      <h2 class="sec-title"><span class="sec-icon ic-y">🐳</span>Start Shared Infrastructure</h2>
+
+      <p style="color:var(--muted);font-size:.88rem;margin-bottom:1rem;">
+        Infrastructure (PostgreSQL, Redis, MinIO) dijalankan sebagai Compose Project terpisah. Dev dan prod akan connect ke network yang sama.
+      </p>
+
+      <div class="code"><pre>cd /opt/rejki/dev/rejki-backend
+
+# Buat network external (hanya sekali)
+docker network create rejki-infra --driver bridge
+
+# Start infrastructure container
+docker compose -f docker-compose.infra.yml up -d
+
+# Verifikasi semua container sehat
+docker compose -f docker-compose.infra.yml ps
+
+# Cek log — pastikan init-databases.sql sukses
+docker logs rejki-postgres --tail 20</pre></div>
+
+      <div class="callout c-ok">
+        <span class="callout-icon">✅</span>
+        <div><strong>Init-databases.sql akan otomatis:</strong>
+        <p>Membuat database <code>rejki_dev</code> dan <code>rejki_prod</code>, semua schema (auth, user_svc, chat, notification, iklan_*, comms, report, storage, region, analytics, corporate_comms), dan grant semua hak akses ke user <code>rejki</code>.</p></div>
+      </div>
+
+      <h4 style="font-size:.88rem;font-weight:700;margin:1rem 0 .5rem;">Verifikasi Database</h4>
+      <div class="code"><pre># Masuk ke container PostgreSQL
+docker exec -it rejki-postgres psql -U rejki -d rejki_dev -c '\dn'
+docker exec -it rejki-postgres psql -U rejki -d rejki_prod -c '\dn'
+
+# Cek Redis
+docker exec -it rejki-redis redis-cli ping
+# Harus response: PONG
+
+# Cek MinIO
+curl -f http://localhost:9000/minio/health/live
+# Harus response: ok</pre></div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- DEPLOY DEV -->
+    <!-- ══════════════════════════════════════════════ -->
+    <section id="deploy-dev">
+      <h2 class="sec-title"><span class="sec-icon ic-b">🧪</span>Deploy Dev Environment</h2>
+
+      <p style="color:var(--muted);font-size:.88rem;margin-bottom:1rem;">
+        Dev environment jalan di port <strong>8081</strong> (localhost only). Bisa diakses via <code>dev.rejki.id</code> jika Cloudflare Tunnel dikonfigurasi.
+      </p>
+
+      <div class="code"><pre>cd /opt/rejki/dev/rejki-backend
+
+# Load .env dari parent directory
+export $(grep -v '^#' /opt/rejki/dev/.env | xargs)
+
+# Create docker network (sekali)
+docker network create rejki-dev --driver bridge
 
     <!-- ── 7.1 Secrets ── -->
     <h3>7.1 Setup GitHub Secrets (Web Repo)</h3>
@@ -1207,112 +1314,551 @@ docker logs --tail 50 rejki-app-prod
 docker logs --tail 50 rejki-web-dev
 docker logs --tail 50 rejki-web-prod
 
-# Nginx
-docker logs --tail 50 rejki-nginx-dev
-docker logs --tail 50 rejki-nginx-prod
-</pre></div>
+# Cek log
+docker compose -f docker-compose.prod.yml -p rejki-prod logs --tail 20</pre></div>
 
-    <h3>9.4 Checklist Verifikasi</h3>
-    <ul class="checklist">
-      <li>PostgreSQL running dan bisa diakses</li>
-      <li>Redis running dan merespon ping</li>
-      <li>MinIO running dan console bisa diakses</li>
-      <li>Backend app merespon di /health (port 8081/8082)</li>
-      <li>Web frontend bisa diakses via browser</li>
-      <li>Cloudflare tunnel active (Zero Trust dashboard)</li>
-      <li>Domain bisa diakses via HTTPS</li>
-      <li>CORS berfungsi (frontend bisa panggil API)</li>
-    </ul>
-  </section>
+      <h4 style="font-size:.88rem;font-weight:700;margin:1rem 0 .5rem;">Migrate Database (Prod)</h4>
+      <div class="code"><pre>cd /opt/rejki/prod/rejki-backend
+bash scripts/migrate.sh prod</pre></div>
 
-  <!-- ════════════════════════════════════ -->
-  <!-- STEP 11 -->
-  <!-- ════════════════════════════════════ -->
-  <section id="step-11">
-    <h2><span class="step-badge">11</span> Rollback</h2>
+      <div class="callout c-ok">
+        <span class="callout-icon">✅</span>
+        <div><strong>Production Security Features</strong>
+        <p>Rate limiting (3 zona), structured JSON logging, security headers (CSP, HSTS, Permissions-Policy), custom error pages (429, 502), ClamAV virus scan untuk upload dokumen, server_tokens off.</p></div>
+      </div>
+    </section>
 
-    <p>Jika deploy gagal atau menyebabkan masalah, lakukan rollback:</p>
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- GITHUB ACTIONS -->
+    <!-- ══════════════════════════════════════════════ -->
+    <section id="github-actions">
+      <h2 class="sec-title"><span class="sec-icon ic-p">⚙️</span>GitHub Actions Workflows</h2>
 
-    <h3>10.1 Rollback Backend</h3>
-    <div class="code"><pre># 1. Lihat image tag yang tersedia
-docker images ghcr.io/rizkirchm97/rejki-backend
+      <p style="color:var(--muted);font-size:.88rem;margin-bottom:1rem;">
+        Dua workflow terpisah untuk dev dan prod. Keduanya menggunakan SSH ke VPS yang sama.
+      </p>
 
-# 2. Pull image versi sebelumnya
-docker pull ghcr.io/rizkirchm97/rejki-backend:develop-abc1234
+      <div class="col-tbl">
+        <div>
+          <h4 style="font-size:.88rem;font-weight:700;margin-bottom:.5rem;color:var(--blue);">🟦 Dev: deploy-dev.yml</h4>
+          <div class="tbl-wrap"><table class="tbl">
+            <thead><tr><th>Aspek</th><th>Detail</th></tr></thead>
+            <tbody>
+              <tr><td>Trigger</td><td>Push ke <code>develop</code> + workflow_dispatch</td></tr>
+              <tr><td>Environment</td><td>development (GitHub)</td></tr>
+              <tr><td>Concurrency</td><td>Group: deploy-dev, cancel-in-progress: true</td></tr>
+              <tr><td>Deploy dir</td><td><code>/opt/rejki/dev/rejki-backend</code></td></tr>
+              <tr><td>Steps</td><td>git pull → migrate (rejki_dev) → pull base images → build → up -d → health check (port 8081) → prune → done</td></tr>
+            </tbody>
+          </table>
+          <div class="code" style="margin-top:.5rem;"><pre># File: .github/workflows/deploy-dev.yml
+# Trigger: push ke develop
+# SSH ke VPS, pull, migrate, build, restart</pre></div>
+        </div>
+        <div>
+          <h4 style="font-size:.88rem;font-weight:700;margin-bottom:.5rem;color:var(--orange);">🟧 Prod: deploy.yml</h4>
+          <div class="tbl-wrap"><table class="tbl">
+            <thead><tr><th>Aspek</th><th>Detail</th></tr></thead>
+            <tbody>
+              <tr><td>Trigger</td><td>Push ke <code>main</code></td></tr>
+              <tr><td>Environment</td><td>production (GitHub)</td></tr>
+              <tr><td>Concurrency</td><td>Group: deploy-production, cancel-in-progress: false</td></tr>
+              <tr><td>Deploy dir</td><td><code>/opt/rejki/prod/rejki-backend</code></td></tr>
+              <tr><td>Steps</td><td>git pull → migrate (rejki_prod) → pull base images → build → up -d --profile prod → health check (port 8082) → prune → done</td></tr>
+            </tbody>
+          </table>
+          <div class="code" style="margin-top:.5rem;"><pre># File: .github/workflows/deploy.yml
+# Trigger: push ke main
+# SSH ke VPS, pull, migrate, build, restart</pre></div>
+        </div>
+      </div>
 
-# 3. Tag ulang ke develop
-docker tag ghcr.io/rizkirchm97/rejki-backend:develop-abc1234 \
-  ghcr.io/rizkirchm97/rejki-backend:develop
+      <div class="callout c-warn">
+        <span class="callout-icon">⚠️</span>
+        <div><strong>PENTING: Branch Protection</strong>
+        <p>Branch <code>main</code> harus diproteksi — merge hanya via Pull Request, required status checks (CI). Branch <code>develop</code> juga sebaiknya diproteksi untuk mencegah direct push.</p></div>
+      </div>
 
-# 4. Restart
-docker compose -f /opt/rejki/dev/docker-compose.dev.yml up -d rejki-app
-</pre></div>
+      <h4 style="font-size:.88rem;font-weight:700;margin:1rem 0 .5rem;color:var(--purple);">🔁 CI Workflow (ci.yml)</h4>
+      <p style="color:var(--muted);font-size:.84rem;margin-bottom:.5rem;">
+        Selain deploy, setiap push dan PR ke <code>develop</code>/<code>main</code> juga menjalankan pipeline CI untuk memvalidasi kualitas kode sebelum di-merge:
+      </p>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Job</th><th>Apa yang dicek</th></tr></thead>
+        <tbody>
+          <tr><td><strong>check</strong></td><td><code>cargo fmt</code> → <code>cargo clippy</code> → <code>cargo build</code> (Rust)</td></tr>
+          <tr><td><strong>unit-test</strong></td><td><code>cargo test --workspace --lib</code> — unit test tanpa database</td></tr>
+          <tr><td><strong>bun-check</strong></td><td><code>bun install --frozen-lockfile</code> + <code>bun test</code> (notification service)</td></tr>
+          <tr><td><strong>docker-build-check</strong></td><td>Build image rejki-app + bun-notification (validasi Dockerfile)</td></tr>
+          <tr><td><strong>coverage</strong></td><td><code>cargo llvm-cov --lib</code> — coverage lib-only, threshold ≥49%</td></tr>
+          <tr><td><strong>cargo-audit</strong></td><td>CVE scan — mingguan (hanya schedule)</td></tr>
+          <tr><td><strong>cargo-deny</strong></td><td>License compliance — mingguan (hanya schedule)</td></tr>
+        </tbody>
+      </table></div>
+      <div class="callout c-info" style="margin-top:.5rem;">
+        <span class="callout-icon">💡</span>
+        <div><strong>Integration test tidak di CI</strong>
+        <p>Integration test yang butuh PostgreSQL dijalankan manual saat development dan staging — tidak di CI untuk mempercepat pipeline (~5-10 menit lebih cepat). Coverage juga lib-only (tanpa DB) sehingga lebih cepat.</p></div>
+      </div>
 
-    <h3>10.2 Rollback Web</h3>
-    <div class="code"><pre># Pull image versi sebelumnya
-docker pull ghcr.io/rizkirchm97/rejki-web:develop-abc1234
-docker tag ghcr.io/rizkirchm97/rejki-web:develop-abc1234 \
-  ghcr.io/rizkirchm97/rejki-web:develop
-docker compose -f /opt/rejki/dev/docker-compose.dev.yml up -d rejki-web
-</pre></div>
+      <!-- ── rejki-web workflows ──────────────────────────────────────────── -->
+      <div style="margin-top:1.5rem;padding-top:1rem;border-top:1px solid var(--border);">
+        <h4 style="font-size:.95rem;font-weight:700;margin-bottom:.3rem;color:var(--yellow);">🟡 rejki-web-dashboard — Workflow</h4>
+        <p style="color:var(--muted);font-size:.84rem;margin-bottom:.6rem;">
+          Repo terpisah di <code>github.com/rizkirchm97/rejki-web-dashboard.git</code>.
+          Frontend Vue 3 di-build dengan Bun, di-serve via nginx:alpine.
+        </p>
 
-    <h3>10.3 Rollback via Git</h3>
-    <p>Jika perlu rollback ke commit tertentu dan trigger deploy ulang:</p>
-    <div class="code"><pre>git revert &lt;commit-hash&gt;
-git push origin develop
-# CI akan build image baru dari hasil revert, lalu deploy
-</pre></div>
-  </section>
+        <div class="col-tbl">
+          <div>
+            <h5 style="font-size:.82rem;font-weight:700;margin-bottom:.3rem;color:var(--purple);">🔁 CI: ci.yml</h5>
+            <div class="tbl-wrap"><table class="tbl">
+              <thead><tr><th>Aspek</th><th>Detail</th></tr></thead>
+              <tbody>
+                <tr><td>Trigger</td><td>Push/PR ke <code>develop</code>, <code>main</code></td></tr>
+                <tr><td>Steps</td><td><code>bun install</code> → <code>typecheck</code> → <code>lint:check</code> → <code>test</code> → <code>build</code></td></tr>
+                <tr><td>Concurrency</td><td>Group: ci-\${{ github.ref }}, cancel-in-progress: true</td></tr>
+              </tbody>
+            </table></div>
+          </div>
+          <div>
+            <h5 style="font-size:.82rem;font-weight:700;margin-bottom:.3rem;color:var(--blue);">🚀 Deploy: deploy-dev.yml</h5>
+            <div class="tbl-wrap"><table class="tbl">
+              <thead><tr><th>Aspek</th><th>Detail</th></tr></thead>
+              <tbody>
+                <tr><td>Trigger</td><td>Push ke <code>develop</code> + workflow_dispatch</td></tr>
+                <tr><td>Deploy dir</td><td><code>/opt/rejki/dev/rejki-web</code></td></tr>
+                <tr><td>Steps</td><td><code>git pull</code> → rebuild &amp; restart <code>rejki-web</code> service → <code>prune</code></td></tr>
+              </tbody>
+            </table></div>
+          </div>
+        </div>
 
-  <!-- ════════════════════════════════════ -->
-  <!-- CI/CD PIPELINE -->
-  <!-- ════════════════════════════════════ -->
-  <section id="cicd">
-    <h2>🔄 CI/CD Pipeline</h2>
+        <div class="callout c-info" style="margin-top:.5rem;">
+          <span class="callout-icon">💡</span>
+          <div><strong>Deploy rejki-web = rebuild container di compose backend</strong>
+          <p>rejki-web di-deploy sebagai bagian dari compose project <code>rejki-dev</code>/<code>rejki-prod</code> yang ada di repo rejki-backend. Workflow deploy rejki-web hanya rebuild &amp; restart satu service: <code>rejki-web</code>. Tidak perlu down/up seluruh compose.</p></div>
+        </div>
+      </div>
+    </section>
 
-    <h3>Backend — Workflow</h3>
-    <div class="tbl-wrap"><table class="tbl">
-      <thead><tr><th>Event</th><th>Workflow</th><th>Aksi di VPS</th></tr></thead>
-      <tbody>
-        <tr><td>Push ke <code>develop</code></td><td>CI → push image <code>:develop</code> → deploy-dev</td><td>Pull image → restart</td></tr>
-        <tr><td>Push ke <code>main</code></td><td>CI → push image <code>:main</code> → deploy</td><td>Pull image → restart</td></tr>
-        <tr><td>PR ke <code>develop/main</code></td><td>CI (check, test, coverage)</td><td>Tidak deploy</td></tr>
-        <tr><td>Schedule (weekly)</td><td>cargo-audit + cargo-deny</td><td>Tidak deploy</td></tr>
-      </tbody>
-    </table></div>
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- RESOURCE BUDGET -->
+    <!-- ══════════════════════════════════════════════ -->
+    <section id="resource-budget">
+      <h2 class="sec-title"><span class="sec-icon ic-y">📊</span>Resource Budget (VPS 2GB RAM)</h2>
 
-    <h3>Web (rejki-web) — Workflow</h3>
-    <div class="tbl-wrap"><table class="tbl">
-      <thead><tr><th>Event</th><th>Workflow File</th><th>Aksi di VPS</th></tr></thead>
-      <tbody>
-        <tr><td>Push/PR ke <code>develop/main</code></td><td><code>ci.yml</code> — typecheck, lint, test, build, docker push</td><td>Tidak deploy (hanya build+push)</td></tr>
-        <tr><td>Push ke <code>develop</code></td><td><code>deploy-dev.yml</code> — SSH pull & restart</td><td><code>/opt/rejki/dev/docker-compose.dev.yml</code></td></tr>
-        <tr><td>Push ke <code>main</code></td><td><code>deploy.yml</code> — SSH pull & restart</td><td><code>/opt/rejki/prod/docker-compose.prod.yml</code></td></tr>
-        <tr><td>Manual trigger</td><td><code>deploy-dev.yml</code> — workflow_dispatch</td><td>Deploy ulang tanpa rebuild</td></tr>
-      </tbody>
-    </table></div>
+      <p style="color:var(--muted);font-size:.88rem;margin-bottom:1rem;">
+        Alokasi memory per container. Total agak overcommitted (~2.9GB) karena asumsinya hanya satu environment aktif dalam satu waktu.
+      </p>
 
-    <h3>Image yang di-publish ke GHCR</h3>
-    <div class="code"><pre># Backend
-ghcr.io/rizkirchm97/rejki-backend:main
-ghcr.io/rizkirchm97/rejki-backend:develop
-ghcr.io/rizkirchm97/rejki-backend:&lt;branch&gt;-&lt;sha&gt;    # setiap push
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Container</th><th>Memory Limit</th><th>Environment</th><th>Catatan</th></tr></thead>
+        <tbody>
+          <tr><td>PostgreSQL</td><td>768M</td><td>Shared</td><td>Database utama — alokasi terbesar</td></tr>
+          <tr><td>Redis</td><td>192M</td><td>Shared</td><td>Caching, session, pub/sub</td></tr>
+          <tr><td>MinIO</td><td>256M</td><td>Shared</td><td>Object storage (dokumen)</td></tr>
+          <tr><td>rejki-app (dev)</td><td>256M</td><td>Dev</td><td>Rust binary — multithreaded</td></tr>
+          <tr><td>rejki-app (prod)</td><td>256M</td><td>Prod</td><td>Rust binary — multithreaded</td></tr>
+          <tr><td>bun-notification (dev)</td><td>128M</td><td>Dev</td><td>Bun runtime — notification consumer</td></tr>
+          <tr><td>bun-notification (prod)</td><td>128M</td><td>Prod</td><td>Bun runtime — notification consumer</td></tr>
+          <tr><td>rejki-web (dev)</td><td>64M</td><td>Dev</td><td>Nginx alpine — static files</td></tr>
+          <tr><td>rejki-web (prod)</td><td>64M</td><td>Prod</td><td>Nginx alpine — static files</td></tr>
+          <tr><td>nginx (dev)</td><td>32M</td><td>Dev</td><td>Reverse proxy</td></tr>
+          <tr><td>nginx (prod)</td><td>32M</td><td>Prod</td><td>Reverse proxy</td></tr>
+          <tr><td>ClamAV</td><td>512M</td><td>Prod only</td><td>Virus scanner — alokasi besar tapi jarang dipakai full</td></tr>
+          <tr><td>db-backup</td><td>256M</td><td>Prod only</td><td>Backup cron — hanya aktif saat schedule</td></tr>
+          <tr><td>Cloudflare Tunnel</td><td>~16M</td><td>Prod only</td><td>Go binary — sangat ringan</td></tr>
+          <tr style="background:var(--surf2);"><td><strong>TOTAL (jika semua jalan)</strong></td><td><strong>~2.9 GB</strong></td><td></td><td><span style="color:var(--yellow);">Overcommitted — wajar, Docker memory limit soft</span></td></tr>
+        </tbody>
+      </table>
 
-ghcr.io/rizkirchm97/rejki-backend-notification:main
-ghcr.io/rizkirchm97/rejki-backend-notification:develop
+      <div class="callout c-info">
+        <span class="callout-icon">💡</span>
+        <div><strong>Optimasi Resource</strong>
+        <p>Dev dan prod TIDAK perlu jalan bersamaan terus. Matikan dev saat tidak dipakai: <code>docker compose -f docker-compose.dev.yml -p rejki-dev down</code>. ClamAV hanya aktif di prod. Pastikan <code>vm.swappiness = 10</code> sudah di-set (kernel tweak langkah 10).</p></div>
+      </div>
+    </section>
 
-# Web
-ghcr.io/rizkirchm97/rejki-web:main
-ghcr.io/rizkirchm97/rejki-web:develop
-ghcr.io/rizkirchm97/rejki-web:&lt;branch&gt;-&lt;sha&gt;
-ghcr.io/rizkirchm97/rejki-web:latest             # hanya main</pre></div>
-  </section>
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- BACKUP -->
+    <!-- ══════════════════════════════════════════════ -->
+    <section id="backup">
+      <h2 class="sec-title"><span class="sec-icon ic-g">💾</span>Backup Strategy</h2>
 
-  <footer>
-    <p>Rejki Deployment Guide — v2.0 | Update terakhir: Juni 2026</p>
-  </footer>
+      <p style="color:var(--muted);font-size:.88rem;margin-bottom:1rem;">
+        Backup dijadwalkan staggered agar tidak membebani PostgreSQL di waktu yang sama.
+      </p>
 
-</main>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Environment</th><th>Schedule (Cron)</th><th>Waktu (WIB)</th><th>Destination</th></tr></thead>
+        <tbody>
+          <tr><td>Production</td><td><code>0 3 * * *</code></td><td>03:00</td><td>MinIO bucket <code>rejki-backups</code></td></tr>
+          <tr><td>Development</td><td><code>0 4 * * *</code></td><td>04:00</td><td>MinIO bucket <code>rejki-backups</code></td></tr>
+        </tbody>
+      </table>
+
+      <h4 style="font-size:.88rem;font-weight:700;margin:1rem 0 .5rem;">Backup Container (Prod Only)</h4>
+      <p style="color:var(--muted);font-size:.84rem;">Container <code>db-backup</code> di docker-compose.prod.yml menggunakan Dockerfile.backup. Melakukan pg_dump setiap jam 3 pagi, upload ke MinIO.</p>
+
+      <div class="code"><pre># Verifikasi backup berhasil
+docker exec rejki-db-backup ls -la /backups
+
+# Cek MinIO
+docker exec rejki-minio mc ls local/rejki-backups/
+
+# Restore jika diperlukan
+docker exec -i rejki-postgres psql -U rejki -d rejki_prod < backup_file.sql</pre></div>
+
+      <div class="callout c-warn">
+        <span class="callout-icon">⚠️</span>
+        <div><strong>Backup Testing</strong>
+        <p>Lakukan test restore secara berkala (bulanan) untuk memastikan backup dapat digunakan. Simpan juga backup off-site (contoh: cron copy dari MinIO ke Google Drive atau S3 gratis).</p></div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- MONITORING -->
+    <!-- ══════════════════════════════════════════════ -->
+    <section id="monitoring">
+      <h2 class="sec-title"><span class="sec-icon ic-p">📈</span>Monitoring & Health Check</h2>
+
+      <div class="col-tbl">
+        <div>
+          <h4 style="font-size:.88rem;font-weight:700;margin-bottom:.5rem;color:var(--green);">🏥 Health Check Endpoints</h4>
+          <div class="tbl-wrap"><table class="tbl">
+            <thead><tr><th>Endpoint</th><th>Port</th><th>Deskripsi</th></tr></thead>
+            <tbody>
+              <tr><td><code>/health</code></td><td>8081/8082</td><td>Health check aplikasi (200=sehat, 503=sakit)</td></tr>
+              <tr><td><code>/nginx-health</code></td><td>8081</td><td>Health check nginx (dev only)</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div>
+          <h4 style="font-size:.88rem;font-weight:700;margin-bottom:.5rem;color:var(--blue);">👀 Monitoring Commands</h4>
+          <div class="code"><pre># Cek semua container
+docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+
+# Resource usage
+docker stats --no-stream
+
+# Log realtime (dev)
+docker compose -f docker-compose.dev.yml -p rejki-dev logs -f
+
+# Log realtime (prod)
+docker compose -f docker-compose.prod.yml -p rejki-prod logs -f
+
+# Cek disk usage
+df -h
+
+# Cek memory
+free -h</pre></div>
+        </div>
+      </div>
+
+      <div class="highlight-box" style="margin-top:1rem;">
+        <h4 style="font-size:.88rem;font-weight:700;margin-bottom:.3rem;color:var(--orange);">📡 Full Observability Stack</h4>
+        <p style="font-size:.84rem;color:var(--muted);margin-bottom:.5rem;">
+          Semua data (traces, metrics, logs) dikirim ke <strong>Grafana Cloud free tier</strong> via <strong>OpenTelemetry Collector</strong>. 
+          Cukup aktifkan dengan mengisi file <code>observability/.env</code>.
+        </p>
+
+        <h5 style="font-size:.82rem;font-weight:700;color:var(--text);margin-bottom:.3rem;">🏗️ Arsitektur Observability</h5>
+        <div class="arch" style="margin-bottom:.5rem;">
+          <div class="arch-svc" style="margin-bottom:.4rem;">
+            <div class="arch-svc-box as-infra">Node Exporter<small>VPS metrics: CPU, RAM, disk</small></div>
+            <div class="arch-svc-box as-infra">cAdvisor<small>Container metrics: CPU/mem per container</small></div>
+            <div class="arch-svc-box as-infra">PostgreSQL Exporter<small>DB metrics: koneksi, query</small></div>
+            <div class="arch-svc-box as-infra">Redis Exporter<small>Cache metrics: hit rate, memory</small></div>
+          </div>
+          <div style="text-align:center;color:var(--muted);font-size:.72rem;margin:.2rem 0;">↓ scrape metrics ↓</div>
+          <div class="arch-svc" style="margin-bottom:.4rem;">
+            <div class="arch-svc-box as-prod">Rust App<small>OTEL SDK → OTLP traces</small></div>
+            <div class="arch-svc-box as-shared">OpenTelemetry Collector<small>Terima OTLP + scrape metrics</small></div>
+            <div class="arch-svc-box as-shared">Grafana Alloy<small>Docker logs shipping</small></div>
+          </div>
+          <div style="text-align:center;color:var(--muted);font-size:.72rem;margin:.2rem 0;">↓ Kirim ke cloud ↓</div>
+          <div class="arch-svc">
+            <div class="arch-svc-box as-dev" style="flex:0 1 auto;font-size:.72rem;">Tempo<small>Traces</small></div>
+            <div class="arch-svc-box as-dev" style="flex:0 1 auto;font-size:.72rem;">Mimir<small>Metrics</small></div>
+            <div class="arch-svc-box as-dev" style="flex:0 1 auto;font-size:.72rem;">Loki<small>Logs</small></div>
+            <div class="arch-svc-box as-dev" style="flex:0 1 auto;font-size:.72rem;">Grafana<small>Dashboard</small></div>
+          </div>
+          <div style="text-align:center;color:var(--blue);font-size:.72rem;margin-top:.3rem;">☁️ Grafana Cloud — SaaS (free tier)</div>
+        </div>
+
+        <h5 style="font-size:.82rem;font-weight:700;color:var(--text);margin-bottom:.3rem;">✅ Coverage Matrix</h5>
+        <div class="tbl-wrap"><table class="tbl">
+          <thead><tr><th>Lapisan</th><th>Traces</th><th>Metrics</th><th>Logs (terpusat)</th><th>Via</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Rust App (rejki-app)</strong></td><td>✅ OTLP</td><td>✅ Via OTEL</td><td>✅ Alloy</td><td>OTEL SDK → Collector</td></tr>
+            <tr><td><strong>Bun Notification</strong></td><td>❌ (belum)</td><td>❌ (belum)</td><td>✅ Alloy</td><td>Log shipping via Docker</td></tr>
+            <tr><td><strong>Nginx</strong></td><td>❌</td><td>✅ stub_status</td><td>✅ Alloy (JSON)</td><td>cAdvisor scrapes /nginx-status</td></tr>
+            <tr><td><strong>PostgreSQL</strong></td><td>❌</td><td>✅ pg_exporter</td><td>✅ Alloy</td><td>pg_exporter → Collector</td></tr>
+            <tr><td><strong>Redis</strong></td><td>❌</td><td>✅ redis_exporter</td><td>✅ Alloy</td><td>redis_exporter → Collector</td></tr>
+            <tr><td><strong>Docker / Container</strong></td><td>❌</td><td>✅ cAdvisor</td><td>✅ Alloy</td><td>cAdvisor → Collector</td></tr>
+            <tr><td><strong>VPS (OS level)</strong></td><td>❌</td><td>✅ Node Exporter</td><td>❌</td><td>Node Exporter → Collector</td></tr>
+          </tbody>
+        </table></div>
+
+        <div class="callout c-ok" style="margin-top:.5rem;">
+          <span class="callout-icon">✅</span>
+          <div><strong>Grafana Cloud free tier — semuanya tercover!</strong>
+          <p>Limit: 10k series metrics, 50GB logs, 50GB traces. Estimasi pemakaian kita: <strong>~1.5k series</strong>, <strong>~2-5GB logs/bulan</strong>, traces bisa diabaikan. Tidak ada trade-off signifikan — cuma butuh ~150MB RAM tambahan untuk exporter.</p></div>
+        </div>
+
+        <h5 style="font-size:.82rem;font-weight:700;color:var(--text);margin-bottom:.3rem;margin-top:.6rem;">📋 Step-by-step Aktivasi</h5>
+        <div class="code"><pre># ── 1. Daftar Grafana Cloud ──────────────────────────────────────────────────
+# Buka https://grafana.com → Products → Grafana Cloud → Start free
+# Pilih "Grafana" + "Metrics" + "Logs" + "Traces" (semua gratis, no CC)
+
+# ── 2. Setup OpenTelemetry ───────────────────────────────────────────────────
+# Buka: OpenTelemetry → Send data. Akan ada 2 pertanyaan:
+#
+# Q1: "Where does your app run?" → Pilih: Linux
+# Q2: "Instrumentation method?"  → Pilih: OpenTelemetry Collector
+#
+# Akan muncul form "Create a Grafana Cloud access token":
+#   Name: dev-obs
+#   Scopes: centang semua (metrics:write, logs:write, traces:write, profiles:write, stacks:read)
+#   → Klik "Create token"
+#
+# Copy 3 nilai:
+#   Endpoint: https://otlp-gateway-prod-ap-southeast-2.grafana.net/otlp
+#   Instance ID: 1699861
+#   API Token: glc_xxxxxxxxxxxx (token yang baru dibuat)
+#
+# ⚠️ ABADIKAN perintah install collector: KITA TIDAK PAKAI
+#    (Grafana Cloud kasih apt install & systemctl — skip saja,
+#     kita pakai collector versi Docker di observability/docker-compose.yml)
+
+# ── 3. Setup Loki (Logs) ─────────────────────────────────────────────────────
+# Sidebar: Loki → Send logs → Pilih "Docker" atau "Generic"
+# Copy 3 nilai:
+#   URL:  https://logs-{zone}.grafana.net/loki/api/v1/push
+#   User: {instance_id}
+#   Token: glc_xxxxxxxxxxxx
+
+# ── 4. Encode credentials ─────────────────────────────────────────────────────
+# Format: "InstanceID:APIToken" → base64
+# GRAFANA_OTEL_AUTH_HEADER = Authorization=Basic $(echo -n "1699861:glc_xxxxxxxxxxxx" | base64 -w0)
+echo -n "12345:glc_xxxxxxxxxxxx" | base64
+
+# ── 5. Buat folder observability & isi .env ──────────────────────────────────
+cd /opt/rejki/dev/rejki-backend
+cp observability/.env.example observability/.env
+nano observability/.env
+
+# Contoh isi .env (isi dengan data dari Grafana Cloud):
+# GRAFANA_OTEL_ENDPOINT=https://otlp-gateway-prod-ap-southeast-2.grafana.net/otlp
+# GRAFANA_OTEL_AUTH_HEADER=Authorization=Basic MTY5OTg2MTpnbGNfeHh4eHh4eHh4eHh4
+# GRAFANA_LOKI_URL=https://logs-{zone}.grafana.net/loki/api/v1/push
+# GRAFANA_LOKI_USER=1699861
+# GRAFANA_LOKI_TOKEN=glc_xxxxxxxxxxxx
+# POSTGRES_PASSWORD=isi_sesuai_env_prod
+
+# ── 6. Start Observability Stack ────────────────────────────────────────────
+docker compose -f observability/docker-compose.yml -p rejki-obs up -d
+
+# ── 7. Verifikasi ───────────────────────────────────────────────────────────
+docker compose -f observability/docker-compose.yml -p rejki-obs ps
+
+# Semua container harus "health: started" atau "Up"
+# node-exporter, cadvisor, postgres-exporter, redis-exporter,
+# otel-collector, alloy
+
+# ── 8. Buka Grafana Cloud Dashboard ─────────────────────────────────────────
+# Grafana → Explore:
+#   - Metrics: pilih "Mimir/Prometheus" → cari "node_cpu", "container_memory"
+#   - Logs: pilih "Loki" → cari container="rejki-nginx-prod"
+#   - Traces: pilih "Tempo" → cari service.name="rejiki-backend-prod"</pre></div>
+
+        <div class="callout c-info" style="margin-top:.5rem;">
+          <span class="callout-icon">💡</span>
+          <div><strong>Catatan Penting</strong>
+          <p>1. Observability stack jalan sebagai compose project terpisah (<code>rejki-obs</code>) — tidak perlu restart dev/prod.<br/>
+          2. Rust app dev & prod otomatis kirim traces ke <code>rejki-otel-collector:4317</code> (via internal network <code>rejki-infra</code>).<br/>
+          3. Cukup aktifkan OTEL headers di dev/prod .env: <code>OTEL_EXPORTER_OTLP_HEADERS=Authorization=Basic {base64}</code><br/>
+          4. Log shipping via Alloy otomatis — semua container stdout terkumpul ke Loki.<br/>
+          5. Node Exporter & cAdvisor perlu akses ke host filesystem (--volume /:/host) — itu normal.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- SECURITY -->
+    <!-- ══════════════════════════════════════════════ -->
+    <section id="security">
+      <h2 class="sec-title"><span class="sec-icon ic-o">🔒</span>Security & Permission</h2>
+
+      <h4 style="font-size:.88rem;font-weight:700;margin-bottom:.5rem;">🛡️ Ringkasan Keamanan</h4>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Lapisan</th><th>Konfigurasi</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Firewall</strong></td><td>Hanya port SSH (22) yang terbuka. Semua port aplikasi bind ke <code>127.0.0.1</code>.</td></tr>
+          <tr><td><strong>Ingress</strong></td><td>Cloudflare Tunnel — zero-trust, koneksi outbound dari VPS. Tidak ada port 80/443 terbuka.</td></tr>
+          <tr><td><strong>Database</strong></td><td>PostgreSQL hanya listen di <code>127.0.0.1:5432</code>. Authentication via password.</td></tr>
+          <tr><td><strong>Redis</strong></td><td>Redis hanya listen di <code>127.0.0.1:6379</code>. Tanpa auth (hanya internal).</td></tr>
+          <tr><td><strong>MinIO</strong></td><td>MinIO hanya listen di <code>127.0.0.1:9000</code>. Access key + secret key.</td></tr>
+          <tr><td><strong>File Permission</strong></td><td>Direktori <code>/opt/rejki</code> dimiliki user <code>rejki:rejki</code>. Kunci privat <code>600</code>.</td></tr>
+          <tr><td><strong>SSH</strong></td><td>Hanya key-based authentication. Password login disabled.</td></tr>
+          <tr><td><strong>JWT</strong></td><td>RS256 (asymmetric). Private key hanya di VPS. Public key di container.</td></tr>
+          <tr><td><strong>Encryption</strong></td><td>AES-256-GCM untuk data sensitif (phone, rekening). Key di .env.</td></tr>
+          <tr><td><strong>Rate Limiting</strong></td><td>3 zona: umum (10r/s), auth (3r/s), strict (1r/s). Custom 429 response.</td></tr>
+          <tr><td><strong>Virus Scan</strong></td><td>ClamAV di production untuk semua upload dokumen.</td></tr>
+        </tbody>
+      </table>
+
+      <h4 style="font-size:.88rem;font-weight:700;margin:1rem 0 .5rem;">📋 File Permission Checklist</h4>
+      <div class="code"><pre>/opt/rejki/
+├── .ssh/authorized_keys    600  (rejki:rejki)
+├── keys/
+│   ├── private.pem         600  (rejki:rejki)
+│   ├── public.pem          644  (rejki:rejki)
+│   ├── firebase-*-dev.json 600  (rejki:rejki)
+│   └── firebase-*-prod.json 600 (rejki:rejki)
+├── dev/.env                600  (rejki:rejki)
+└── prod/.env               600  (rejki:rejki)</pre></div>
+
+      <div class="callout c-danger">
+        <span class="callout-icon">🚫</span>
+        <div><strong>JANGAN PERNAH</strong>
+        <p>— Buka port 5432 (PostgreSQL) ke publik<br/>— Buka port 6379 (Redis) ke publik<br/>— Buka port 80/443 langsung (gunakan Cloudflare Tunnel)<br/>— Commit .env file ke git<br/>— Gunakan password yang sama untuk dev dan prod<br/>— Root login via SSH</p></div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- TROUBLESHOOTING -->
+    <!-- ══════════════════════════════════════════════ -->
+    <section id="troubleshooting">
+      <h2 class="sec-title"><span class="sec-icon ic-o">🔧</span>Troubleshooting</h2>
+
+      <div class="grid">
+        <div class="card">
+          <div class="card-icon">🔄</div>
+          <h3>Container restart loop</h3>
+          <p>Cek log: <code>docker logs [container-name] --tail 50</code>. Biasanya karena environment variable tidak terisi atau database belum siap.</p>
+          <div class="tags"><span class="tag">Log</span><span class="tag">Env</span></div>
+        </div>
+        <div class="card">
+          <div class="card-icon">🔌</div>
+          <h3>Cannot connect to database</h3>
+          <p>Pastikan container <code>rejki-postgres</code> ada di network yang sama: <code>docker network inspect rejki-infra</code>. Cek juga <code>POSTGRES_PASSWORD</code> di .env.</p>
+          <div class="tags"><span class="tag">Network</span><span class="tag">Database</span></div>
+        </div>
+        <div class="card">
+          <div class="card-icon">🌐</div>
+          <h3>Cloudflare Tunnel error</h3>
+          <p>Cek <code>docker logs rejki-tunnel</code>. Pastikan TUNNEL_TOKEN valid. Cek juga DNS record di Cloudflare Dashboard.</p>
+          <div class="tags"><span class="tag">Tunnel</span><span class="tag">DNS</span></div>
+        </div>
+        <div class="card">
+          <div class="card-icon">💥</div>
+          <h3>Out of memory (OOM)</h3>
+          <p>VPS 2GB — matikan dev jika prod sedang sibuk. Cek <code>docker stats</code> untuk melihat memory usage realtime. Jika perlu, kurangi memory limit ClamAV.</p>
+          <div class="tags"><span class="tag">Memory</span><span class="tag">OOM</span></div>
+        </div>
+        <div class="card">
+          <div class="card-icon">🔑</div>
+          <h3>GitHub Actions SSH failed</h3>
+          <p>Verifikasi: (1) Public key ada di <code>authorized_keys</code>, (2) Permission file 600, (3) User <code>rejki</code> punya home <code>/opt/rejki/.ssh</code>, (4) Private key di GitHub Secrets format PEM.</p>
+          <div class="tags"><span class="tag">SSH</span><span class="tag">GitHub</span></div>
+        </div>
+        <div class="card">
+          <div class="card-icon">🧪</div>
+          <h3>Migration failed</h3>
+          <p>Pastikan <code>sqlx-cli</code> terinstall: <code>cargo install sqlx-cli</code>. Cek juga <code>DATABASE_URL</code> sudah benar (dev → rejki_dev, prod → rejki_prod).</p>
+          <div class="tags"><span class="tag">Migration</span><span class="tag">SQL</span></div>
+        </div>
+      </div>
+
+      <div class="highlight-box" style="margin-top:1rem;">
+        <h4 style="font-size:.88rem;font-weight:700;margin-bottom:.3rem;">📝 Log Locations</h4>
+        <div class="code"><pre># Nginx access log
+docker exec rejki-nginx-dev cat /var/log/nginx/access.log
+docker exec rejki-nginx-prod cat /var/log/nginx/access.log
+
+# Aplikasi (via docker compose)
+docker compose -f docker-compose.dev.yml -p rejki-dev logs -f rejki-app
+docker compose -f docker-compose.prod.yml -p rejki-prod logs -f rejki-app</pre></div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- COMMANDS -->
+    <!-- ══════════════════════════════════════════════ -->
+    <section id="commands">
+      <h2 class="sec-title"><span class="sec-icon ic-b">⌨️</span>Command Quick Reference</h2>
+
+      <div class="col-tbl">
+        <div>
+          <h4 style="font-size:.88rem;font-weight:700;margin-bottom:.5rem;color:var(--green);">🐳 Infrastructure (Shared)</h4>
+          <div class="code"><pre># Start
+docker compose -f docker-compose.infra.yml up -d
+
+# Stop
+docker compose -f docker-compose.infra.yml down
+
+# Restart specific
+docker restart rejki-postgres
+
+# Logs
+docker compose -f docker-compose.infra.yml logs -f</pre></div>
+        </div>
+        <div>
+          <h4 style="font-size:.88rem;font-weight:700;margin-bottom:.5rem;color:var(--blue);">🧪 Dev Environment</h4>
+          <div class="code"><pre># Build & start
+docker compose -f docker-compose.dev.yml -p rejki-dev up -d
+
+# Build ulang
+docker compose -f docker-compose.dev.yml -p rejki-dev build
+
+# Stop
+docker compose -f docker-compose.dev.yml -p rejki-dev down
+
+# Rebuild & restart (1 command)
+docker compose -f docker-compose.dev.yml -p rejki-dev up -d --build</pre></div>
+        </div>
+        <div>
+          <h4 style="font-size:.88rem;font-weight:700;margin-bottom:.5rem;color:var(--orange);">🚀 Production Environment</h4>
+          <div class="code"><pre># Build & start (dengan tunnel)
+docker compose -f docker-compose.prod.yml -p rejki-prod --profile prod up -d
+
+# Start saja (tanpa tunnel)
+docker compose -f docker-compose.prod.yml -p rejki-prod up -d
+
+# Stop
+docker compose -f docker-compose.prod.yml -p rejki-prod down
+
+# Update tunnel token tanpa restart nginx
+docker compose -f docker-compose.prod.yml -p rejki-prod restart cloudflare-tunnel</pre></div>
+        </div>
+      </div>
+
+      <div style="margin-top:1rem;">
+        <h4 style="font-size:.88rem;font-weight:700;margin-bottom:.5rem;">📦 Utility Commands</h4>
+        <div class="tbl-wrap"><table class="tbl">
+          <thead><tr><th>Perintah</th><th>Deskripsi</th></tr></thead>
+          <tbody>
+            <tr><td><code>docker compose ls</code></td><td>Lihat semua compose project yang running</td></tr>
+            <tr><td><code>docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"</code></td><td>Lihat status semua container</td></tr>
+            <tr><td><code>docker stats --no-stream</code></td><td>Lihat resource usage realtime</td></tr>
+            <tr><td><code>docker system df</code></td><td>Lihat disk usage Docker</td></tr>
+            <tr><td><code>docker image prune -f</code></td><td>Hapus image tidak terpakai</td></tr>
+            <tr><td><code>docker system prune -f</code></td><td>Hapus semua resource tidak terpakai</td></tr>
+            <tr><td><code>ufw status</code></td><td>Cek status firewall</td></tr>
+            <tr><td><code>journalctl -u docker -n 50</code></td><td>Cek log Docker daemon</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <footer>
+      <p>Rejki Backend — Deployment Guide · Terakhir diperbarui: 23 Juni 2026</p>
+      <p style="margin-top:.3rem;">Kembali ke <a href="index.html" style="color:var(--blue);">Architecture Overview</a></p>
+    </footer>
+
+  </main>
 </div>
 </body>
 </html>
