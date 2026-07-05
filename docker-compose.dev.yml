@@ -10,11 +10,8 @@ services:
     image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-rejki}/rejki-backend:develop
     container_name: rejki-app-dev
     restart: unless-stopped
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+    # depends_on postgres & redis ada di docker-compose.infra.yml (project terpisah)
+    # — container connect via shared network rejki-infra
     environment:
       APP_ENV:               development
       DATABASE_URL:          postgres://rejki:${POSTGRES_PASSWORD:?err_PGPASSWORD_wajib_di_set}@postgres:5432/rejki_dev
@@ -62,11 +59,7 @@ services:
     image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-rejki}/rejki-backend-notification:develop
     container_name: rejki-bun-dev
     restart: unless-stopped
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+    # depends_on postgres & redis ada di docker-compose.infra.yml (project terpisah)
     environment:
       APP_ENV:                      development
       REDIS_URL:                    redis://redis:6379/0
