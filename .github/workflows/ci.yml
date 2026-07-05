@@ -87,7 +87,7 @@ jobs:
 
       - name: Run tests
         working-directory: bun-notification-service
-        run: bun test
+        run: bun run test
 
   # ── Docker build & push ──────────────────────────────────────────────────
   docker-build:
