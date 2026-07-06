@@ -20,11 +20,6 @@ coverage/
 .env*
 !.env.test
 
-# Documentation & metadata
-*.md
-*.toml
-deny.toml
-
 # Git
 .git
 .gitignore
