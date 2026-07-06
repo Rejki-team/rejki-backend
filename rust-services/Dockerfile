@@ -6,6 +6,7 @@
 # ─────────────────────────────────────────────────────────────────────────────
 
 # ── Stage 1: Builder ──────────────────────────────────────────────────────────
+# Versi Rust DISAMAKAN dengan rust-toolchain.toml — jangan ubah salah satu saja!
 FROM rust:1.96-bookworm AS builder
 
 WORKDIR /app
