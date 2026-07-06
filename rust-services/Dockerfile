@@ -11,6 +11,9 @@ FROM rust:1.96-bookworm AS builder
 
 WORKDIR /app
 
+# Offline mode sqlx — pakai .sqlx/ query cache, tidak butuh DATABASE_URL saat build
+ENV SQLX_OFFLINE=true
+
 # Install sqlx-cli untuk offline mode (tidak diperlukan saat runtime)
 # dan dependency sistem untuk openssl
 RUN apt-get update && apt-get install -y --no-install-recommends \
