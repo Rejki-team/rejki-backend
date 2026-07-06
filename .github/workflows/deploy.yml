@@ -1,7 +1,9 @@
 name: Deploy to Production
 
 on:
-  push:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
     branches: [main]
 
 env:
@@ -18,6 +20,8 @@ jobs:
     name: Deploy to VPS (prod)
     runs-on: ubuntu-latest
     environment: production
+    # Hanya deploy kalau CI sukses
+    if: github.event.workflow_run.conclusion == 'success'
     steps:
       - uses: actions/checkout@v4
 
