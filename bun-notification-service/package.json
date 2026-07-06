@@ -5,7 +5,7 @@
   "scripts": {
     "start": "bun run src/index.ts",
     "dev":   "bun --watch src/index.ts",
-    "test":  "bun test --passWithNoTests"
+    "test":  "bun test --env-file test.env"
   },
   "dependencies": {
     "firebase-admin": "^12",
