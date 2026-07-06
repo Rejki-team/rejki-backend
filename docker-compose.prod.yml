@@ -7,7 +7,7 @@
 services:
   # ── Rejki App (Rust — Modular Monolith) ────────────────────────────────────
   rejki-app:
-    image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-rejki}/rejki-backend:main
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-rejki-team}/rejki-backend:main
     container_name: rejki-app-prod
     restart: unless-stopped
     # depends_on postgres & redis ada di docker-compose.infra.yml (project terpisah)
@@ -56,7 +56,7 @@ services:
 
   # ── Bun Notification Service ───────────────────────────────────────────────
   bun-notification:
-    image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-rejki}/rejki-backend-notification:main
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-rejki-team}/rejki-backend-notification:main
     container_name: rejki-bun-prod
     restart: unless-stopped
     # depends_on postgres & redis ada di docker-compose.infra.yml (project terpisah)
@@ -94,7 +94,7 @@ services:
 
   # ── Rejki Web (Vue 3 Frontend) ────────────────────────────────────────────
   rejki-web:
-    image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-rejki}/rejki-web:main
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-rejki-team}/rejki-web:main
     container_name: rejki-web-prod
     restart: unless-stopped
     depends_on:
@@ -132,7 +132,7 @@ services:
 
   # ── DB Backup ─────────────────────────────────────────────────────────────
   db-backup:
-    image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-rejki}/rejki-backup:main
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-rejki-team}/rejki-backup:main
     container_name: rejki-db-backup
     restart: unless-stopped
     # depends_on postgres & minio ada di docker-compose.infra.yml (project terpisah)
