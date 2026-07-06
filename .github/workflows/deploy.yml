@@ -1,14 +1,11 @@
 name: Deploy to Production
 
 on:
-  workflow_run:
-    workflows: ["CI"]
-    types: [completed]
+  push:
     branches: [main]
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository_owner }}/rejki-backend
   COMPOSE_FILE: docker-compose.prod.yml
 
 concurrency:
@@ -20,8 +17,6 @@ jobs:
     name: Deploy to VPS (prod)
     runs-on: ubuntu-latest
     environment: production
-    # Hanya deploy kalau CI sukses
-    if: github.event.workflow_run.conclusion == 'success'
     steps:
       - uses: actions/checkout@v4
 
@@ -44,22 +39,28 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key:      ${{ secrets.VPS_SSH_KEY }}
           port:     ${{ secrets.VPS_PORT || 22 }}
+          command_timeout: 35m
           script: |
             set -e
-
             cd /opt/rejki/prod
 
-            # Rename nginx config (compose expects ./nginx.conf)
             [ -f nginx.prod.conf ] && mv -f nginx.prod.conf nginx.conf && echo "nginx.conf updated"
 
             echo "==> Login to GitHub Container Registry"
             echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
+            echo "==> Menunggu CI selesai push image (max 25 menit)..."
+            for i in $(seq 1 30); do
+              IMG="ghcr.io/rejki-team/rejki-backend:main"
+              if docker manifest inspect "$IMG" >/dev/null 2>&1; then
+                echo "✅ Image $IMG tersedia!"
+                break
+              fi
+              echo "⏳ Menunggu image... ($i/30)"
+              sleep 60
+            done
+
             echo "==> Pull latest backend images"
-            # HANYA pull service milik repo ini:
-            #   rejki-app + bun-notification + db-backup
-            # rejki-web dideploy dari repo terpisah (rejki-web-dashboard)
-            # nginx + cloudflare-tunnel adalah public images
             docker compose -f docker-compose.prod.yml --env-file .env pull rejki-app bun-notification db-backup
 
             echo "==> Restart backend services"
