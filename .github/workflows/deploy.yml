@@ -51,11 +51,15 @@ jobs:
             echo "==> Login to GitHub Container Registry"
             echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
-            echo "==> Pull latest images"
-            docker compose -f docker-compose.prod.yml --env-file .env pull
+            echo "==> Pull latest backend images"
+            # HANYA pull service milik repo ini:
+            #   rejki-app + bun-notification + db-backup
+            # rejki-web dideploy dari repo terpisah (rejki-web-dashboard)
+            # nginx + cloudflare-tunnel adalah public images
+            docker compose -f docker-compose.prod.yml --env-file .env pull rejki-app bun-notification db-backup
 
-            echo "==> Restart services"
-            docker compose -f docker-compose.prod.yml --env-file .env up -d
+            echo "==> Restart backend services"
+            docker compose -f docker-compose.prod.yml --env-file .env up -d rejki-app bun-notification
 
             echo "==> Verify health check"
             sleep 10
