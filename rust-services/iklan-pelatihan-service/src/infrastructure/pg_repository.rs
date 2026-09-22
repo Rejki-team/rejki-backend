@@ -59,8 +59,14 @@ fn row_to_entity(r: &sqlx::postgres::PgRow) -> IklanPelatihan {
         reviewed_by: r.get("reviewed_by"),
         review_note: r.get("review_note"),
         deleted_at: r.get("deleted_at"),
+        latitude: r.get("latitude"),
+        longitude: r.get("longitude"),
         created_at: r.get("created_at"),
         updated_at: r.get("updated_at"),
+        bank_name: r.get("bank_name"),
+        bank_account_number: r.get("bank_account_number"),
+        bank_account_holder_name: r.get("bank_account_holder_name"),
+        signature_object_key: r.get("signature_object_key"),
     }
 }
 
@@ -107,14 +113,14 @@ fn row_to_badge(r: &sqlx::postgres::PgRow) -> PelatihanBadge {
 }
 
 /// Full column list for iklan_pelatihan.iklan (keep in sync with schema).
-const _PELATIHAN_COLS: &str = "id,poster_id,judul,penyelenggara,deskripsi,lokasi,region_id,harga,tanggal_mulai,tanggal_selesai,foto_urls,is_active,moderation_status,status,created_by_role,jumlah_peserta,reviewed_by,review_note,deleted_at,created_at,updated_at";
+const _PELATIHAN_COLS: &str = "id,poster_id,judul,penyelenggara,deskripsi,lokasi,region_id,harga,tanggal_mulai,tanggal_selesai,foto_urls,is_active,moderation_status,status,created_by_role,jumlah_peserta,reviewed_by,review_note,deleted_at,latitude,longitude,created_at,updated_at";
 
 // Keep original static string approach — sqlx 0.9 requires literal SQL strings.
 // Every query uses the full column list inline.
 
 macro_rules! pelatihan_cols {
     () => {
-        "id,poster_id,judul,penyelenggara,deskripsi,lokasi,region_id,harga,tanggal_mulai,tanggal_selesai,foto_urls,is_active,moderation_status,status,created_by_role,jumlah_peserta,reviewed_by,review_note,deleted_at,created_at,updated_at"
+        "id,poster_id,judul,penyelenggara,deskripsi,lokasi,region_id,harga,tanggal_mulai,tanggal_selesai,foto_urls,is_active,moderation_status,status,created_by_role,jumlah_peserta,reviewed_by,review_note,deleted_at,latitude,longitude,created_at,updated_at,bank_name,bank_account_number,bank_account_holder_name,signature_object_key"
     };
 }
 
@@ -147,17 +153,57 @@ impl IklanPelatihanRepository for PgIklanPelatihanRepository {
         Ok(r.as_ref().map(row_to_entity))
     }
 
-    async fn list(&self, limit: i64, offset: i64) -> Result<Vec<IklanPelatihan>, anyhow::Error> {
+    async fn list(
+        &self,
+        limit: i64,
+        offset: i64,
+        radius: Option<common_geo::RadiusQuery>,
+    ) -> Result<Vec<IklanPelatihan>, anyhow::Error> {
         let t = Instant::now();
-        let rows = sqlx::query(concat!(
-            "SELECT ",
-            pelatihan_cols!(),
-            " FROM iklan_pelatihan.iklan WHERE is_active=true AND moderation_status='active' AND deleted_at IS NULL AND status IN ('verifikasi_diterima','pelatihan_belum_dimulai','pelatihan_berjalan','pelatihan_selesai') ORDER BY created_at DESC LIMIT $1 OFFSET $2"
-        ))
-        .bind(limit)
-        .bind(offset)
-        .fetch_all(&self.pool)
-        .await?;
+        // sqlx 0.9 mewajibkan literal `&'static str` (audit anti-injection) — dua varian SQL
+        // literal terpisah; formula Haversine identik dengan `common_geo::haversine_km()`.
+        let rows = if let Some(r) = radius {
+            let bb = common_geo::bounding_box(r.lat, r.lng, r.radius_km);
+            sqlx::query(concat!(
+                "SELECT ",
+                pelatihan_cols!(),
+                " FROM iklan_pelatihan.iklan \
+                 WHERE is_active=true AND moderation_status='active' AND deleted_at IS NULL \
+                   AND status IN ('verifikasi_diterima','pelatihan_belum_dimulai','pelatihan_berjalan','pelatihan_selesai') \
+                   AND latitude IS NOT NULL AND longitude IS NOT NULL \
+                   AND latitude BETWEEN $3 AND $4 AND longitude BETWEEN $5 AND $6 \
+                   AND (2 * 6371 * asin(sqrt( \
+                         power(sin(radians((latitude - $7) / 2)), 2) + \
+                         cos(radians($7)) * cos(radians(latitude)) * power(sin(radians((longitude - $8) / 2)), 2) \
+                       ))) <= $9 \
+                 ORDER BY (2 * 6371 * asin(sqrt( \
+                         power(sin(radians((latitude - $7) / 2)), 2) + \
+                         cos(radians($7)) * cos(radians(latitude)) * power(sin(radians((longitude - $8) / 2)), 2) \
+                       ))) ASC \
+                 LIMIT $1 OFFSET $2"
+            ))
+            .bind(limit)
+            .bind(offset)
+            .bind(bb.min_lat)
+            .bind(bb.max_lat)
+            .bind(bb.min_lng)
+            .bind(bb.max_lng)
+            .bind(r.lat)
+            .bind(r.lng)
+            .bind(r.radius_km)
+            .fetch_all(&self.pool)
+            .await?
+        } else {
+            sqlx::query(concat!(
+                "SELECT ",
+                pelatihan_cols!(),
+                " FROM iklan_pelatihan.iklan WHERE is_active=true AND moderation_status='active' AND deleted_at IS NULL AND status IN ('verifikasi_diterima','pelatihan_belum_dimulai','pelatihan_berjalan','pelatihan_selesai') ORDER BY created_at DESC LIMIT $1 OFFSET $2"
+            ))
+            .bind(limit)
+            .bind(offset)
+            .fetch_all(&self.pool)
+            .await?
+        };
         warn_slow!(t, "iklan_pelatihan.list");
         Ok(rows.iter().map(row_to_entity).collect())
     }
@@ -168,7 +214,7 @@ impl IklanPelatihanRepository for PgIklanPelatihanRepository {
     ) -> Result<IklanPelatihan, anyhow::Error> {
         let t = Instant::now();
         let r = sqlx::query(concat!(
-            "INSERT INTO iklan_pelatihan.iklan (id,poster_id,judul,penyelenggara,deskripsi,lokasi,region_id,harga,tanggal_mulai,tanggal_selesai,created_by_role,status,jumlah_peserta) VALUES (gen_random_uuid(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING ",
+            "INSERT INTO iklan_pelatihan.iklan (id,poster_id,judul,penyelenggara,deskripsi,lokasi,region_id,harga,tanggal_mulai,tanggal_selesai,created_by_role,status,jumlah_peserta,latitude,longitude,bank_name,bank_account_number,bank_account_holder_name,signature_object_key) VALUES (gen_random_uuid(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18) RETURNING ",
             pelatihan_cols!()
         ))
         .bind(params.poster_id)
@@ -183,6 +229,12 @@ impl IklanPelatihanRepository for PgIklanPelatihanRepository {
         .bind(params.created_by_role)
         .bind(params.initial_status)
         .bind(params.jumlah_peserta)
+        .bind(params.latitude)
+        .bind(params.longitude)
+        .bind(params.bank_name)
+        .bind(params.bank_account_number)
+        .bind(params.bank_account_holder_name)
+        .bind(params.signature_object_key)
         .fetch_one(&self.pool)
         .await?;
         warn_slow!(t, "iklan_pelatihan.create");
@@ -233,6 +285,12 @@ impl IklanPelatihanRepository for PgIklanPelatihanRepository {
             "foto_urls=COALESCE($11,foto_urls),",
             "jumlah_peserta=COALESCE($12,jumlah_peserta),",
             "is_active=COALESCE($13,is_active),",
+            "latitude=COALESCE($14,latitude),",
+            "longitude=COALESCE($15,longitude),",
+            "bank_name=COALESCE($16,bank_name),",
+            "bank_account_number=COALESCE($17,bank_account_number),",
+            "bank_account_holder_name=COALESCE($18,bank_account_holder_name),",
+            "signature_object_key=COALESCE($19,signature_object_key),",
             "updated_at=now() ",
             "WHERE id=$1 AND poster_id=$2 AND deleted_at IS NULL RETURNING ",
             pelatihan_cols!()
@@ -250,6 +308,12 @@ impl IklanPelatihanRepository for PgIklanPelatihanRepository {
         .bind(&params.foto_urls)
         .bind(params.jumlah_peserta)
         .bind(params.is_active)
+        .bind(params.latitude)
+        .bind(params.longitude)
+        .bind(&params.bank_name)
+        .bind(&params.bank_account_number)
+        .bind(&params.bank_account_holder_name)
+        .bind(&params.signature_object_key)
         .fetch_optional(&self.pool)
         .await?;
         warn_slow!(t, "iklan_pelatihan.update");
@@ -336,7 +400,7 @@ impl IklanPelatihanRepository for PgIklanPelatihanRepository {
     ) -> Result<Option<IklanPelatihan>, anyhow::Error> {
         let t = Instant::now();
         let r = sqlx::query(concat!(
-            "UPDATE iklan_pelatihan.iklan SET judul=$3,penyelenggara=$4,deskripsi=$5,lokasi=$6,region_id=$7,harga=$8,tanggal_mulai=$9,tanggal_selesai=$10,jumlah_peserta=$11,updated_at=now() WHERE id=$1 AND poster_id=$2 AND deleted_at IS NULL RETURNING ",
+            "UPDATE iklan_pelatihan.iklan SET judul=$3,penyelenggara=$4,deskripsi=$5,lokasi=$6,region_id=$7,harga=$8,tanggal_mulai=$9,tanggal_selesai=$10,jumlah_peserta=$11,latitude=COALESCE($12,latitude),longitude=COALESCE($13,longitude),bank_name=$14,bank_account_number=$15,bank_account_holder_name=$16,signature_object_key=COALESCE($17,signature_object_key),updated_at=now() WHERE id=$1 AND poster_id=$2 AND deleted_at IS NULL RETURNING ",
             pelatihan_cols!()
         ))
         .bind(params.id)
@@ -350,6 +414,12 @@ impl IklanPelatihanRepository for PgIklanPelatihanRepository {
         .bind(params.tanggal_mulai)
         .bind(params.tanggal_selesai)
         .bind(params.jumlah_peserta)
+        .bind(params.latitude)
+        .bind(params.longitude)
+        .bind(params.bank_name)
+        .bind(params.bank_account_number)
+        .bind(params.bank_account_holder_name)
+        .bind(params.signature_object_key)
         .fetch_optional(&self.pool)
         .await?;
         warn_slow!(t, "iklan_pelatihan.update_pelatihan");
@@ -398,6 +468,39 @@ impl IklanPelatihanRepository for PgIklanPelatihanRepository {
         .await?;
         warn_slow!(t, "iklan_pelatihan.soft_delete_pelatihan");
         Ok(r.rows_affected() > 0)
+    }
+
+    async fn set_pelatihan_status_system(
+        &self,
+        id: Uuid,
+        new_status: &str,
+    ) -> Result<bool, anyhow::Error> {
+        let t = Instant::now();
+        // Tidak menyentuh baris yang sudah terminal (verifikasi_ditolak, pelatihan_selesai,
+        // dibatalkan) atau sudah soft-deleted — idempoten terhadap eksekusi ulang/duplikat.
+        let r = sqlx::query(
+            "UPDATE iklan_pelatihan.iklan SET status=$2, updated_at=now() \
+             WHERE id=$1 AND deleted_at IS NULL \
+               AND status NOT IN ('verifikasi_ditolak','pelatihan_selesai','dibatalkan')",
+        )
+        .bind(id)
+        .bind(new_status)
+        .execute(&self.pool)
+        .await?;
+        warn_slow!(t, "iklan_pelatihan.set_pelatihan_status_system");
+        Ok(r.rows_affected() > 0)
+    }
+
+    async fn has_any_badge_for_pelatihan(&self, pelatihan_id: Uuid) -> Result<bool, anyhow::Error> {
+        let t = Instant::now();
+        let exists: bool = sqlx::query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM iklan_pelatihan.pelatihan_badge WHERE pelatihan_id=$1)",
+        )
+        .bind(pelatihan_id)
+        .fetch_one(&self.pool)
+        .await?;
+        warn_slow!(t, "iklan_pelatihan.has_any_badge_for_pelatihan");
+        Ok(exists)
     }
 
     // ── Suspension (existing) ────────────────────────────────────────────
@@ -742,6 +845,24 @@ impl IklanPelatihanRepository for PgIklanPelatihanRepository {
         .fetch_optional(&self.pool)
         .await?;
         warn_slow!(t, "iklan_pelatihan.commit_badge_sertifikat");
+        Ok(r.as_ref().map(row_to_badge))
+    }
+
+    async fn set_badge_sertifikat(
+        &self,
+        id: Uuid,
+        object_key: &str,
+    ) -> Result<Option<PelatihanBadge>, anyhow::Error> {
+        let t = Instant::now();
+        let r = sqlx::query(concat!(
+            "UPDATE iklan_pelatihan.pelatihan_badge SET sertifikat_object_key=$2, updated_at=now() WHERE id=$1 RETURNING ",
+            badge_cols!()
+        ))
+        .bind(id)
+        .bind(object_key)
+        .fetch_optional(&self.pool)
+        .await?;
+        warn_slow!(t, "iklan_pelatihan.set_badge_sertifikat");
         Ok(r.as_ref().map(row_to_badge))
     }
 

@@ -78,6 +78,10 @@ pub struct UpdateProfileParams {
     pub regency_id: Option<String>,
     pub district_id: Option<String>,
     pub village_id: Option<String>,
+    /// Hasil re-geocoding (F-1) bila region berubah. `None` = tidak berubah (region tetap
+    /// sama) ATAU geocoding gagal — kolom lama dipertahankan (COALESCE), degradasi anggun.
+    pub latitude: Option<f64>,
+    pub longitude: Option<f64>,
 }
 
 // Native async fn in trait per CLAUDE.md §4.1 (Rust ≥ 1.75).
@@ -87,6 +91,9 @@ pub trait UserRepository: Send + Sync {
     // Profil
     async fn find_by_id(&self, id: Uuid) -> Result<Option<UserProfile>, anyhow::Error>;
     async fn find_by_auth_id(&self, auth_id: Uuid) -> Result<Option<UserProfile>, anyhow::Error>;
+    /// Batch lookup (Hazard #5, Kelompok 3 Phase 3) — dipakai `UserClient::get_location_summaries_by_auth_ids`
+    /// (F-15 "daftar bider") untuk beberapa `auth_id` sekaligus, bukan N+1 per pemanggil.
+    async fn find_by_auth_ids(&self, auth_ids: &[Uuid]) -> Result<Vec<UserProfile>, anyhow::Error>;
     async fn create(&self, auth_id: Uuid, username: &str) -> Result<UserProfile, anyhow::Error>;
     /// Update profil — gunakan `UpdateProfileParams` untuk menghindari too_many_arguments.
     async fn update(&self, params: UpdateProfileParams) -> Result<UserProfile, anyhow::Error>;
@@ -155,6 +162,14 @@ pub trait UserRepository: Send + Sync {
         &self,
         submission_id: Uuid,
     ) -> Result<Option<AdminKycRow>, anyhow::Error>;
+
+    /// NIK terenkripsi milik profil pemilik pengajuan (F-26 — reveal NIK admin).
+    /// Return `(profile_id, nik_encrypted)`; `None` bila submission tidak ada
+    /// ATAU NIK belum pernah disimpan.
+    async fn get_nik_for_reveal(
+        &self,
+        submission_id: Uuid,
+    ) -> Result<Option<(Uuid, Vec<u8>)>, anyhow::Error>;
 
     /// Mulai database transaction untuk operasi multi-step atomic (C2).
     /// Return `TxUserRepository` handle; panggil `commit()` atau `rollback()`.

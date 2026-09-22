@@ -1,2 +1,2 @@
 //! Re-export dari common-crypto agar auth-service tetap kompatibel.
-pub use common_crypto::{decrypt, encrypt};
+pub use common_crypto::{decrypt, encrypt, hash_lookup};

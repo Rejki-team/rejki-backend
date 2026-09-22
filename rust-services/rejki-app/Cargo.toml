@@ -14,6 +14,8 @@ common-config  = { workspace = true }
 common-errors  = { workspace = true }
 common-tracing = { workspace = true }
 common-rate-limit = { workspace = true }
+common-geocoding = { workspace = true }
+common-scheduler = { workspace = true }
 
 # Import SERVICE (implementasi), bukan client (trait/kontrak).
 # Tipe trait (AuthClient, RegionClient, dll.) di-re-export dari service crate,
@@ -31,6 +33,7 @@ report-service              = { path = "../report-service" }
 region-service              = { path = "../region-service" }
 storage-service             = { path = "../storage-service" }
 insights-service            = { path = "../insights-service" }
+rating-service               = { path = "../rating-service" }
 
 axum        = { workspace = true }
 tokio       = { workspace = true }

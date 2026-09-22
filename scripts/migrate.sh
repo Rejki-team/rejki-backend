@@ -47,6 +47,7 @@ map_schema() {
     case "$1" in
         user-service)            echo "user_svc" ;;
         corporate-comms-service) echo "comms" ;;
+        insights-service)        echo "analytics" ;;
         *)                       echo "$1" | sed 's/-service//' | sed 's/-/_/g' ;;
     esac
 }
@@ -61,8 +62,14 @@ for dir in *-service/migrations; do
     # Buat schema jika belum ada
     psql "$DATABASE_URL" -c "CREATE SCHEMA IF NOT EXISTS $schema" 2>/dev/null
 
-    # Run sqlx migration
-    sqlx migrate run \
+    # PENTING: seluruh service berbagi SATU database (rejki_dev/rejki_prod) — tanpa
+    # search_path per schema, tabel bookkeeping `_sqlx_migrations` (dibuat di schema
+    # default/`public`) akan bertabrakan antar service (migration file dari service
+    # berbeda kebetulan punya nomor versi/timestamp yang sama), menyebabkan sqlx
+    # menolak dengan "was previously applied but is missing in the resolved
+    # migrations" pada service kedua dan seterusnya. `PGOPTIONS` mengisolasi
+    # bookkeeping table tiap service ke schema-nya sendiri.
+    PGOPTIONS="-c search_path=$schema" sqlx migrate run \
         --source "$dir" \
         --database-url "$DATABASE_URL"
 done

@@ -144,8 +144,8 @@ pub async fn seed_report(pool: &PgPool, reporter_id: Uuid, suffix: &str) -> Uuid
 
     sqlx::query(
         r#"
-        INSERT INTO report.report (id, reporter_id, target_type, target_id, keterangan, status, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, $5, 'pending', now(), now())
+        INSERT INTO report.report (id, reporter_id, target_type, target_id, keterangan, status, due_date, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, 'pending', now() + interval '7 days', now(), now())
         ON CONFLICT (id) DO NOTHING
         "#,
     )
@@ -157,6 +157,36 @@ pub async fn seed_report(pool: &PgPool, reporter_id: Uuid, suffix: &str) -> Uuid
     .execute(pool)
     .await
     .expect("seed_report: insert failed");
+
+    id
+}
+
+/// Seed satu report DENGAN `due_date` eksplisit (P1.5 — test skenario overdue).
+pub async fn seed_report_with_due_date(
+    pool: &PgPool,
+    reporter_id: Uuid,
+    suffix: &str,
+    due_date: chrono::DateTime<chrono::Utc>,
+) -> Uuid {
+    let id = Uuid::now_v7();
+    let target_id = Uuid::now_v7();
+
+    sqlx::query(
+        r#"
+        INSERT INTO report.report (id, reporter_id, target_type, target_id, keterangan, status, due_date, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, 'pending', $6, now(), now())
+        ON CONFLICT (id) DO NOTHING
+        "#,
+    )
+    .bind(id)
+    .bind(reporter_id)
+    .bind("iklan")
+    .bind(target_id)
+    .bind(format!("Konten tidak pantas - {suffix}"))
+    .bind(due_date)
+    .execute(pool)
+    .await
+    .expect("seed_report_with_due_date: insert failed");
 
     id
 }

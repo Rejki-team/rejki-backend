@@ -7,12 +7,12 @@ use crate::domain::entity::Report;
 use crate::domain::repository::{
     CreateReportParams, ListResult, ReportListParams, ReportRepository,
 };
-use report_service_client::{ReportStatus, ReportTargetType};
+use report_service_client::{ReportAdType, ReportStatus, ReportTargetType, ReportType};
 
 // Macro expand ke literal string — memenuhi sqlx 0.9 SqlSafeStr (&'static str).
 macro_rules! report_cols {
     () => {
-        "id,reporter_id,target_type,target_id,keterangan,evidence_object_key,status,action_note,reviewed_by,created_at,updated_at"
+        "id,reporter_id,report_type,target_type,target_id,target_ad_type,keterangan,evidence_object_key,status,action_note,reviewed_by,due_date,created_at,updated_at"
     };
 }
 
@@ -32,14 +32,21 @@ fn row_to_report(r: &sqlx::postgres::PgRow) -> Report {
     Report {
         id: r.get("id"),
         reporter_id: r.get("reporter_id"),
-        target_type: ReportTargetType::parse(&r.get::<String, _>("target_type"))
-            .unwrap_or(ReportTargetType::Iklan),
+        report_type: ReportType::parse(&r.get::<String, _>("report_type"))
+            .unwrap_or(ReportType::LaporkanIklan),
+        target_type: r
+            .get::<Option<String>, _>("target_type")
+            .and_then(|s| ReportTargetType::parse(&s)),
         target_id: r.get("target_id"),
+        target_ad_type: r
+            .get::<Option<String>, _>("target_ad_type")
+            .and_then(|s| ReportAdType::parse(&s)),
         keterangan: r.get("keterangan"),
         evidence_object_key: r.get("evidence_object_key"),
         status: ReportStatus::parse(&r.get::<String, _>("status")).unwrap_or(ReportStatus::Pending),
         action_note: r.get("action_note"),
         reviewed_by: r.get("reviewed_by"),
+        due_date: r.get("due_date"),
         created_at: r.get("created_at"),
         updated_at: r.get("updated_at"),
     }
@@ -51,15 +58,18 @@ impl ReportRepository for PgReportRepository {
         let result = sqlx::query(concat!(
             "INSERT INTO report.report (",
             report_cols!(),
-            ") VALUES ($1,$2,$3,$4,$5,$6,'pending',NULL,NULL,now(),now()) RETURNING ",
+            ") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'pending',NULL,NULL,$9,now(),now()) RETURNING ",
             report_cols!()
         ))
         .bind(Uuid::now_v7())
         .bind(params.reporter_id)
-        .bind(params.target_type.as_str())
+        .bind(params.report_type.as_str())
+        .bind(params.target_type.map(|t| t.as_str()))
         .bind(params.target_id)
+        .bind(params.target_ad_type.map(|t| t.as_str()))
         .bind(params.keterangan)
         .bind(params.evidence_object_key)
+        .bind(params.due_date)
         .fetch_one(&self.pool)
         .await
         .map(|r| row_to_report(&r))?;
@@ -134,6 +144,14 @@ impl ReportRepository for PgReportRepository {
             count_builder.push_bind(status.as_str());
             data_builder.push(" AND status = ");
             data_builder.push_bind(status.as_str());
+        }
+
+        // Optional: filter by report_type (Jenis Laporan — fondasi filter web Phase 2)
+        if let Some(ref report_type) = params.report_type {
+            count_builder.push(" AND report_type = ");
+            count_builder.push_bind(report_type.as_str());
+            data_builder.push(" AND report_type = ");
+            data_builder.push_bind(report_type.as_str());
         }
 
         // Total

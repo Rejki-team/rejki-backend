@@ -130,24 +130,36 @@ impl AuthRepository for PgAuthRepository {
         password_hash: &str,
         password_algorithm: &str,
         phone_encrypted: Option<&str>,
+        phone_hash: Option<&str>,
         tos_version: &str,
     ) -> Result<AuthUser, anyhow::Error> {
         let t = Instant::now();
-        let row = sqlx::query(
-            "INSERT INTO auth.users (id, email, password_hash, password_algorithm, phone, tos_accepted_at, tos_version)
-             VALUES (gen_random_uuid(), $1, $2, $3, $4, now(), $5)
+        let result = sqlx::query(
+            "INSERT INTO auth.users (id, email, password_hash, password_algorithm, phone, phone_hash, tos_accepted_at, tos_version)
+             VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, now(), $6)
              RETURNING id, email, password_hash, password_algorithm, status, role, phone, tos_accepted_at, tos_version, created_at, updated_at",
         )
         .bind(email)
         .bind(password_hash)
         .bind(password_algorithm)
         .bind(phone_encrypted)
+        .bind(phone_hash)
         .bind(tos_version)
         .fetch_one(&self.pool)
-        .await?;
+        .await;
         warn_slow!(t, "auth.create_user");
 
-        Self::row_to_user(&row)
+        match result {
+            Ok(row) => Self::row_to_user(&row),
+            // B-2: nomor telepon sudah dipakai akun lain (uq_auth_users_phone_hash) —
+            // dibedakan dari galat DB lain agar handler bisa balas 409, bukan 500.
+            Err(sqlx::Error::Database(ref db_err))
+                if db_err.constraint() == Some("uq_auth_users_phone_hash") =>
+            {
+                Err(anyhow::anyhow!("PHONE_ALREADY_REGISTERED"))
+            }
+            Err(e) => Err(e.into()),
+        }
     }
 
     async fn save_refresh_token(

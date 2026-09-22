@@ -77,4 +77,62 @@ impl AuthClient for AuthInProcessClient {
             .await
             .map_err(|_| AuthClientError::Unavailable)
     }
+
+    async fn suspend_temporarily(
+        &self,
+        user_id: Uuid,
+        days: i64,
+        reason: &str,
+    ) -> Result<(), AuthClientError> {
+        let current = self
+            .repo
+            .get_status(user_id)
+            .await
+            .map_err(|_| AuthClientError::Unavailable)?
+            .ok_or(AuthClientError::NotFound)?;
+
+        let target = AccountStatus::SuspendedTemp;
+        if !current.can_transition_to(target) {
+            return Err(AuthClientError::InvalidTransition);
+        }
+
+        let expires_at = chrono::Utc::now() + chrono::Duration::days(days);
+        self.repo
+            .suspend_user_transactional(
+                user_id,
+                target,
+                false,
+                reason,
+                Some(expires_at),
+                // Sentinel "sistem" — dipicu tugas otomatis (F-32), bukan admin manusia.
+                // Aman: `created_by` di `auth.account_suspension` tidak punya FK (denormalized).
+                Uuid::nil(),
+                None,
+            )
+            .await
+            .map_err(|_| AuthClientError::Unavailable)
+    }
+
+    async fn suspend_permanently(
+        &self,
+        user_id: Uuid,
+        reason: &str,
+    ) -> Result<(), AuthClientError> {
+        let current = self
+            .repo
+            .get_status(user_id)
+            .await
+            .map_err(|_| AuthClientError::Unavailable)?
+            .ok_or(AuthClientError::NotFound)?;
+
+        let target = AccountStatus::SuspendedPermanent;
+        if !current.can_transition_to(target) {
+            return Err(AuthClientError::InvalidTransition);
+        }
+
+        self.repo
+            .suspend_user_transactional(user_id, target, true, reason, None, Uuid::nil(), None)
+            .await
+            .map_err(|_| AuthClientError::Unavailable)
+    }
 }

@@ -157,23 +157,25 @@ wss://api.rejki.id/api/v1/chat/ws?token=eyJhbGci...&room=550e8400-uuid</pre></di
   <span class="cs">"type"</span>: <span class="cs">"chat.send"</span>,
   <span class="cs">"request_id"</span>: <span class="cs">"req_uuid"</span>,  <span class="cc">// client generate</span>
   <span class="cs">"payload"</span>: {
-    <span class="cs">"room_id"</span>: <span class="cs">"uuid"</span>,
+    <span class="cs">"content_type"</span>: <span class="cs">"text"</span>,  <span class="cc">// "text" | "location" | "photo"</span>
     <span class="cs">"content"</span>: <span class="cs">"Halo!"</span>
   }
 }</pre></div>
+          <p style="color:var(--muted);font-size:.78rem;margin-top:.4rem;">Tidak ada <code>room_id</code> di payload — conversation sudah terikat ke koneksi WS lewat query param <code>conversation_id</code> saat handshake (satu koneksi = satu conversation). Untuk <code>content_type: "location"</code>, payload berisi <code>lat</code>/<code>lng</code> (bukan <code>content</code>); untuk <code>"photo"</code>, payload berisi <code>photo_object_key</code> (didapat dari <code>POST /api/v1/chat/photo-upload-permission</code> lebih dulu, upload byte ke <code>presigned_url</code>-nya, baru kirim event ini).</p>
         </div>
         <div>
           <div class="col-label">Server → Client</div>
           <div class="code"><pre>{
   <span class="cs">"type"</span>: <span class="cs">"chat.message"</span>,
-  <span class="cs">"request_id"</span>: <span class="cs">"req_uuid"</span>,  <span class="cc">// echo dari client</span>
   <span class="cs">"payload"</span>: {
-    <span class="cs">"message_id"</span>: <span class="cs">"uuid"</span>,
+    <span class="cs">"id"</span>: <span class="cs">"uuid"</span>,
     <span class="cs">"sender_id"</span>: <span class="cs">"uuid"</span>,
+    <span class="cs">"content_type"</span>: <span class="cs">"text"</span>,
     <span class="cs">"content"</span>: <span class="cs">"Halo!"</span>,
     <span class="cs">"created_at"</span>: <span class="cs">"2026-06-09T10:00:00Z"</span>
   }
 }</pre></div>
+          <p style="color:var(--muted);font-size:.78rem;margin-top:.4rem;"><code>chat.message</code> (broadcast ke seluruh member room, termasuk pengirim) TIDAK meng-echo <code>request_id</code> (null) — ack ke pengirim sendiri dikirim terpisah sebagai <code>chat.message_ack</code> (<code>payload: {message_id}</code>, <code>request_id</code> di-echo).</p>
         </div>
       </div>
 
@@ -182,7 +184,7 @@ wss://api.rejki.id/api/v1/chat/ws?token=eyJhbGci...&room=550e8400-uuid</pre></di
         <thead><tr><th>Field</th><th>Tipe</th><th>Wajib?</th><th>Keterangan</th></tr></thead>
         <tbody>
           <tr><td><code>type</code></td><td>string</td><td>Selalu</td><td>Format: <code>{domain}.{action}</code>. Contoh: <code>chat.send</code>, <code>chat.typing</code>, <code>system.ping</code>.</td></tr>
-          <tr><td><code>request_id</code></td><td>string UUID</td><td>Selalu</td><td>Client generate untuk setiap message. Server echo-back di response. Berguna untuk korelasi ACK.</td></tr>
+          <tr><td><code>request_id</code></td><td>string UUID</td><td>Selalu (client→server); opsional (server→client)</td><td>Client generate untuk setiap message. Server echo-back di response yang berkorelasi langsung (mis. <code>chat.message_ack</code>, <code>error</code>). Event broadcast (<code>chat.message</code>, <code>system.connected</code>) tidak punya <code>request_id</code> untuk di-echo.</td></tr>
           <tr><td><code>payload</code></td><td>object</td><td>Tergantung type</td><td>Data spesifik per event type. Bisa null untuk event tanpa data (ping, ack).</td></tr>
         </tbody>
       </table></div>
@@ -191,13 +193,15 @@ wss://api.rejki.id/api/v1/chat/ws?token=eyJhbGci...&room=550e8400-uuid</pre></di
     <section id="events">
       <h2 class="sec-title"><span class="sec-icon ic-b">📡</span>Daftar Event</h2>
 
+      <p style="color:var(--muted);font-size:.85rem;margin-bottom:.6rem;"><strong>Status implementasi (Kelompok 4 Phase 4, F-19):</strong> <code>chat.send</code> dan <code>system.ping/pong</code> terimplementasi penuh (persist + broadcast + membership check). <code>chat.typing</code> dan <code>chat.read</code> BELUM diimplementasikan — di luar scope lokasi/foto, dicatat sebagai gap untuk fase berikutnya.</p>
+
       <div class="sub-title">Event dari Client → Server</div>
       <div class="tbl-wrap"><table class="tbl">
         <thead><tr><th>Type</th><th>Payload</th><th>Keterangan</th></tr></thead>
         <tbody>
-          <tr><td><span class="ev ev-c">chat.send</span></td><td><code>room_id</code>, <code>content</code></td><td>Kirim pesan teks ke room. Server persist ke DB lalu broadcast.</td></tr>
-          <tr><td><span class="ev ev-c">chat.typing</span></td><td><code>room_id</code></td><td>Indikator user sedang mengetik. Server broadcast ke member lain, tidak di-persist.</td></tr>
-          <tr><td><span class="ev ev-c">chat.read</span></td><td><code>room_id</code>, <code>last_read_message_id</code></td><td>Tandai pesan sudah dibaca. Server update DB dan broadcast status.</td></tr>
+          <tr><td><span class="ev ev-c">chat.send</span></td><td><code>content_type</code> + (<code>content</code> | <code>lat</code>+<code>lng</code> | <code>photo_object_key</code>)</td><td>Kirim pesan (teks/lokasi/foto) ke conversation yang terikat pada koneksi ini. Server persist ke DB lalu broadcast <code>chat.message</code> + ack <code>chat.message_ack</code> ke pengirim.</td></tr>
+          <tr><td><span class="ev ev-c">chat.typing</span></td><td><em>(belum diimplementasikan)</em></td><td>Indikator user sedang mengetik. Server broadcast ke member lain, tidak di-persist.</td></tr>
+          <tr><td><span class="ev ev-c">chat.read</span></td><td><em>(belum diimplementasikan)</em></td><td>Tandai pesan sudah dibaca. Server update DB dan broadcast status.</td></tr>
           <tr><td><span class="ev ev-c">system.ping</span></td><td>null</td><td>Keepalive dari client. Server balas <code>system.pong</code>. Kirim setiap 30 detik.</td></tr>
         </tbody>
       </table></div>

@@ -57,6 +57,9 @@ impl StorageClient for StorageInProcessClient {
                 5 * 1024 * 1024,
                 &["image/jpeg", "image/png", "application/pdf"][..],
             ),
+            // Foto dikirim di Chat (F-19, PRD §5.9): JPEG/PNG, maks 5MB — pola sama
+            // "avatar"/"article-photo" (foto biasa, bukan dokumen bukti).
+            "chat-photo" => (5 * 1024 * 1024, &["image/jpeg", "image/png"][..]),
             _ => return Err(StorageClientError::InvalidMime),
         };
 
@@ -102,6 +105,42 @@ impl StorageClient for StorageInProcessClient {
     async fn delete(&self, object_key: &str) -> Result<(), StorageClientError> {
         match self.storage.as_ref() {
             Some(s) if s.delete_object(object_key).await => Ok(()),
+            Some(_) => Err(StorageClientError::Unavailable),
+            None => Err(StorageClientError::Unavailable),
+        }
+    }
+
+    async fn download_bytes(&self, object_key: &str) -> Result<Vec<u8>, StorageClientError> {
+        match self.storage.as_ref() {
+            Some(s) => s
+                .get_object_bytes(object_key)
+                .await
+                .ok_or(StorageClientError::Unavailable),
+            None => Err(StorageClientError::Unavailable),
+        }
+    }
+
+    async fn upload_bytes(
+        &self,
+        category: &str,
+        user_id: uuid::Uuid,
+        bytes: Vec<u8>,
+        mime: &str,
+    ) -> Result<String, StorageClientError> {
+        let ext = match mime {
+            "image/png" => "png",
+            "application/pdf" => "pdf",
+            _ => "jpg",
+        };
+        let object_key = format!(
+            "uploads/{}/{}/{}.{}",
+            category,
+            user_id,
+            uuid::Uuid::now_v7(),
+            ext
+        );
+        match self.storage.as_ref() {
+            Some(s) if s.put_object_bytes(&object_key, bytes, mime).await => Ok(object_key),
             Some(_) => Err(StorageClientError::Unavailable),
             None => Err(StorageClientError::Unavailable),
         }

@@ -1,13 +1,13 @@
 use axum::{
     extract::{Path, Query, State},
-    http::{header, HeaderMap, StatusCode},
+    http::{HeaderMap, StatusCode},
     response::Response,
     Json,
 };
 use uuid::Uuid;
 
 use auth_service_client::AuthClaims;
-use common_errors::{ApiResponse, AppError, PaginatedMeta, ValidatedJson};
+use common_errors::{csv_response, ApiResponse, AppError, PaginatedMeta, ValidatedJson};
 use storage_service_client::{FileInfo, StorageClientError};
 
 use super::AppState;
@@ -290,6 +290,28 @@ pub async fn admin_get_document(
     }
 }
 
+/// GET /admin/kyc/{id}/nik — buka NIK penuh (click-to-view, teraudit; F-26/F-27a).
+pub async fn admin_reveal_nik(
+    State(s): State<AppState>,
+    claims: axum::Extension<AuthClaims>,
+    Path(id): Path<Uuid>,
+    headers: HeaderMap,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // request_id untuk audit yang akurat (layer tracing sudah inject header).
+    let request_id = headers.get("x-request-id").and_then(|v| v.to_str().ok());
+
+    let nik = s
+        .user_svc
+        .admin_reveal_nik(id, claims.user_id, request_id)
+        .await
+        .map_err(AppError::Internal)?;
+
+    match nik {
+        Some(n) => Ok(Json(ApiResponse::ok(serde_json::json!({ "nik": n })))),
+        None => Err(AppError::NotFound("NIK tidak tersedia".into())),
+    }
+}
+
 /// GET /admin/kyc/export.csv — ekspor daftar pengajuan sesuai filter aktif.
 pub async fn admin_export_kyc_csv(
     State(s): State<AppState>,
@@ -323,15 +345,7 @@ pub async fn admin_export_kyc_csv(
         ));
     }
 
-    Response::builder()
-        .status(StatusCode::OK)
-        .header(header::CONTENT_TYPE, "text/csv; charset=utf-8")
-        .header(
-            header::CONTENT_DISPOSITION,
-            "attachment; filename=kyc_submissions.csv",
-        )
-        .body(axum::body::Body::from(csv))
-        .map_err(|e| AppError::Internal(anyhow::anyhow!("gagal membangun respons CSV: {e}")))
+    Ok(csv_response(csv, "kyc_submissions.csv"))
 }
 
 /// Petakan galat domain review ke kode HTTP yang tepat (D5).

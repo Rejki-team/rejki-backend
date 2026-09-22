@@ -42,12 +42,21 @@ pub async fn register(
     ctx: AuditContext,
     ValidatedJson(body): ValidatedJson<RegisterInput>,
 ) -> Result<Response, AppError> {
-    // Anti-enumeration: register selalu sukses generik untuk input valid; kegagalan
-    // di sini berarti galat internal (DB/enkripsi), bukan "email sudah terdaftar".
-    s.auth_svc
-        .register(body, ctx)
-        .await
-        .map_err(AppError::Internal)?;
+    // Anti-enumeration untuk EMAIL: duplikat email tidak pernah membocorkan status ke
+    // caller (lihat blok "sudah ada" di application::service::register — balas sukses
+    // generik atau resend OTP secara internal, tidak pernah error).
+    //
+    // B-2 (keputusan klien 2026-09-21): nomor telepon DIKECUALIKAN dari pola di atas —
+    // duplikat nomor telepon WAJIB dibalas 409 Conflict eksplisit (bukan generik), sesuai
+    // PRD §5.3.1 ("pengguna diarahkan untuk masuk menggunakan kredensial yang ada") supaya
+    // mobile app bisa langsung mengarahkan ke halaman Login.
+    s.auth_svc.register(body, ctx).await.map_err(|e| {
+        if e.to_string().contains("PHONE_ALREADY_REGISTERED") {
+            AppError::Conflict("nomor telepon sudah terdaftar".into())
+        } else {
+            AppError::Internal(e)
+        }
+    })?;
     Ok(created_response(
         ApiResponse::ok(empty_json()),
         "/api/v1/auth/me",

@@ -24,11 +24,23 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy workspace manifest dulu untuk cache dependency layer
 COPY Cargo.toml Cargo.lock ./
 
-# Copy semua Cargo.toml crate (dibutuhkan resolver workspace)
+# Copy semua Cargo.toml crate (dibutuhkan resolver workspace).
+# PENTING: daftar ini WAJIB sinkron dengan `members` di root Cargo.toml — komposisi
+# root (rejki-app) meng-import SEMUA *-service (bukan hanya yang dipakai router),
+# sehingga workspace resolver butuh manifest tiap member walau sebagian (region,
+# storage, insights) tidak disebut namanya di rejki-app/src/main.rs secara literal.
+COPY common/crypto/Cargo.toml         common/crypto/Cargo.toml
 COPY common/config/Cargo.toml         common/config/Cargo.toml
 COPY common/errors/Cargo.toml         common/errors/Cargo.toml
 COPY common/tracing-setup/Cargo.toml  common/tracing-setup/Cargo.toml
 COPY common/auth-middleware/Cargo.toml common/auth-middleware/Cargo.toml
+COPY common/rate-limit/Cargo.toml     common/rate-limit/Cargo.toml
+COPY common/idempotency/Cargo.toml    common/idempotency/Cargo.toml
+COPY common/clamav/Cargo.toml         common/clamav/Cargo.toml
+COPY region-service/Cargo.toml        region-service/Cargo.toml
+COPY region-service-client/Cargo.toml region-service-client/Cargo.toml
+COPY storage-service/Cargo.toml        storage-service/Cargo.toml
+COPY storage-service-client/Cargo.toml storage-service-client/Cargo.toml
 COPY auth-service/Cargo.toml          auth-service/Cargo.toml
 COPY auth-service-client/Cargo.toml   auth-service-client/Cargo.toml
 COPY user-service/Cargo.toml          user-service/Cargo.toml
@@ -49,11 +61,15 @@ COPY corporate-comms-service/Cargo.toml       corporate-comms-service/Cargo.toml
 COPY corporate-comms-service-client/Cargo.toml corporate-comms-service-client/Cargo.toml
 COPY report-service/Cargo.toml               report-service/Cargo.toml
 COPY report-service-client/Cargo.toml         report-service-client/Cargo.toml
+COPY insights-service/Cargo.toml             insights-service/Cargo.toml
 COPY rejki-app/Cargo.toml             rejki-app/Cargo.toml
 
 # Buat src dummy agar cargo bisa fetch dependency tanpa source asli
 # Ini memaksimalkan cache layer Docker
-RUN mkdir -p common/config/src common/errors/src common/tracing-setup/src common/auth-middleware/src \
+RUN mkdir -p common/crypto/src common/config/src common/errors/src common/tracing-setup/src \
+    common/auth-middleware/src common/rate-limit/src common/idempotency/src common/clamav/src \
+    region-service/src region-service-client/src \
+    storage-service/src storage-service-client/src \
     auth-service/src auth-service-client/src \
     user-service/src user-service-client/src \
     chat-service/src chat-service-client/src \
@@ -64,16 +80,21 @@ RUN mkdir -p common/config/src common/errors/src common/tracing-setup/src common
     iklan-pelatihan-service/src iklan-pelatihan-service-client/src \
     corporate-comms-service/src corporate-comms-service-client/src \
     report-service/src report-service-client/src \
+    insights-service/src \
     rejki-app/src \
     && echo "fn main() {}" | tee \
+        region-service/src/main.rs storage-service/src/main.rs \
         auth-service/src/main.rs user-service/src/main.rs \
         chat-service/src/main.rs notification-service/src/main.rs \
         iklan-pekerjaan-service/src/main.rs iklan-pekerja-service/src/main.rs \
         iklan-barang-bekas-service/src/main.rs iklan-pelatihan-service/src/main.rs \
         corporate-comms-service/src/main.rs \
         report-service/src/main.rs \
+        insights-service/src/main.rs \
         rejki-app/src/main.rs \
-    && for d in common/config common/errors common/tracing-setup common/auth-middleware \
+    && for d in common/crypto common/config common/errors common/tracing-setup \
+        common/auth-middleware common/rate-limit common/idempotency common/clamav \
+        region-service-client storage-service-client \
         auth-service-client user-service-client chat-service-client \
         notification-service-client iklan-pekerjaan-service-client \
         iklan-pekerja-service-client iklan-barang-bekas-service-client \

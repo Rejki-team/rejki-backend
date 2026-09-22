@@ -6,11 +6,11 @@ use crate::application::dto::{
 use auth_service_client::AuthClaims;
 use axum::{
     extract::{Path, Query, State},
-    http::{header, StatusCode},
+    http::StatusCode,
     response::Response,
     Extension, Json,
 };
-use common_errors::{created_response, ApiResponse, AppError, ValidatedJson};
+use common_errors::{created_response, csv_response, ApiResponse, AppError, ValidatedJson};
 use uuid::Uuid;
 
 pub async fn list(
@@ -131,15 +131,50 @@ pub async fn admin_export_csv(
             item.created_at
         ));
     }
-    Ok(Response::builder()
-        .status(StatusCode::OK)
-        .header(header::CONTENT_TYPE, "text/csv; charset=utf-8")
-        .header(
-            header::CONTENT_DISPOSITION,
-            "attachment; filename=iklan_pekerja.csv",
-        )
-        .body(axum::body::Body::from(csv))
-        .unwrap())
+    Ok(csv_response(csv, "iklan_pekerja.csv"))
+}
+
+/// GET /admin/{id} — detail iklan untuk pop-up admin, termasuk indikator dokumen
+/// sensitif poster (F-27b).
+pub async fn admin_get_detail(
+    State(s): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<ApiResponse<crate::application::dto::AdminIklanPekerjaDetailResponse>>, AppError> {
+    let detail = s
+        .svc
+        .admin_get_detail(id)
+        .await
+        .map_err(AppError::Internal)?
+        .ok_or_else(|| AppError::NotFound("iklan tidak ditemukan".into()))?;
+    Ok(Json(ApiResponse::ok(detail)))
+}
+
+/// GET /admin/{id}/sensitive/{kind} — proxy reveal data sensitif poster (nik|ktp|selfie)
+/// ke user-service via UserClient. Audit tercatat tunggal di user-service (F-27b).
+pub async fn admin_reveal_sensitive(
+    State(s): State<AppState>,
+    Extension(claims): Extension<AuthClaims>,
+    Path((id, kind)): Path<(Uuid, String)>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    if !["nik", "ktp", "selfie"].contains(&kind.as_str()) {
+        return Err(AppError::Validation(
+            "jenis data harus 'nik', 'ktp', atau 'selfie'".into(),
+        ));
+    }
+
+    let value = s
+        .svc
+        .admin_reveal_sensitive(id, &kind, claims.user_id)
+        .await
+        .map_err(AppError::Internal)?;
+
+    match value {
+        Some(v) => {
+            let key = if kind == "nik" { "nik" } else { "url" };
+            Ok(Json(ApiResponse::ok(serde_json::json!({ key: v }))))
+        }
+        None => Err(AppError::NotFound("data tidak tersedia".into())),
+    }
 }
 
 pub async fn admin_request_evidence(

@@ -3,6 +3,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use auth_service_client::{AccountStatus, AuthClient};
+use common_geocoding::{GeocodeInput, GeocodingClient};
 use notification_service_client::{EmailMessage, NotificationClient, NotificationPayload};
 use region_service_client::RegionClient;
 use storage_service_client::StorageClient;
@@ -42,6 +43,7 @@ pub struct UserService<R: UserRepository> {
     region_client: Arc<dyn RegionClient>,
     storage_client: Option<Arc<dyn StorageClient>>,
     notifier: Option<Arc<dyn NotificationClient>>,
+    geocoding_client: Option<Arc<dyn GeocodingClient>>,
 }
 
 impl<R: UserRepository> UserService<R> {
@@ -51,6 +53,7 @@ impl<R: UserRepository> UserService<R> {
         region_client: Arc<dyn RegionClient>,
         storage_client: Option<Arc<dyn StorageClient>>,
         notifier: Option<Arc<dyn NotificationClient>>,
+        geocoding_client: Option<Arc<dyn GeocodingClient>>,
     ) -> Self {
         Self {
             repo,
@@ -58,6 +61,63 @@ impl<R: UserRepository> UserService<R> {
             region_client,
             storage_client,
             notifier,
+            geocoding_client,
+        }
+    }
+
+    /// Resolve nama kelurahan/kecamatan/kota dari kode wilayah (region-service) lalu
+    /// geocode (F-1). Degradasi anggun: gagal resolve nama SATU level tidak menggagalkan
+    /// yang lain (field itu dilewati); gagal geocoding total → `None` (bukan error).
+    async fn geocode_region(
+        &self,
+        village_id: &str,
+        district_id: &str,
+        regency_id: &str,
+        address_line: Option<&str>,
+    ) -> Option<(f64, f64)> {
+        let geocoding = self.geocoding_client.as_ref()?;
+
+        let village_name = self
+            .region_client
+            .get_region(village_id)
+            .await
+            .ok()
+            .map(|r| r.name);
+        let district_name = self
+            .region_client
+            .get_region(district_id)
+            .await
+            .ok()
+            .map(|r| r.name);
+        let regency_name = self
+            .region_client
+            .get_region(regency_id)
+            .await
+            .ok()
+            .map(|r| r.name);
+
+        let input = GeocodeInput {
+            address_line: address_line.map(String::from),
+            village_name,
+            district_name,
+            regency_name,
+        };
+
+        match geocoding.geocode(&input).await {
+            Ok(Some(coords)) => Some((coords.latitude, coords.longitude)),
+            Ok(None) => {
+                tracing::warn!(
+                    village_id,
+                    district_id,
+                    regency_id,
+                    "geocoding tidak menemukan koordinat — profil disimpan tanpa koordinat"
+                );
+                None
+            }
+            Err(e) => {
+                tracing::warn!(error = ?e, village_id, district_id, regency_id, "geocoding gagal — profil disimpan tanpa koordinat");
+                None
+            }
         }
     }
 
@@ -84,6 +144,76 @@ impl<R: UserRepository> UserService<R> {
         Ok(self.to_response(&profile, kyc.as_ref()))
     }
 
+    /// Batch lookup (Hazard #5, Kelompok 3 Phase 3, F-15 "daftar bider") — nama + lokasi
+    /// mentah (region id + koordinat) untuk beberapa `auth_id` sekaligus. Entri yang tidak
+    /// ditemukan/tidak punya profil tidak disertakan (bukan error).
+    pub async fn get_location_summaries(
+        &self,
+        auth_ids: &[Uuid],
+    ) -> Result<Vec<user_service_client::UserLocationSummary>, anyhow::Error> {
+        Ok(self
+            .repo
+            .find_by_auth_ids(auth_ids)
+            .await?
+            .into_iter()
+            .map(|p| user_service_client::UserLocationSummary {
+                auth_id: p.auth_id,
+                username: p.username,
+                village_id: p.village_id,
+                district_id: p.district_id,
+                latitude: p.latitude,
+                longitude: p.longitude,
+            })
+            .collect())
+    }
+
+    /// Batch lookup (Hazard #5, Kelompok 4 Phase 5 F-18) — `UserSummary` (username+avatar)
+    /// untuk "daftar percakapan" chat-service (P4.10). Entri yang tidak ditemukan/tidak
+    /// punya profil tidak disertakan (bukan error).
+    pub async fn get_summaries(
+        &self,
+        auth_ids: &[Uuid],
+    ) -> Result<Vec<user_service_client::UserSummary>, anyhow::Error> {
+        Ok(self
+            .repo
+            .find_by_auth_ids(auth_ids)
+            .await?
+            .into_iter()
+            .map(|p| user_service_client::UserSummary {
+                id: p.auth_id,
+                username: p.username,
+                avatar: p.avatar,
+            })
+            .collect())
+    }
+
+    /// Batch lookup (Hazard #5, Kelompok 4 F-21/F-22) — data demografis untuk halaman
+    /// admin Pengelolaan Dukungan. Entri yang tidak ditemukan/tidak punya profil tidak
+    /// disertakan (bukan error).
+    pub async fn get_demographic_summaries(
+        &self,
+        auth_ids: &[Uuid],
+    ) -> Result<Vec<user_service_client::UserDemographicSummary>, anyhow::Error> {
+        Ok(self
+            .repo
+            .find_by_auth_ids(auth_ids)
+            .await?
+            .into_iter()
+            .map(|p| user_service_client::UserDemographicSummary {
+                auth_id: p.auth_id,
+                education_level: p.education_level,
+                gender: p.gender,
+                birth_date: p.birth_date,
+                address_line: p.address_line,
+                village_id: p.village_id,
+                district_id: p.district_id,
+                regency_id: p.regency_id,
+                province_id: p.province_id,
+                country_code: p.country_code,
+            })
+            .collect())
+    }
+
     pub async fn resolve_profile_id(&self, auth_id: Uuid) -> Result<Uuid, anyhow::Error> {
         let profile = self
             .repo
@@ -102,6 +232,9 @@ impl<R: UserRepository> UserService<R> {
         // Jika semua 4 region fields diisi → validasi chain konsistensi.
         // Jika sebagian diisi → tolak (partial region update tidak bermakna).
         // Jika tidak ada → skip (tidak update region).
+        // Re-geocode (F-1) bila region berubah — tier 2 PRD §5.11.2 (kelurahan+kecamatan+kota
+        // saja, tidak ada address_line di endpoint ini). `None` bila region tidak berubah.
+        let mut coords: Option<(f64, f64)> = None;
         match (
             input.province_id.as_ref(),
             input.regency_id.as_ref(),
@@ -117,6 +250,7 @@ impl<R: UserRepository> UserService<R> {
                 if !valid {
                     return Err(anyhow::anyhow!("rantai wilayah tidak konsisten"));
                 }
+                coords = self.geocode_region(v, d, r, None).await;
             }
             (None, None, None, None) => { /* tidak ada perubahan region */ }
             _ => {
@@ -139,6 +273,8 @@ impl<R: UserRepository> UserService<R> {
                 regency_id: input.regency_id,
                 district_id: input.district_id,
                 village_id: input.village_id,
+                latitude: coords.map(|(lat, _)| lat),
+                longitude: coords.map(|(_, lng)| lng),
             })
             .await?;
         let kyc = self.repo.get_latest_submission(profile.id).await?;
@@ -212,6 +348,17 @@ impl<R: UserRepository> UserService<R> {
         let nik_encrypted = common_crypto::encrypt(&input.nik)
             .map_err(|e| anyhow::anyhow!("gagal enkripsi NIK: {e}"))?;
 
+        // Geocode alamat (F-1) SEBELUM write — alamat lengkap tersedia penuh di sini,
+        // titik pertama & paling akurat untuk resolve koordinat (tier 1 PRD §5.11.2).
+        let coords = self
+            .geocode_region(
+                &input.village_id,
+                &input.district_id,
+                &input.regency_id,
+                Some(&input.address_line),
+            )
+            .await;
+
         profile.full_name = Some(input.full_name);
         profile.education_level = Some(input.education_level);
         profile.gender = Some(input.gender);
@@ -222,6 +369,8 @@ impl<R: UserRepository> UserService<R> {
         profile.regency_id = Some(input.regency_id);
         profile.district_id = Some(input.district_id);
         profile.village_id = Some(input.village_id);
+        profile.latitude = coords.map(|(lat, _)| lat);
+        profile.longitude = coords.map(|(_, lng)| lng);
         profile.nik_encrypted = Some(nik_encrypted.into_bytes());
         profile.nik_last4 = Some(nik_last4);
 
@@ -673,6 +822,109 @@ impl<R: UserRepository> UserService<R> {
         Ok(Some(url))
     }
 
+    /// Buka NIK penuh milik pengajuan tertentu untuk admin (click-to-view, F-26/F-27a).
+    /// - submission di-resolve by id (bukan claims) — akses lintas-pengguna teraudit.
+    /// - `Ok(None)` bila submission tidak ada ATAU NIK belum pernah disimpan (handler → 404).
+    /// - audit `nik_read_issued` dengan aktor = admin dicatat SEBELUM NIK dikembalikan (D3,
+    ///   pola sama seperti `admin_get_document_url`). "object_key" audit memakai key
+    ///   sintetik `nik:{profile_id}` — reuse tabel `document_access_log` yang sudah ada,
+    ///   tanpa tabel/kolom audit baru (NIK bukan object storage key).
+    pub async fn admin_reveal_nik(
+        &self,
+        submission_id: Uuid,
+        admin_id: Uuid,
+        request_id: Option<&str>,
+    ) -> Result<Option<String>, anyhow::Error> {
+        let (profile_id, nik_encrypted) = match self.repo.get_nik_for_reveal(submission_id).await? {
+            Some(v) => v,
+            None => return Ok(None),
+        };
+
+        let ciphertext = String::from_utf8(nik_encrypted)
+            .map_err(|_| anyhow::anyhow!("nik_encrypted bukan UTF-8 valid"))?;
+        let nik = common_crypto::decrypt(&ciphertext)?;
+
+        // Audit akses oleh admin (akuntabilitas) — dicatat sebelum NIK dikembalikan.
+        self.repo
+            .log_document_access(
+                admin_id,
+                &format!("nik:{profile_id}"),
+                DocumentAccessAction::NikReadIssued,
+                request_id,
+            )
+            .await?;
+
+        Ok(Some(nik))
+    }
+
+    // ── Wiring lintas-service (F-27b — dipanggil via UserClient oleh service lain,
+    //    mis. iklan-pekerja-service, TANPA duplikasi data/audit ke schema mereka) ──
+
+    /// Resolve profile+submission terbaru dari `auth_id`. `None` bila profil atau
+    /// submission tidak ada — dipakai 3 method proxy di bawah untuk hindari duplikasi.
+    async fn resolve_latest_submission_by_auth_id(
+        &self,
+        auth_id: Uuid,
+    ) -> Result<Option<KycSubmission>, anyhow::Error> {
+        let profile = match self.repo.find_by_auth_id(auth_id).await? {
+            Some(p) => p,
+            None => return Ok(None),
+        };
+        self.repo.get_latest_submission(profile.id).await
+    }
+
+    /// Indikator ketersediaan NIK/KTP/Selfie milik `auth_id` (F-27b). Tanpa audit —
+    /// murni existence check untuk badge UI, bukan pembukaan data.
+    pub async fn get_sensitive_doc_flags(
+        &self,
+        auth_id: Uuid,
+    ) -> Result<user_service_client::SensitiveDocFlags, anyhow::Error> {
+        let profile = self.repo.find_by_auth_id(auth_id).await?;
+        let submission = match &profile {
+            Some(p) => self.repo.get_latest_submission(p.id).await?,
+            None => None,
+        };
+        Ok(user_service_client::SensitiveDocFlags {
+            has_nik: profile.is_some_and(|p| p.nik_encrypted.is_some()),
+            has_ktp: submission
+                .as_ref()
+                .is_some_and(|s| s.ktp_object_key.is_some()),
+            has_selfie: submission
+                .as_ref()
+                .is_some_and(|s| s.selfie_object_key.is_some()),
+        })
+    }
+
+    /// Proxy `admin_reveal_nik` dari `auth_id` (bukan submission_id langsung) —
+    /// dipakai pemanggil lintas-service yang hanya punya auth_id (F-27b).
+    pub async fn admin_reveal_nik_by_auth_id(
+        &self,
+        auth_id: Uuid,
+        admin_id: Uuid,
+    ) -> Result<Option<String>, anyhow::Error> {
+        let submission = match self.resolve_latest_submission_by_auth_id(auth_id).await? {
+            Some(s) => s,
+            None => return Ok(None),
+        };
+        self.admin_reveal_nik(submission.id, admin_id, None).await
+    }
+
+    /// Proxy `admin_get_document_url` dari `auth_id` (bukan submission_id langsung) —
+    /// dipakai pemanggil lintas-service yang hanya punya auth_id (F-27b).
+    pub async fn admin_get_document_url_by_auth_id(
+        &self,
+        auth_id: Uuid,
+        kind: &str,
+        admin_id: Uuid,
+    ) -> Result<Option<String>, anyhow::Error> {
+        let submission = match self.resolve_latest_submission_by_auth_id(auth_id).await? {
+            Some(s) => s,
+            None => return Ok(None),
+        };
+        self.admin_get_document_url(submission.id, kind, admin_id, None)
+            .await
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────────
 
     async fn notify(&self, user_id: Uuid, title: &str, body: &str) {
@@ -737,6 +989,8 @@ impl<R: UserRepository> UserService<R> {
             regency_id: p.regency_id.clone(),
             district_id: p.district_id.clone(),
             village_id: p.village_id.clone(),
+            latitude: p.latitude,
+            longitude: p.longitude,
         }
     }
 }

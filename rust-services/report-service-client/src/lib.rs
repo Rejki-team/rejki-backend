@@ -1,3 +1,36 @@
+/// Jenis Laporan — JALUR pembuatan aduan (bukan target-nya), PRD §6.10/§5.10,
+/// keputusan final klien B-8. `LaporkanIklan`: dari halaman detail Iklan
+/// Pekerjaan/Pekerja, target WAJIB. `PelaporanMasalah`: dari proses yang gagal,
+/// target OPSIONAL (mis. gangguan teknis tanpa iklan terkait).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ReportType {
+    LaporkanIklan,
+    PelaporanMasalah,
+}
+
+pub mod report_type_name {
+    pub const LAPORKAN_IKLAN: &str = "laporkan_iklan";
+    pub const PELAPORAN_MASALAH: &str = "pelaporan_masalah";
+}
+
+impl ReportType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            ReportType::LaporkanIklan => report_type_name::LAPORKAN_IKLAN,
+            ReportType::PelaporanMasalah => report_type_name::PELAPORAN_MASALAH,
+        }
+    }
+
+    pub fn parse(s: &str) -> Option<Self> {
+        match s {
+            report_type_name::LAPORKAN_IKLAN => Some(ReportType::LaporkanIklan),
+            report_type_name::PELAPORAN_MASALAH => Some(ReportType::PelaporanMasalah),
+            _ => None,
+        }
+    }
+}
+
 /// Jenis target aduan — iklan atau pengguna.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -24,6 +57,44 @@ impl ReportTargetType {
         match s {
             target_type_name::IKLAN => Some(ReportTargetType::Iklan),
             target_type_name::USER => Some(ReportTargetType::User),
+            _ => None,
+        }
+    }
+}
+
+/// Jenis iklan yang diadukan (P9.0, Kelompok 6 Q9) — `ReportTargetType::Iklan`
+/// sendiri TIDAK bisa membedakan Iklan Pekerjaan/Pekerja/Barang Bekas satu
+/// sama lain; field ini menutup gap itu supaya endpoint approve-and-suspend
+/// (P9.1) tahu domain client mana yang harus dipanggil. `None` bila
+/// `target_type=User` atau tidak diketahui.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ReportAdType {
+    Pekerjaan,
+    Pekerja,
+    BarangBekas,
+}
+
+pub mod ad_type_name {
+    pub const PEKERJAAN: &str = "pekerjaan";
+    pub const PEKERJA: &str = "pekerja";
+    pub const BARANG_BEKAS: &str = "barang_bekas";
+}
+
+impl ReportAdType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            ReportAdType::Pekerjaan => ad_type_name::PEKERJAAN,
+            ReportAdType::Pekerja => ad_type_name::PEKERJA,
+            ReportAdType::BarangBekas => ad_type_name::BARANG_BEKAS,
+        }
+    }
+
+    pub fn parse(s: &str) -> Option<Self> {
+        match s {
+            ad_type_name::PEKERJAAN => Some(ReportAdType::Pekerjaan),
+            ad_type_name::PEKERJA => Some(ReportAdType::Pekerja),
+            ad_type_name::BARANG_BEKAS => Some(ReportAdType::BarangBekas),
             _ => None,
         }
     }

@@ -70,6 +70,8 @@ fn row_to_profile(r: &PgRow) -> UserProfile {
         regency_id: r.get("regency_id"),
         district_id: r.get("district_id"),
         village_id: r.get("village_id"),
+        latitude: r.get("latitude"),
+        longitude: r.get("longitude"),
         created_at: r.get("created_at"),
         updated_at: r.get("updated_at"),
     }
@@ -155,6 +157,7 @@ impl UserRepository for PgUserRepository {
                     phone_encrypted, rekening_encrypted, \
                     nik_encrypted, nik_last4, education_level, gender, birth_date, \
                     address_line, country_code, province_id, regency_id, district_id, village_id, \
+                    latitude, longitude, \
                     created_at, updated_at \
              FROM user_svc.profiles WHERE id = $1",
         )
@@ -172,6 +175,7 @@ impl UserRepository for PgUserRepository {
                     phone_encrypted, rekening_encrypted, \
                     nik_encrypted, nik_last4, education_level, gender, birth_date, \
                     address_line, country_code, province_id, regency_id, district_id, village_id, \
+                    latitude, longitude, \
                     created_at, updated_at \
              FROM user_svc.profiles WHERE auth_id = $1",
         )
@@ -180,6 +184,24 @@ impl UserRepository for PgUserRepository {
         .await?;
         warn_slow!(t, "user.find_by_auth_id");
         Ok(row.as_ref().map(row_to_profile))
+    }
+
+    async fn find_by_auth_ids(&self, auth_ids: &[Uuid]) -> Result<Vec<UserProfile>, anyhow::Error> {
+        let t = Instant::now();
+        let rows = sqlx::query(
+            "SELECT id, auth_id, username, full_name, avatar, bio, phone, \
+                    phone_encrypted, rekening_encrypted, \
+                    nik_encrypted, nik_last4, education_level, gender, birth_date, \
+                    address_line, country_code, province_id, regency_id, district_id, village_id, \
+                    latitude, longitude, \
+                    created_at, updated_at \
+             FROM user_svc.profiles WHERE auth_id = ANY($1)",
+        )
+        .bind(auth_ids)
+        .fetch_all(&self.pool)
+        .await?;
+        warn_slow!(t, "user.find_by_auth_ids");
+        Ok(rows.iter().map(row_to_profile).collect())
     }
 
     async fn create(&self, auth_id: Uuid, username: &str) -> Result<UserProfile, anyhow::Error> {
@@ -191,6 +213,7 @@ impl UserRepository for PgUserRepository {
                        phone_encrypted, rekening_encrypted, \
                        nik_encrypted, nik_last4, education_level, gender, birth_date, \
                        address_line, country_code, province_id, regency_id, district_id, village_id, \
+                       latitude, longitude, \
                        created_at, updated_at",
         )
         .bind(auth_id)
@@ -234,12 +257,15 @@ impl UserRepository for PgUserRepository {
                 regency_id         = COALESCE($8, regency_id), \
                 district_id        = COALESCE($9, district_id), \
                 village_id         = COALESCE($10, village_id), \
+                latitude           = COALESCE($11, latitude), \
+                longitude          = COALESCE($12, longitude), \
                 updated_at         = now() \
              WHERE id = $1 \
              RETURNING id, auth_id, username, full_name, avatar, bio, phone, \
                        phone_encrypted, rekening_encrypted, \
                        nik_encrypted, nik_last4, education_level, gender, birth_date, \
                        address_line, country_code, province_id, regency_id, district_id, village_id, \
+                       latitude, longitude, \
                        created_at, updated_at",
         )
         .bind(params.id)
@@ -252,6 +278,8 @@ impl UserRepository for PgUserRepository {
         .bind(&params.regency_id)
         .bind(&params.district_id)
         .bind(&params.village_id)
+        .bind(params.latitude)
+        .bind(params.longitude)
         .fetch_one(&self.pool)
         .await?;
         warn_slow!(t, "user.update");
@@ -283,6 +311,7 @@ impl UserRepository for PgUserRepository {
                 education_level = $5, gender = $6, birth_date = $7,
                 address_line = $8, country_code = $9,
                 province_id = $10, regency_id = $11, district_id = $12, village_id = $13,
+                latitude = $14, longitude = $15,
                 updated_at = now()
              WHERE id = $1 AND nik_encrypted IS NULL",
         )
@@ -299,6 +328,8 @@ impl UserRepository for PgUserRepository {
         .bind(&profile.regency_id)
         .bind(&profile.district_id)
         .bind(&profile.village_id)
+        .bind(profile.latitude)
+        .bind(profile.longitude)
         .execute(&self.pool)
         .await?;
         warn_slow!(t, "user.update_profile");
@@ -602,6 +633,29 @@ impl UserRepository for PgUserRepository {
         Ok(row.as_ref().map(row_to_admin_kyc_row))
     }
 
+    async fn get_nik_for_reveal(
+        &self,
+        submission_id: Uuid,
+    ) -> Result<Option<(Uuid, Vec<u8>)>, anyhow::Error> {
+        let t = Instant::now();
+        let row = sqlx::query(
+            "SELECT p.id AS profile_id, p.nik_encrypted \
+             FROM user_svc.kyc_submission k \
+             JOIN user_svc.profiles p ON p.id = k.profile_id \
+             WHERE k.id = $1",
+        )
+        .bind(submission_id)
+        .fetch_optional(&self.pool)
+        .await?;
+        warn_slow!(t, "kyc.get_nik_for_reveal");
+
+        Ok(row.and_then(|r| {
+            let profile_id: Uuid = r.get("profile_id");
+            let nik_encrypted: Option<Vec<u8>> = r.get("nik_encrypted");
+            nik_encrypted.map(|bytes| (profile_id, bytes))
+        }))
+    }
+
     async fn begin_transaction(&self) -> Result<Box<dyn TxUserRepository>, anyhow::Error> {
         let tx = self.pool.begin().await?;
         Ok(Box::new(PgTxUserRepository { tx }))
@@ -625,6 +679,7 @@ impl TxUserRepository for PgTxUserRepository {
                     phone_encrypted, rekening_encrypted, \
                     nik_encrypted, nik_last4, education_level, gender, birth_date, \
                     address_line, country_code, province_id, regency_id, district_id, village_id, \
+                    latitude, longitude, \
                     created_at, updated_at \
              FROM user_svc.profiles WHERE auth_id = $1",
         )
@@ -641,6 +696,7 @@ impl TxUserRepository for PgTxUserRepository {
                 education_level = $5, gender = $6, birth_date = $7,
                 address_line = $8, country_code = $9,
                 province_id = $10, regency_id = $11, district_id = $12, village_id = $13,
+                latitude = $14, longitude = $15,
                 updated_at = now()
              WHERE id = $1 AND nik_encrypted IS NULL",
         )
@@ -657,6 +713,8 @@ impl TxUserRepository for PgTxUserRepository {
         .bind(&profile.regency_id)
         .bind(&profile.district_id)
         .bind(&profile.village_id)
+        .bind(profile.latitude)
+        .bind(profile.longitude)
         .execute(&mut *self.tx)
         .await?;
         Ok(result.rows_affected() > 0)

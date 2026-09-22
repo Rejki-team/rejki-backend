@@ -263,7 +263,7 @@ mod tests {
         let _ = s;
     }
 
-    // ── ArticleCategory (extensible, currently only Informasi) ──────────────────
+    // ── ArticleCategory (Informasi, TipsTrick) ──────────────────
 
     #[test]
     fn test_article_category_default_is_informasi() {
@@ -273,6 +273,7 @@ mod tests {
     #[test]
     fn test_article_category_as_str() {
         assert_eq!(ArticleCategory::Informasi.as_str(), "informasi");
+        assert_eq!(ArticleCategory::TipsTrick.as_str(), "tips_trick");
     }
 
     #[test]
@@ -280,6 +281,10 @@ mod tests {
         assert_eq!(
             ArticleCategory::parse("informasi"),
             Some(ArticleCategory::Informasi)
+        );
+        assert_eq!(
+            ArticleCategory::parse("tips_trick"),
+            Some(ArticleCategory::TipsTrick)
         );
     }
 

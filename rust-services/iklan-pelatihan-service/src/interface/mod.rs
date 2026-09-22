@@ -8,12 +8,14 @@ use axum::{
     Router,
 };
 use common_auth_mw::{require_active_account, require_auth, require_role};
+use common_geocoding::GeocodingClient;
 use common_rate_limit::RateLimiter;
 use notification_service_client::NotificationClient;
 use region_service_client::RegionClient;
 use sqlx::PgPool;
 use std::sync::Arc;
 use storage_service_client::StorageClient;
+use user_service_client::UserClient;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -21,16 +23,39 @@ pub struct AppState {
     pub storage: Option<Arc<dyn StorageClient>>,
     pub notifier: Option<Arc<dyn NotificationClient>>,
     pub auth_client: Option<Arc<dyn AuthClient>>,
+    /// Dipakai P6.3 (F-12) — resolve nama peserta untuk sertifikat PDF.
+    pub user_client: Option<Arc<dyn UserClient>>,
 }
 
-pub fn router(
-    pool: PgPool,
-    auth_client: Arc<dyn AuthClient>,
-    storage: Option<Arc<dyn StorageClient>>,
-    notifier: Option<Arc<dyn NotificationClient>>,
-    rate_limiter: Option<Arc<dyn RateLimiter>>,
-    region_client: Option<Arc<dyn RegionClient>>,
-) -> Router {
+/// Dependency bundle untuk `router()` — dibungkus struct (bukan 8 argumen lepas)
+/// per CLAUDE.md §4.7 Zero Too Many Arguments.
+pub struct RouterDeps {
+    pub pool: PgPool,
+    pub auth_client: Arc<dyn AuthClient>,
+    pub storage: Option<Arc<dyn StorageClient>>,
+    pub notifier: Option<Arc<dyn NotificationClient>>,
+    pub rate_limiter: Option<Arc<dyn RateLimiter>>,
+    pub region_client: Option<Arc<dyn RegionClient>>,
+    pub geocoding_client: Option<Arc<dyn GeocodingClient>>,
+    /// Producer tugas otomatis Bab 10 (F-32, Kelompok 2 Phase 6) — dipakai
+    /// `create_user`/`create_admin`/`create_enrollment` untuk menjadwalkan job.
+    pub scheduler_client: Option<Arc<common_scheduler::SchedulerClient>>,
+    /// Dipakai P6.3 (F-12) — resolve nama peserta untuk sertifikat PDF.
+    pub user_client: Option<Arc<dyn UserClient>>,
+}
+
+pub fn router(deps: RouterDeps) -> Router {
+    let RouterDeps {
+        pool,
+        auth_client,
+        storage,
+        notifier,
+        rate_limiter,
+        region_client,
+        geocoding_client,
+        scheduler_client,
+        user_client,
+    } = deps;
     let svc = {
         let mut b = IklanPelatihanService::new(Arc::new(PgIklanPelatihanRepository::new(pool)));
         if let Some(rl) = rate_limiter {
@@ -39,6 +64,12 @@ pub fn router(
         if let Some(rc) = region_client {
             b = b.with_region_client(rc);
         }
+        if let Some(gc) = geocoding_client {
+            b = b.with_geocoding_client(gc);
+        }
+        if let Some(sc) = scheduler_client {
+            b = b.with_scheduler_client(sc);
+        }
         b
     };
     let state = AppState {
@@ -46,6 +77,7 @@ pub fn router(
         storage,
         notifier,
         auth_client: Some(auth_client.clone()),
+        user_client,
     };
 
     // ── Public ────────────────────────────────────────────────────────

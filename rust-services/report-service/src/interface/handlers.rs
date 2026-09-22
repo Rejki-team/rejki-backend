@@ -1,77 +1,119 @@
 use super::AppState;
 use crate::application::dto::{
-    CreateReportInput, ReportDetailResponse, ReportListQuery, ReportResponse, ReviewReportInput,
+    ApproveAndSuspendInput, CreateLaporkanIklanInput, CreatePelaporanMasalahInput,
+    CreatePelaporanMasalahResponse, ReportDetailResponse, ReportListQuery, ReportResponse,
+    ReviewReportInput,
 };
 use crate::application::service::to_report_resp;
 use auth_service_client::AuthClaims;
 use axum::{
     extract::{Path, Query, State},
-    http::{header, StatusCode},
     response::Response,
     Extension, Json,
 };
-use common_errors::{created_response, ApiResponse, AppError, PaginatedMeta, ValidatedJson};
+use common_errors::{
+    created_response, csv_response, ApiResponse, AppError, PaginatedMeta, ValidatedJson,
+};
 use notification_service_client::{EmailMessage, NotificationPayload};
-use report_service_client::ReportTargetType;
+use report_service_client::{ReportAdType, ReportTargetType};
 use std::sync::Arc;
 use uuid::Uuid;
 
+fn map_create_error(e: anyhow::Error) -> AppError {
+    let msg = e.to_string();
+    if msg.contains("terlalu banyak permintaan") {
+        AppError::RateLimited(msg)
+    } else {
+        AppError::Internal(e)
+    }
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
-// User: create report (mobile)
+// User: create report — jalur 1 "Laporkan Iklan" (mobile, P1.4)
 // ═══════════════════════════════════════════════════════════════════════════
 
-pub async fn create_report(
+pub async fn create_laporkan_iklan(
     State(s): State<AppState>,
     Extension(claims): Extension<AuthClaims>,
-    ValidatedJson(body): ValidatedJson<CreateReportInput>,
+    ValidatedJson(body): ValidatedJson<CreateLaporkanIklanInput>,
 ) -> Result<Response, AppError> {
     let target_type = ReportTargetType::parse(&body.target_type)
         .ok_or_else(|| AppError::Validation("target_type harus 'iklan' atau 'user'".into()))?;
-
-    // Upload evidence jika disediakan
-    let evidence_key = match (body.mime, body.size_bytes) {
-        (Some(mime), Some(size_bytes)) => {
-            let storage = s
-                .storage
-                .as_ref()
-                .ok_or_else(|| AppError::Internal(anyhow::anyhow!("storage tidak tersedia")))?;
-
-            let permission = storage
-                .request_upload(
-                    crate::application::service::storage_category::REPORT_EVIDENCE,
-                    claims.user_id,
-                    storage_service_client::FileInfo { mime, size_bytes },
+    let target_ad_type = body
+        .target_ad_type
+        .as_deref()
+        .map(|s| {
+            ReportAdType::parse(s).ok_or_else(|| {
+                AppError::Validation(
+                    "target_ad_type harus 'pekerjaan', 'pekerja', atau 'barang_bekas'".into(),
                 )
-                .await
-                .map_err(|e| AppError::Validation(format!("bukti tidak valid: {e}")))?;
-
-            Some(permission.object_key)
-        }
-        _ => None,
-    };
+            })
+        })
+        .transpose()?;
 
     let report = s
         .svc
-        .create_report(
+        .create_laporkan_iklan(
             claims.user_id,
             target_type,
+            target_ad_type,
             body.target_id,
             body.keterangan,
-            evidence_key,
         )
         .await
-        .map_err(|e| {
-            let msg = e.to_string();
-            if msg.contains("terlalu banyak permintaan") {
-                AppError::RateLimited(msg)
-            } else {
-                AppError::Internal(e)
-            }
-        })?;
+        .map_err(map_create_error)?;
 
     let id = report.id;
     Ok(created_response(
-        ApiResponse::ok(to_report_resp(report)),
+        ApiResponse::ok(to_report_resp(report, None)),
+        &format!("/api/v1/reports/{}", id),
+    ))
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// User: create report — jalur 2 "Pelaporan Masalah" (mobile, P1.4)
+// ═══════════════════════════════════════════════════════════════════════════
+
+pub async fn create_pelaporan_masalah(
+    State(s): State<AppState>,
+    Extension(claims): Extension<AuthClaims>,
+    ValidatedJson(body): ValidatedJson<CreatePelaporanMasalahInput>,
+) -> Result<Response, AppError> {
+    // Bukti gambar WAJIB (PRD §6.10 tabel perbedaan kelengkapan data) — divalidasi
+    // di DTO (min=1 mime, max 300KB) DAN di sini via request_upload storage.
+    let storage = s
+        .storage
+        .as_ref()
+        .ok_or_else(|| AppError::Internal(anyhow::anyhow!("storage tidak tersedia")))?;
+    let permission = storage
+        .request_upload(
+            crate::application::service::storage_category::REPORT_EVIDENCE,
+            claims.user_id,
+            storage_service_client::FileInfo {
+                mime: body.mime,
+                size_bytes: body.size_bytes,
+            },
+        )
+        .await
+        .map_err(|e| AppError::Validation(format!("bukti tidak valid: {e}")))?;
+
+    let report = s
+        .svc
+        .create_pelaporan_masalah(
+            claims.user_id,
+            body.target_id,
+            body.keterangan,
+            permission.object_key,
+        )
+        .await
+        .map_err(map_create_error)?;
+
+    let id = report.id;
+    Ok(created_response(
+        ApiResponse::ok(CreatePelaporanMasalahResponse {
+            report: to_report_resp(report, None),
+            presigned_url: permission.presigned_url,
+        }),
         &format!("/api/v1/reports/{}", id),
     ))
 }
@@ -151,9 +193,59 @@ pub async fn admin_review(
             }
         })?;
 
-    let resp = to_report_resp(report.clone());
+    let resp = to_report_resp(report.clone(), None);
 
     // Fire-and-forget notifikasi ke pelapor
+    if let Some(ref notifier) = s.notifier {
+        let notifier = notifier.clone();
+        let auth_client = s.auth_client.clone();
+        let reporter_id = report.reporter_id;
+        let status = report.status.as_str().to_string();
+        let action_note = report.action_note.clone().unwrap_or_default();
+        tokio::spawn(async move {
+            notify_reporter(auth_client, notifier, reporter_id, id, status, action_note).await;
+        });
+    }
+
+    Ok(Json(ApiResponse::ok(resp)))
+}
+
+/// Endpoint terintegrasi "Terima & Suspend" (P9.1, Kelompok 6 Q9) — approve
+/// aduan sekaligus suspend target dalam 1 aksi. Endpoint suspend mandiri
+/// existing di masing-masing halaman admin (Iklan/Pengguna) TETAP ada tanpa
+/// perubahan (P9.2) — ini murni opsi tambahan.
+pub async fn admin_approve_and_suspend(
+    State(s): State<AppState>,
+    Path(id): Path<Uuid>,
+    Extension(claims): Extension<AuthClaims>,
+    ValidatedJson(body): ValidatedJson<ApproveAndSuspendInput>,
+) -> Result<Json<ApiResponse<ReportResponse>>, AppError> {
+    let report = s
+        .svc
+        .admin_approve_and_suspend(
+            id,
+            body,
+            claims.user_id,
+            s.auth_client.as_ref(),
+            s.iklan_pekerjaan_client.as_deref(),
+            s.iklan_pekerja_client.as_deref(),
+            s.iklan_barang_bekas_client.as_deref(),
+        )
+        .await
+        .map_err(|e| {
+            let msg = e.to_string();
+            if msg.contains("sudah ditindaklanjuti") {
+                AppError::Conflict(msg)
+            } else if msg.contains("tidak tersedia") || msg.contains("tidak diketahui") {
+                AppError::Internal(anyhow::anyhow!(msg))
+            } else {
+                AppError::NotFound(msg)
+            }
+        })?;
+
+    let resp = to_report_resp(report.clone(), None);
+
+    // Fire-and-forget notifikasi ke pelapor (pola sama admin_review).
     if let Some(ref notifier) = s.notifier {
         let notifier = notifier.clone();
         let auth_client = s.auth_client.clone();
@@ -175,19 +267,22 @@ pub async fn admin_review(
 pub async fn admin_export_csv(
     State(s): State<AppState>,
     Query(q): Query<ReportListQuery>,
-) -> Result<(StatusCode, [(header::HeaderName, &'static str); 2], String), AppError> {
+) -> Result<Response, AppError> {
     let items = s.svc.admin_list_all(q).await.map_err(AppError::Internal)?;
 
-    let mut csv = String::from("ID,ReporterID,TargetType,TargetID,Keterangan,Status,ActionNote,ReviewedBy,CreatedAt,UpdatedAt\n");
+    let mut csv = String::from("ID,ReporterID,ReportType,TargetType,TargetID,Keterangan,Status,DueDate,IsOverdue,ActionNote,ReviewedBy,CreatedAt,UpdatedAt\n");
     for r in &items {
         csv.push_str(&format!(
-            "{},{},{},{},\"{}\",{},{},{},{},{}\n",
+            "{},{},{},{},{},\"{}\",{},{},{},{},{},{},{}\n",
             r.id,
             r.reporter_id,
-            r.target_type.as_str(),
-            r.target_id,
+            r.report_type.as_str(),
+            r.target_type.map(|t| t.as_str()).unwrap_or(""),
+            r.target_id.map(|t| t.to_string()).unwrap_or_default(),
             r.keterangan.replace('"', "\"\""),
             r.status.as_str(),
+            r.due_date,
+            r.is_overdue,
             r.action_note.as_deref().unwrap_or(""),
             r.reviewed_by.map(|u| u.to_string()).unwrap_or_default(),
             r.created_at,
@@ -195,17 +290,7 @@ pub async fn admin_export_csv(
         ));
     }
 
-    Ok((
-        StatusCode::OK,
-        [
-            (header::CONTENT_TYPE, "text/csv; charset=utf-8"),
-            (
-                header::CONTENT_DISPOSITION,
-                "attachment; filename=\"reports.csv\"",
-            ),
-        ],
-        csv,
-    ))
+    Ok(csv_response(csv, "reports.csv"))
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

@@ -1,22 +1,29 @@
 use std::sync::Arc;
 use uuid::Uuid;
 
+use std::collections::HashMap;
+
 use super::dto::{
-    AdminIklanBarangBekasResponse, AdminListQuery, CreateIklanBarangBekasInput,
-    IklanBarangBekasResponse, ListQuery, SuspendEvidenceInput, SuspendInput, SuspendResponse,
-    SuspendResultItem, UpdateBarangBekasInput,
+    AdminIklanBarangBekasResponse, AdminListQuery, BiderResponse, BiderWithIklanResponse,
+    CreateIklanBarangBekasInput, IklanBarangBekasResponse, ListQuery, SetujuiBiderInput,
+    SuspendEvidenceInput, SuspendInput, SuspendResponse, SuspendResultItem, UpdateBarangBekasInput,
 };
-use crate::domain::entity::{AvailabilityStatus, IklanBarangBekas, ModerationStatus};
+use crate::domain::entity::{AvailabilityStatus, Bider, IklanBarangBekas, ModerationStatus};
 use crate::domain::repository::{
     AdminListParams, CreateBarangBekasParams, IklanBarangBekasRepository, UpdateBarangBekasParams,
 };
+use chat_service_client::ChatClient;
+use common_geocoding::{GeocodeInput, GeocodingClient};
 use common_rate_limit::RateLimiter;
 use notification_service_client::NotificationClient;
 use region_service_client::RegionClient;
 use storage_service_client::StorageClient;
+use user_service_client::UserClient;
 
 const DEFAULT_LIMIT: i64 = 20;
 const CSV_MAX: i64 = 10_000;
+/// Radius default listing Iklan Barang Bekas (PRD §5.14.1).
+const DEFAULT_RADIUS_KM: f64 = 10.0;
 /// Jenis barang yang sah — digunakan validasi service-side (defense-in-depth).
 const VALID_JENIS_BARANG: [&str; 2] = ["bekas", "baru"];
 pub mod storage_category {
@@ -27,6 +34,11 @@ pub struct IklanBarangBekasService<R: IklanBarangBekasRepository> {
     repo: Arc<R>,
     rate_limiter: Option<Arc<dyn RateLimiter>>,
     region_client: Option<Arc<dyn RegionClient>>,
+    geocoding_client: Option<Arc<dyn GeocodingClient>>,
+    /// Enrichment "daftar bider" (F-15, Kelompok 3 Phase 3) — nama + lokasi peminat.
+    user_client: Option<Arc<dyn UserClient>>,
+    /// F-19 (Kelompok 4 Phase 4): auto-end Chat setelah barang disetujui/diambil.
+    chat_client: Option<Arc<dyn ChatClient>>,
 }
 
 impl<R: IklanBarangBekasRepository> IklanBarangBekasService<R> {
@@ -35,6 +47,9 @@ impl<R: IklanBarangBekasRepository> IklanBarangBekasService<R> {
             repo,
             rate_limiter: None,
             region_client: None,
+            geocoding_client: None,
+            user_client: None,
+            chat_client: None,
         }
     }
     pub fn with_rate_limiter(mut self, rl: Arc<dyn RateLimiter>) -> Self {
@@ -47,10 +62,92 @@ impl<R: IklanBarangBekasRepository> IklanBarangBekasService<R> {
         self
     }
 
+    pub fn with_geocoding_client(mut self, gc: Arc<dyn GeocodingClient>) -> Self {
+        self.geocoding_client = Some(gc);
+        self
+    }
+
+    pub fn with_user_client(mut self, uc: Arc<dyn UserClient>) -> Self {
+        self.user_client = Some(uc);
+        self
+    }
+
+    pub fn with_chat_client(mut self, cc: Arc<dyn ChatClient>) -> Self {
+        self.chat_client = Some(cc);
+        self
+    }
+
+    /// Geocode `lokasi` (teks bebas) + nama wilayah dari `region_id` (F-1). `None` bila
+    /// tidak ada geocoding client terpasang, tidak ada input, atau provider gagal —
+    /// pemanggil menyimpan tanpa koordinat (degradasi anggun).
+    async fn geocode_lokasi(
+        &self,
+        lokasi: Option<&str>,
+        region_id: Option<&str>,
+    ) -> Option<(f64, f64)> {
+        let geocoding = self.geocoding_client.as_ref()?;
+        if lokasi.is_none() && region_id.is_none() {
+            return None;
+        }
+        let regency_name = match region_id {
+            Some(rid) => self
+                .region_client
+                .as_ref()?
+                .get_region(rid)
+                .await
+                .ok()
+                .map(|r| r.name),
+            None => None,
+        };
+        let input = GeocodeInput {
+            address_line: lokasi.map(String::from),
+            regency_name,
+            ..Default::default()
+        };
+        match geocoding.geocode(&input).await {
+            Ok(Some(c)) => Some((c.latitude, c.longitude)),
+            Ok(None) => None,
+            Err(e) => {
+                tracing::warn!(error = ?e, "geocoding gagal — iklan disimpan tanpa koordinat");
+                None
+            }
+        }
+    }
+
     pub async fn list(&self, q: ListQuery) -> Result<Vec<IklanBarangBekasResponse>, anyhow::Error> {
+        // Filter radius (F-1, PRD §5.14.1): aktif hanya bila KEDUA lat/lng dikirim.
+        let radius = match (q.latitude, q.longitude) {
+            (Some(lat), Some(lng)) => Some(common_geo::RadiusQuery {
+                lat,
+                lng,
+                radius_km: DEFAULT_RADIUS_KM,
+            }),
+            _ => None,
+        };
         Ok(self
             .repo
-            .list(q.limit.unwrap_or(DEFAULT_LIMIT), q.offset.unwrap_or(0))
+            .list(
+                q.limit.unwrap_or(DEFAULT_LIMIT),
+                q.offset.unwrap_or(0),
+                radius,
+            )
+            .await?
+            .into_iter()
+            .map(to_resp)
+            .collect())
+    }
+
+    /// "Iklan Saya" (P4.10) — daftar iklan milik seller yang login, entry point ke
+    /// "Kelola Iklan Saya" (PRD §5.14.2). Tidak difilter availability/moderasi.
+    pub async fn list_my_ads(
+        &self,
+        seller_id: Uuid,
+        limit: i64,
+        offset: i64,
+    ) -> Result<Vec<IklanBarangBekasResponse>, anyhow::Error> {
+        Ok(self
+            .repo
+            .list_by_seller(seller_id, limit, offset)
             .await?
             .into_iter()
             .map(to_resp)
@@ -115,6 +212,10 @@ impl<R: IklanBarangBekasRepository> IklanBarangBekasService<R> {
             }
         }
 
+        let coords = self
+            .geocode_lokasi(lokasi.as_deref(), input.region_id.as_deref())
+            .await;
+
         let foto_urls = input.foto_urls.unwrap_or_default();
         Ok(to_resp(
             self.repo
@@ -128,6 +229,8 @@ impl<R: IklanBarangBekasRepository> IklanBarangBekasService<R> {
                     lokasi: lokasi.as_deref(),
                     region_id: input.region_id.as_deref(),
                     foto_urls: &foto_urls,
+                    latitude: coords.map(|(lat, _)| lat),
+                    longitude: coords.map(|(_, lng)| lng),
                 })
                 .await?,
         ))
@@ -200,6 +303,14 @@ impl<R: IklanBarangBekasRepository> IklanBarangBekasService<R> {
             }
         }
 
+        // Re-geocode (F-1) hanya bila `lokasi`/`region_id` benar-benar diubah.
+        let coords = if lokasi.is_some() || input.region_id.is_some() {
+            self.geocode_lokasi(lokasi.as_deref(), input.region_id.as_deref())
+                .await
+        } else {
+            None
+        };
+
         // 7. Build params & update
         let params = UpdateBarangBekasParams {
             judul,
@@ -211,6 +322,8 @@ impl<R: IklanBarangBekasRepository> IklanBarangBekasService<R> {
             region_id: input.region_id,
             foto_urls: input.foto_urls,
             is_active: input.is_active,
+            latitude: coords.map(|(lat, _)| lat),
+            longitude: coords.map(|(_, lng)| lng),
         };
 
         self.repo
@@ -359,6 +472,218 @@ impl<R: IklanBarangBekasRepository> IklanBarangBekasService<R> {
     pub async fn expire_temporary_suspensions(&self) -> Result<u64, anyhow::Error> {
         self.repo.expire_temporary_suspensions().await
     }
+
+    // ── Bider (F-15, Kelompok 3 Phase 3, PRD §5.14.1-5.14.2 Gambar 5) ────────────
+
+    /// P3.2: "Menekan Ambil Barang" → jadi bider. Validasi: bukan iklan sendiri, iklan masih
+    /// tersedia & tidak ditangguhkan, belum ada bid aktif (menunggu) milik peminat yang sama.
+    pub async fn ambil(
+        &self,
+        peminat_id: Uuid,
+        iklan_id: Uuid,
+    ) -> Result<BiderResponse, anyhow::Error> {
+        let iklan = self
+            .repo
+            .find_by_id(iklan_id)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("tidak ditemukan"))?;
+        if iklan.seller_id == peminat_id {
+            return Err(anyhow::anyhow!(
+                "tidak dapat mengambil barang milik sendiri"
+            ));
+        }
+        if iklan.moderation_status != ModerationStatus::Active {
+            return Err(anyhow::anyhow!("iklan sedang ditangguhkan"));
+        }
+        if iklan.availability_status != AvailabilityStatus::Tersedia {
+            return Err(anyhow::anyhow!("barang sudah tidak tersedia"));
+        }
+        if self.repo.has_pending_bider(iklan_id, peminat_id).await? {
+            return Err(anyhow::anyhow!(
+                "Anda sudah mengajukan pengambilan untuk barang ini"
+            ));
+        }
+        let bider = self.repo.create_bider(iklan_id, peminat_id).await?;
+        Ok(to_bider_response_basic(bider))
+    }
+
+    /// P3.3: "Kelola Iklan Saya" → daftar bider (nama, jarak, status kontak). Ownership check
+    /// via `find_by_id` (pola kembar `list_lamaran_for_iklan`, IDOR→404 di layer application).
+    /// Enrichment batched (Hazard #5): satu panggilan `UserClient` untuk semua peminat, dedup
+    /// resolusi nama kelurahan/kecamatan per region id UNIK (bukan per bider).
+    pub async fn list_bider(
+        &self,
+        owner_id: Uuid,
+        iklan_id: Uuid,
+    ) -> Result<Vec<BiderResponse>, anyhow::Error> {
+        let iklan = self
+            .repo
+            .find_by_id(iklan_id)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("tidak ditemukan"))?;
+        if iklan.seller_id != owner_id {
+            return Err(anyhow::anyhow!("tidak ditemukan"));
+        }
+        let items = self.repo.list_bider_for_iklan(iklan_id).await?;
+        if items.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let peminat_ids: Vec<Uuid> = items.iter().map(|b| b.peminat_id).collect();
+        let locations: HashMap<Uuid, user_service_client::UserLocationSummary> =
+            match &self.user_client {
+                Some(client) => client
+                    .get_location_summaries_by_auth_ids(&peminat_ids)
+                    .await
+                    .map(|v| v.into_iter().map(|s| (s.auth_id, s)).collect())
+                    .unwrap_or_default(),
+                None => Default::default(),
+            };
+
+        // Resolusi nama wilayah — dedup per region id UNIK dulu (Hazard #5: hindari 1 lookup
+        // per bider bila banyak bider berbagi kelurahan/kecamatan yang sama).
+        let mut region_names: HashMap<String, String> = HashMap::new();
+        if let Some(rc) = &self.region_client {
+            let mut unique_ids: Vec<String> = Vec::new();
+            for loc in locations.values() {
+                for id in [&loc.village_id, &loc.district_id].into_iter().flatten() {
+                    if !unique_ids.contains(id) {
+                        unique_ids.push(id.clone());
+                    }
+                }
+            }
+            for id in unique_ids {
+                if let Ok(r) = rc.get_region(&id).await {
+                    region_names.insert(id, r.name);
+                }
+            }
+        }
+
+        Ok(items
+            .into_iter()
+            .map(|b| {
+                let loc = locations.get(&b.peminat_id);
+                let jarak_km = match (
+                    loc.and_then(|l| l.latitude),
+                    loc.and_then(|l| l.longitude),
+                    iklan.latitude,
+                    iklan.longitude,
+                ) {
+                    (Some(blat), Some(blng), Some(ilat), Some(ilng)) => {
+                        Some(common_geo::haversine_km(ilat, ilng, blat, blng))
+                    }
+                    _ => None,
+                };
+                BiderResponse {
+                    id: b.id,
+                    iklan_id: b.iklan_id,
+                    peminat_id: b.peminat_id,
+                    peminat_nama: loc.map(|l| l.username.clone()),
+                    kelurahan: loc
+                        .and_then(|l| l.village_id.as_ref())
+                        .and_then(|v| region_names.get(v).cloned()),
+                    kecamatan: loc
+                        .and_then(|l| l.district_id.as_ref())
+                        .and_then(|d| region_names.get(d).cloned()),
+                    jarak_km,
+                    status: b.status,
+                    sudah_menghubungi: b.sudah_menghubungi,
+                    created_at: b.created_at,
+                }
+            })
+            .collect())
+    }
+
+    /// P3.4: "Tombol Setujui Bider" — Bider→Disetujui, Iklan→SudahDiambil, bider lain
+    /// ditandai Withdrawn. Ownership check di repository (IDOR→404).
+    /// F-19 (Kelompok 4 Phase 4): "proses pada iklan terkait selesai" (barang sudah
+    /// diambil) — memicu auto-end Chat 2x24 jam untuk percakapan terkait iklan ini.
+    pub async fn setujui_bider(
+        &self,
+        owner_id: Uuid,
+        bider_id: Uuid,
+        input: SetujuiBiderInput,
+    ) -> Result<BiderResponse, anyhow::Error> {
+        let bider = self
+            .repo
+            .setujui_bider(bider_id, owner_id, input.sudah_menghubungi)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("bider tidak ditemukan"))?;
+
+        // Fail-open (§4.5 backend I/O aman) — kegagalan menjadwalkan auto-end Chat
+        // TIDAK boleh menggagalkan operasi utama (persetujuan bider sudah tersimpan).
+        if let Some(chat_client) = &self.chat_client {
+            if let Err(e) = chat_client
+                .schedule_auto_end_for_ad("barang_bekas", bider.iklan_id)
+                .await
+            {
+                tracing::warn!(
+                    error = ?e,
+                    iklan_id = %bider.iklan_id,
+                    "gagal menjadwalkan auto-end chat — dilewati (fail-open)"
+                );
+            }
+        }
+
+        Ok(to_bider_response_basic(bider))
+    }
+
+    /// P3.5: "Tombol Withdraw Bider" — Bider→Withdrawn; bila sebelumnya Disetujui, iklan
+    /// otomatis re-listing (kembali Tersedia). Ownership check di repository (IDOR→404).
+    pub async fn withdraw_bider(
+        &self,
+        owner_id: Uuid,
+        bider_id: Uuid,
+    ) -> Result<BiderResponse, anyhow::Error> {
+        self.repo
+            .withdraw_bider(bider_id, owner_id)
+            .await?
+            .map(to_bider_response_basic)
+            .ok_or_else(|| anyhow::anyhow!("bider tidak ditemukan"))
+    }
+
+    /// "Bider Saya" (P4.11, Riwayat → Aktifitas → Barang Bekas) — daftar bid milik
+    /// peminat yang login + konteks iklan (batched, Hazard #5).
+    pub async fn list_bider_saya(
+        &self,
+        peminat_id: Uuid,
+    ) -> Result<Vec<BiderWithIklanResponse>, anyhow::Error> {
+        let items = self.repo.list_bider_for_peminat(peminat_id).await?;
+        if items.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let iklan_ids: Vec<Uuid> = items.iter().map(|b| b.iklan_id).collect();
+        let iklan_by_id: HashMap<Uuid, IklanBarangBekas> = self
+            .repo
+            .find_by_ids(&iklan_ids)
+            .await?
+            .into_iter()
+            .map(|i| (i.id, i))
+            .collect();
+
+        Ok(items
+            .into_iter()
+            .map(|b| {
+                let iklan = iklan_by_id.get(&b.iklan_id);
+                BiderWithIklanResponse {
+                    id: b.id,
+                    iklan_id: b.iklan_id,
+                    peminat_id: b.peminat_id,
+                    status: b.status,
+                    sudah_menghubungi: b.sudah_menghubungi,
+                    created_at: b.created_at,
+                    iklan_judul: iklan.map(|i| i.judul.clone()),
+                    iklan_deskripsi: iklan.map(|i| i.deskripsi.clone()),
+                    iklan_jenis_barang: iklan.map(|i| i.jenis_barang.clone()),
+                    iklan_jumlah: iklan.map(|i| i.jumlah),
+                    iklan_lokasi_pengambilan: iklan.map(|i| i.lokasi_pengambilan.clone()),
+                    iklan_foto_urls: iklan.map(|i| i.foto_urls.clone()).unwrap_or_default(),
+                    iklan_availability_status: iklan.map(|i| i.availability_status),
+                }
+            })
+            .collect())
+    }
 }
 
 // ── Mapping helpers — entity → DTO (tanpa hardcode field) ────────────────────
@@ -378,6 +703,23 @@ fn to_resp(e: IklanBarangBekas) -> IklanBarangBekasResponse {
         availability_status: e.availability_status,
         moderation_status: e.moderation_status,
         created_at: e.created_at,
+    }
+}
+
+/// Response bider tanpa enrichment nama/lokasi/jarak — dipakai untuk `ambil`/`setujui_bider`/
+/// `withdraw_bider`, di mana pemanggil sudah tahu identitasnya sendiri (tidak perlu di-lookup).
+fn to_bider_response_basic(b: Bider) -> BiderResponse {
+    BiderResponse {
+        id: b.id,
+        iklan_id: b.iklan_id,
+        peminat_id: b.peminat_id,
+        peminat_nama: None,
+        kelurahan: None,
+        kecamatan: None,
+        jarak_km: None,
+        status: b.status,
+        sudah_menghubungi: b.sudah_menghubungi,
+        created_at: b.created_at,
     }
 }
 

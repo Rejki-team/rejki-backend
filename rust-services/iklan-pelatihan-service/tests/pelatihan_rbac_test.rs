@@ -38,6 +38,9 @@ async fn test_admin_create_given_valid_admin_when_create_then_201() {
                 "judul": "Admin Training",
                 "penyelenggara": "Rejki",
                 "deskripsi": "Admin created",
+                "bank_name": "BCA",
+                "bank_account_number": "1234567890",
+                "bank_account_holder_name": "Rejki",
             }),
         ))
         .await

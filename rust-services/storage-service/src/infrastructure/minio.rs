@@ -89,6 +89,37 @@ impl MinioStorage {
         Some(req.uri().to_string())
     }
 
+    /// Ambil isi objek sebagai bytes (server-side, BUKAN presigned) — dipakai
+    /// generator sertifikat PDF (F-12, Kelompok 6 P6) untuk membaca gambar
+    /// tanda tangan yang akan ditempel ke PDF.
+    pub async fn get_object_bytes(&self, object_key: &str) -> Option<Vec<u8>> {
+        let output = self
+            .client
+            .get_object()
+            .bucket(&self.bucket)
+            .key(object_key)
+            .send()
+            .await
+            .ok()?;
+        let bytes = output.body.collect().await.ok()?;
+        Some(bytes.into_bytes().to_vec())
+    }
+
+    /// Unggah bytes langsung (server-side, BUKAN presigned) — dipakai untuk
+    /// mengunggah hasil generate (mis. PDF sertifikat) yang dibuat di backend
+    /// sendiri, bukan file dari klien.
+    pub async fn put_object_bytes(&self, object_key: &str, bytes: Vec<u8>, mime: &str) -> bool {
+        self.client
+            .put_object()
+            .bucket(&self.bucket)
+            .key(object_key)
+            .body(bytes.into())
+            .content_type(mime)
+            .send()
+            .await
+            .is_ok()
+    }
+
     /// Hapus objek (pemusnahan dokumen, retensi K11). `Ok(())` bila berhasil.
     pub async fn delete_object(&self, object_key: &str) -> bool {
         self.client

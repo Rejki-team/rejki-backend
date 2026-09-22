@@ -25,6 +25,8 @@ common-auth-mw = { workspace = true }
 common-rate-limit = { workspace = true }
 iklan-pekerja-service-client = { path = "../iklan-pekerja-service-client" }
 user-service-client          = { path = "../user-service-client" }
+common-geocoding              = { workspace = true }
+common-geo                    = { workspace = true }
 notification-service-client  = { path = "../notification-service-client" }
 storage-service-client       = { path = "../storage-service-client" }
 region-service-client        = { path = "../region-service-client" }

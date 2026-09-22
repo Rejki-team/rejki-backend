@@ -13,6 +13,9 @@ pub struct NotificationEvent {
     pub body: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub data: Option<serde_json::Value>,
+    /// Token FCM aktif milik `recipient_id`, di-resolve saat publish (Opsi C —
+    /// bun-notification-service jadi stateless untuk Postgres, tidak query lagi).
+    pub tokens: Vec<String>,
 }
 
 pub struct RedisPublisher {

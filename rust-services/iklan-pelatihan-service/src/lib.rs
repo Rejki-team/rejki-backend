@@ -3,4 +3,4 @@ pub mod domain;
 pub mod infrastructure;
 pub mod interface;
 
-pub use interface::router;
+pub use interface::{router, RouterDeps};

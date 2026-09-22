@@ -218,6 +218,22 @@ Semua di bagian ini **khusus** untuk `rust-services/`.
 - Naming: `test_{unit}_given_{kondisi}_when_{aksi}_then_{ekspektasi}`.
 - Unit test murni inline `#[cfg(test)]`; integration test di `tests/` pakai **DB nyata**
   (`#[sqlx::test]`), idempoten, fixture factory (email `@test.rejki.internal`), **bukan** mock DB.
+- **Database integration test lokal: `rejki_dev`, BUKAN `rejki_db`.** `rejki_db` hanya database
+  bootstrap default image `postgres` (dibuat otomatis saat container pertama kali start,
+  lihat `POSTGRES_DB` di `docker-compose.infra.yml`) — **bukan** yang dipakai `rejki-app` beneran
+  (lihat `docker-compose.dev.yml`: `DATABASE_URL` → `rejki_dev`). Setiap `<service>/.env.test`
+  WAJIB `DATABASE_URL=postgres://rejki:<password>@localhost:5432/rejki_dev` — password harus
+  sama dengan `POSTGRES_PASSWORD` container Postgres lokal/verify yang sedang jalan (podman
+  inspect env-nya bila lupa; JANGAN asumsikan nilai lama di `.env.test` masih valid setelah
+  container di-recreate).
+- **Integration test (`tests/*.rs`) native di host + Postgres container via port-forward
+  (`localhost:5432`) SAH sebagai bukti korektness fungsional/kontrak** (persis apa yang dites
+  `#[sqlx::test]`/`tower::ServiceExt::oneshot`), **TAPI BUKAN "container-verified"/"end-to-end
+  terverifikasi".** Klaim itu HANYA sah setelah service itu sendiri di-`build` jadi image
+  (`podman build`) dan dipanggil lewat HTTP nyata dari luar container (curl ke port yang
+  di-expose) — jangan campur dua level verifikasi ini saat melaporkan hasil test. Detail
+  topologi & langkah container-verified: lihat skill `run-plan` §"Environment & infra
+  verification".
 - Wajib ada test IDOR `…_given_other_user_…_then_returns_404`.
 - **Target coverage overall ≥ 85%** (CI: `cargo llvm-cov`/`tarpaulin`). Layer application ≥ 80%,
   interface ≥ 70%, infrastructure ≥ 60% — tapi overall **≥ 85%** adalah Acceptance Criteria.
@@ -231,7 +247,8 @@ cargo check --workspace               # kompilasi lintas service
 cargo test --workspace --lib          # unit test (tanpa integration test)
 ```
 > Integration test tidak dijalankan di CI — dilakukan manual saat development dan staging.
-> Untuk menjalankan integration test lokal, butuh PostgreSQL + RSA key di `./keys/`.
+> Untuk menjalankan integration test lokal, butuh PostgreSQL (database `rejki_dev`, lihat §4.8) +
+> RSA key di `./keys/`.
 
 ---
 

@@ -78,7 +78,7 @@ async fn main() {
         .redis
         .url
         .as_ref()
-        .and_then(|u| notification_service::NotificationPublisher::new(u).ok())
+        .and_then(|u| notification_service::NotificationPublisher::new(u, pool.clone()).ok())
         .map(|p| {
             let p: Arc<dyn notification_service::NotificationClient> = Arc::new(p);
             p
@@ -100,6 +100,12 @@ async fn main() {
     let storage_client: Arc<dyn storage_service::StorageClient> =
         Arc::new(storage_service::StorageInProcessClient::new().await);
 
+    // GeocodingClient — Nominatim (OpenStreetMap) publik, dipakai user-service + 4 service
+    // iklan untuk konversi alamat→koordinat saat create/update (F-1). Shared satu instance
+    // (reqwest::Client internal sudah connection-pooled, aman di-share via Arc).
+    let geocoding_client: Arc<dyn common_geocoding::GeocodingClient> =
+        Arc::new(common_geocoding::NominatimGeocodingClient::new());
+
     // UserClient — in-process untuk suspend permanen → purge dokumen KYC (D4).
     let user_client: Arc<dyn user_service::UserClient> = {
         let user_repo = Arc::new(user_service::PgUserRepository::new(pool.clone()));
@@ -109,9 +115,35 @@ async fn main() {
             region_client.clone(),
             Some(storage_client.clone()),
             notifier.clone(),
+            Some(geocoding_client.clone()),
         ));
         Arc::new(user_service::UserInProcessClient::new(user_svc))
     };
+
+    // IklanPekerjaClient — in-process, dipakai iklan-pekerjaan-service untuk validasi
+    // P1.3 "sudah punya Iklan Pekerja aktif" sebelum melamar (F-3, Kelompok 3 Phase 1).
+    let iklan_pekerja_client: Arc<dyn iklan_pekerja_service::IklanPekerjaClient> = Arc::new(
+        iklan_pekerja_service::IklanPekerjaInProcessClient::new(Arc::new(
+            iklan_pekerja_service::PgIklanPekerjaRepository::new(pool.clone()),
+        )),
+    );
+
+    // IklanPekerjaanClient — in-process, dipakai rating-service untuk validasi
+    // "lamaran sudah Selesai" sebelum menerima rating (F-17, Kelompok 3 Phase 5).
+    let iklan_pekerjaan_client: Arc<dyn iklan_pekerjaan_service::IklanPekerjaanClient> = Arc::new(
+        iklan_pekerjaan_service::IklanPekerjaanInProcessClient::new(Arc::new(
+            iklan_pekerjaan_service::PgIklanPekerjaanRepository::new(pool.clone()),
+        )),
+    );
+
+    // IklanBarangBekasClient — in-process, dipakai report-service untuk endpoint
+    // approve-and-suspend saat target_ad_type=barang_bekas (P9.1, Kelompok 6 Q9).
+    let iklan_barang_bekas_client: Arc<dyn iklan_barang_bekas_service::IklanBarangBekasClient> =
+        Arc::new(
+            iklan_barang_bekas_service::IklanBarangBekasInProcessClient::new(Arc::new(
+                iklan_barang_bekas_service::PgIklanBarangBekasRepository::new(pool.clone()),
+            )),
+        );
 
     // ── 6. Rate limiter (shared — Redis Lua atomik, fail-open) ────────────────
     let rate_limiter: Option<Arc<dyn common_rate_limit::RateLimiter>> =
@@ -123,6 +155,103 @@ async fn main() {
             tracing::warn!("REDIS_URL tidak diset — rate limiter non-aktif");
             None
         };
+
+    // SchedulerClient — producer tugas otomatis Bab 10 (F-32, Kelompok 2 Phase 6).
+    // Fail-open: REDIS_URL kosong → schedule() selalu Err(Unconfigured), pemanggil
+    // sudah menangani ini sebagai warn! (I/O aman §4.5), tidak menggagalkan create/enroll.
+    let scheduler_client = Arc::new(common_scheduler::SchedulerClient::new(
+        cfg.redis.url.clone(),
+    ));
+
+    // PgChatRepository — dipakai bersama oleh ChatClient in-process (di bawah) &
+    // handler scheduler chat (registry di bawah) — instance terpisah dari yang
+    // dibangun `chat_service::router()` sendiri, pola sama iklan_pekerja_client/
+    // iklan_pekerjaan_client (masing-masing punya repo in-process sendiri).
+    let chat_repo = Arc::new(chat_service::PgChatRepository::new(pool.clone()));
+
+    // ChatClient — in-process, dipakai iklan-pekerjaan-service & iklan-barang-bekas-
+    // service untuk menjadwalkan auto-end percakapan 2x24 jam setelah "proses pada
+    // iklan terkait selesai" (F-19, Kelompok 4 Phase 4).
+    let chat_client: Arc<dyn chat_service::ChatClient> = {
+        let mut b = chat_service::ChatService::new(chat_repo.clone());
+        if let Some(rl) = rate_limiter.clone() {
+            b = b.with_rate_limiter(rl);
+        }
+        b = b.with_scheduler_client(scheduler_client.clone());
+        Arc::new(chat_service::ChatInProcessClient::new(Arc::new(b)))
+    };
+
+    // Registry + consumer tugas otomatis Bab 10 — hanya jalan bila REDIS_URL diset
+    // (fail-open, konsisten dengan rate limiter di atas).
+    if let Some(redis_url) = cfg.redis.url.clone() {
+        let pelatihan_repo = Arc::new(
+            iklan_pelatihan_service::infrastructure::PgIklanPelatihanRepository::new(pool.clone()),
+        );
+        let mut registry = common_scheduler::SchedulerRegistry::new();
+        registry.register(
+            iklan_pelatihan_service::application::scheduled_jobs::JOB_CANCEL_UNVERIFIED,
+            Arc::new(
+                iklan_pelatihan_service::application::scheduled_jobs::CancelUnverifiedHandler {
+                    repo: pelatihan_repo.clone(),
+                },
+            ),
+        );
+        registry.register(
+            iklan_pelatihan_service::application::scheduled_jobs::JOB_MARK_SELESAI,
+            Arc::new(
+                iklan_pelatihan_service::application::scheduled_jobs::MarkSelesaiHandler {
+                    repo: pelatihan_repo.clone(),
+                },
+            ),
+        );
+        registry.register(
+            iklan_pelatihan_service::application::scheduled_jobs::JOB_CHECK_BADGE_DEADLINE,
+            Arc::new(
+                iklan_pelatihan_service::application::scheduled_jobs::CheckBadgeDeadlineHandler {
+                    repo: pelatihan_repo.clone(),
+                    auth_client: auth_client.clone(),
+                },
+            ),
+        );
+        registry.register(
+            iklan_pelatihan_service::application::scheduled_jobs::JOB_CANCEL_ENROLLMENT_UNPAID,
+            Arc::new(iklan_pelatihan_service::application::scheduled_jobs::CancelEnrollmentUnpaidHandler {
+                repo: pelatihan_repo,
+            }),
+        );
+
+        // Chat (F-19, Kelompok 4 Phase 4): auto-end 2x24 jam + retensi 60 hari.
+        registry.register(
+            chat_service::application::scheduled_jobs::JOB_CHAT_AUTO_END,
+            Arc::new(chat_service::application::scheduled_jobs::AutoEndHandler {
+                repo: chat_repo.clone(),
+            }),
+        );
+        registry.register(
+            chat_service::application::scheduled_jobs::JOB_CHAT_RETENTION_PURGE,
+            Arc::new(
+                chat_service::application::scheduled_jobs::RetentionPurgeHandler {
+                    repo: chat_repo.clone(),
+                },
+            ),
+        );
+
+        match common_scheduler::SchedulerConsumer::new(&redis_url, registry, "rejki-app") {
+            Ok(consumer) => {
+                tokio::spawn(async move {
+                    if let Err(e) = consumer.run().await {
+                        tracing::error!(error = ?e, "scheduler consumer berhenti (fatal)");
+                    }
+                });
+                tracing::info!("scheduler tugas otomatis Bab 10 (F-32) aktif");
+            }
+            Err(e) => {
+                tracing::warn!(error = ?e, "gagal membuat scheduler consumer — tugas otomatis Bab 10 non-aktif");
+            }
+        }
+    } else {
+        tracing::warn!("REDIS_URL tidak diset — scheduler tugas otomatis Bab 10 non-aktif");
+    }
 
     // ── 7. Build router ────────────────────────────────────────────────────────
     let api_v1 = Router::new()
@@ -148,11 +277,19 @@ async fn main() {
                 region_client.clone(),
                 storage_client.clone(),
                 notifier.clone(),
+                Some(geocoding_client.clone()),
             ),
         )
         .nest(
             "/chat",
-            chat_service::router(pool.clone(), auth_client.clone(), rate_limiter.clone()),
+            chat_service::router(
+                pool.clone(),
+                auth_client.clone(),
+                rate_limiter.clone(),
+                Some(scheduler_client.clone()),
+                Some(storage_client.clone()),
+                Some(user_client.clone()),
+            ),
         )
         .nest(
             "/notif",
@@ -160,47 +297,58 @@ async fn main() {
         )
         .nest(
             "/pekerjaan",
-            iklan_pekerjaan_service::router(
-                pool.clone(),
-                auth_client.clone(),
-                Some(storage_client.clone()),
-                notifier.clone(),
-                rate_limiter.clone(),
-                Some(region_client.clone()),
-            ),
+            iklan_pekerjaan_service::router(iklan_pekerjaan_service::RouterDeps {
+                pool: pool.clone(),
+                auth_client: auth_client.clone(),
+                storage: Some(storage_client.clone()),
+                notifier: notifier.clone(),
+                rate_limiter: rate_limiter.clone(),
+                region_client: Some(region_client.clone()),
+                geocoding_client: Some(geocoding_client.clone()),
+                iklan_pekerja_client: Some(iklan_pekerja_client.clone()),
+                chat_client: Some(chat_client.clone()),
+            }),
         )
         .nest(
             "/pekerja",
-            iklan_pekerja_service::router(
-                pool.clone(),
-                auth_client.clone(),
-                Some(storage_client.clone()),
-                notifier.clone(),
-                rate_limiter.clone(),
-                Some(region_client.clone()),
-            ),
+            iklan_pekerja_service::router(iklan_pekerja_service::RouterDeps {
+                pool: pool.clone(),
+                auth_client: auth_client.clone(),
+                storage: Some(storage_client.clone()),
+                notifier: notifier.clone(),
+                rate_limiter: rate_limiter.clone(),
+                region_client: Some(region_client.clone()),
+                user_client: Some(user_client.clone()),
+                geocoding_client: Some(geocoding_client.clone()),
+            }),
         )
         .nest(
             "/barang",
-            iklan_barang_bekas_service::router(
-                pool.clone(),
-                auth_client.clone(),
-                Some(storage_client.clone()),
-                notifier.clone(),
-                rate_limiter.clone(),
-                Some(region_client.clone()),
-            ),
+            iklan_barang_bekas_service::router(iklan_barang_bekas_service::RouterDeps {
+                pool: pool.clone(),
+                auth_client: auth_client.clone(),
+                storage: Some(storage_client.clone()),
+                notifier: notifier.clone(),
+                rate_limiter: rate_limiter.clone(),
+                region_client: Some(region_client.clone()),
+                geocoding_client: Some(geocoding_client.clone()),
+                user_client: Some(user_client.clone()),
+                chat_client: Some(chat_client.clone()),
+            }),
         )
         .nest(
             "/pelatihan",
-            iklan_pelatihan_service::router(
-                pool.clone(),
-                auth_client.clone(),
-                Some(storage_client.clone()),
-                notifier.clone(),
-                rate_limiter.clone(),
-                Some(region_client.clone()),
-            ),
+            iklan_pelatihan_service::router(iklan_pelatihan_service::RouterDeps {
+                pool: pool.clone(),
+                auth_client: auth_client.clone(),
+                storage: Some(storage_client.clone()),
+                notifier: notifier.clone(),
+                rate_limiter: rate_limiter.clone(),
+                region_client: Some(region_client.clone()),
+                geocoding_client: Some(geocoding_client.clone()),
+                scheduler_client: Some(scheduler_client.clone()),
+                user_client: Some(user_client.clone()),
+            }),
         )
         .nest(
             "/admin/articles",
@@ -214,17 +362,30 @@ async fn main() {
         )
         .nest(
             "/reports",
-            report_service::router(
-                pool.clone(),
-                auth_client.clone(),
-                Some(storage_client.clone()),
-                notifier.clone(),
-                rate_limiter.clone(),
-            ),
+            report_service::router(report_service::RouterDeps {
+                pool: pool.clone(),
+                auth_client: auth_client.clone(),
+                storage: Some(storage_client.clone()),
+                notifier: notifier.clone(),
+                rate_limiter: rate_limiter.clone(),
+                user_client: Some(user_client.clone()),
+                region_client: Some(region_client.clone()),
+                iklan_pekerjaan_client: Some(iklan_pekerjaan_client.clone()),
+                iklan_pekerja_client: Some(iklan_pekerja_client.clone()),
+                iklan_barang_bekas_client: Some(iklan_barang_bekas_client.clone()),
+            }),
         )
         .nest(
             "/insights",
             insights_service::router(pool.clone(), auth_client.clone()),
+        )
+        .nest(
+            "/rating",
+            rating_service::router(
+                pool.clone(),
+                auth_client.clone(),
+                Some(iklan_pekerjaan_client.clone()),
+            ),
         );
 
     let mut app = Router::new()

@@ -27,8 +27,14 @@ pub struct UpdatePekerjaParams {
     pub region_id: Option<String>,
     pub tarif_min: Option<i64>,
     pub tarif_max: Option<i64>,
+    pub jam_kerja: Option<String>,
+    pub phone_number: Option<String>,
     pub foto_urls: Option<Vec<String>>,
     pub is_active: Option<bool>,
+    /// Hasil re-geocoding (F-1) bila `lokasi`/`region_id` berubah. `None` = tidak berubah
+    /// ATAU geocoding gagal — kolom lama dipertahankan (COALESCE), degradasi anggun.
+    pub latitude: Option<f64>,
+    pub longitude: Option<f64>,
 }
 
 /// Params untuk `create()` — grouping untuk menghindari too_many_arguments.
@@ -41,12 +47,23 @@ pub struct CreatePekerjaParams<'a> {
     pub region_id: Option<&'a str>,
     pub tarif_min: Option<i64>,
     pub tarif_max: Option<i64>,
+    pub jam_kerja: Option<&'a str>,
+    pub phone_number: Option<&'a str>,
+    pub latitude: Option<f64>,
+    pub longitude: Option<f64>,
 }
 
 #[allow(async_fn_in_trait)]
 pub trait IklanPekerjaRepository: Send + Sync {
     async fn find_by_id(&self, id: Uuid) -> Result<Option<IklanPekerja>, anyhow::Error>;
-    async fn list(&self, limit: i64, offset: i64) -> Result<Vec<IklanPekerja>, anyhow::Error>;
+    /// `radius`: filter "dalam radius X km dari koordinat pengguna" (F-1, PRD §5.12.1) —
+    /// `None` = tidak difilter (semua iklan aktif, seperti sebelumnya).
+    async fn list(
+        &self,
+        limit: i64,
+        offset: i64,
+        radius: Option<common_geo::RadiusQuery>,
+    ) -> Result<Vec<IklanPekerja>, anyhow::Error>;
     async fn create(&self, params: CreatePekerjaParams<'_>) -> Result<IklanPekerja, anyhow::Error>;
     async fn delete(&self, id: Uuid, poster_id: Uuid) -> Result<bool, anyhow::Error>;
     async fn exists(&self, id: Uuid) -> Result<bool, anyhow::Error>;
@@ -74,4 +91,15 @@ pub trait IklanPekerjaRepository: Send + Sync {
         params: UpdatePekerjaParams,
     ) -> Result<Option<IklanPekerja>, anyhow::Error>;
     async fn is_poster_in_cooldown(&self, poster_id: Uuid) -> Result<bool, anyhow::Error>;
+
+    /// Dipakai `IklanPekerjaClient::exists_active_for_poster` (F-3, Kelompok 3 Phase 1) —
+    /// prasyarat "sudah punya Iklan Pekerja" sebelum bisa melamar pekerjaan orang lain.
+    async fn exists_active_for_poster(&self, poster_id: Uuid) -> Result<bool, anyhow::Error>;
+
+    /// Dipakai `IklanPekerjaClient::get_active_summaries_for_posters` (F-3/F-4,
+    /// Kelompok 3 Phase 2) — batch lookup, satu query untuk banyak `poster_id`.
+    async fn find_active_by_posters(
+        &self,
+        poster_ids: &[Uuid],
+    ) -> Result<Vec<IklanPekerja>, anyhow::Error>;
 }

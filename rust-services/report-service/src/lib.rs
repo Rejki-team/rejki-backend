@@ -5,4 +5,5 @@ pub mod interface;
 
 pub use interface::router;
 pub use interface::ReportInProcessClient;
+pub use interface::RouterDeps;
 pub use report_service_client::ReportClient;

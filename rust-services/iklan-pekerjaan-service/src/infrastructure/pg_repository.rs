@@ -1,13 +1,15 @@
 use std::time::Instant;
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveDate, NaiveTime, Utc};
 use sqlx::{PgPool, Row};
 use uuid::Uuid;
 
-use crate::domain::entity::{IklanPekerjaan, IklanSuspension, ModerationStatus};
+use crate::domain::entity::{
+    IklanPekerjaan, IklanSuspension, Lamaran, LamaranStatus, ModerationStatus,
+};
 use crate::domain::repository::{
-    AdminListParams, AdminListResult, CreatePekerjaanParams, IklanPekerjaanRepository,
-    UpdatePekerjaanParams,
+    AdminListParams, AdminListResult, CreateLamaranParams, CreatePekerjaanParams,
+    IklanPekerjaanRepository, UpdatePekerjaanParams,
 };
 
 pub struct PgIklanPekerjaanRepository {
@@ -31,7 +33,13 @@ macro_rules! warn_slow {
 
 macro_rules! pekerjaan_cols {
     () => {
-        "id,poster_id,judul,perusahaan,deskripsi,lokasi,region_id,gaji_min,gaji_max,tipe,foto_urls,is_active,moderation_status,deleted_at,created_at,updated_at"
+        "id,poster_id,judul,perusahaan,deskripsi,lokasi,region_id,gaji_min,gaji_max,tipe,jam_kerja,foto_urls,is_active,moderation_status,status,deleted_at,latitude,longitude,created_at,updated_at"
+    };
+}
+
+macro_rules! lamaran_cols {
+    () => {
+        "id,iklan_id,pelamar_id,status,tanggal,jam_mulai,jam_akhir,kuota_diambil,alasan_batal,created_at,updated_at"
     };
 }
 
@@ -47,13 +55,34 @@ fn row_to_entity(r: &sqlx::postgres::PgRow) -> IklanPekerjaan {
         gaji_min: r.get("gaji_min"),
         gaji_max: r.get("gaji_max"),
         tipe: r.get("tipe"),
+        jam_kerja: r.get("jam_kerja"),
         foto_urls: r
             .get::<Option<Vec<String>>, _>("foto_urls")
             .unwrap_or_default(),
         is_active: r.get("is_active"),
         moderation_status: ModerationStatus::parse(&r.get::<String, _>("moderation_status"))
             .unwrap_or_default(),
+        status: crate::domain::entity::PekerjaanStatus::parse(&r.get::<String, _>("status"))
+            .unwrap_or_default(),
         deleted_at: r.get("deleted_at"),
+        latitude: r.get("latitude"),
+        longitude: r.get("longitude"),
+        created_at: r.get("created_at"),
+        updated_at: r.get("updated_at"),
+    }
+}
+
+fn row_to_lamaran(r: &sqlx::postgres::PgRow) -> Lamaran {
+    Lamaran {
+        id: r.get("id"),
+        iklan_id: r.get("iklan_id"),
+        pelamar_id: r.get("pelamar_id"),
+        status: LamaranStatus::parse(&r.get::<String, _>("status")).unwrap_or_default(),
+        tanggal: r.get("tanggal"),
+        jam_mulai: r.get("jam_mulai"),
+        jam_akhir: r.get("jam_akhir"),
+        kuota_diambil: r.get("kuota_diambil"),
+        alasan_batal: r.get("alasan_batal"),
         created_at: r.get("created_at"),
         updated_at: r.get("updated_at"),
     }
@@ -87,15 +116,91 @@ impl IklanPekerjaanRepository for PgIklanPekerjaanRepository {
         Ok(r.as_ref().map(row_to_entity))
     }
 
-    async fn list(&self, limit: i64, offset: i64) -> Result<Vec<IklanPekerjaan>, anyhow::Error> {
+    async fn find_by_ids(&self, ids: &[Uuid]) -> Result<Vec<IklanPekerjaan>, anyhow::Error> {
         let t = Instant::now();
         let rows = sqlx::query(concat!(
-            "SELECT ", pekerjaan_cols!(), " FROM iklan_pekerjaan.iklan WHERE is_active=true AND moderation_status='active' AND deleted_at IS NULL ORDER BY created_at DESC LIMIT $1 OFFSET $2"
+            "SELECT ",
+            pekerjaan_cols!(),
+            " FROM iklan_pekerjaan.iklan WHERE id = ANY($1)"
         ))
+        .bind(ids)
+        .fetch_all(&self.pool)
+        .await?;
+        warn_slow!(t, "iklan_pekerjaan.find_by_ids");
+        Ok(rows.iter().map(row_to_entity).collect())
+    }
+
+    async fn list_by_poster(
+        &self,
+        poster_id: Uuid,
+        limit: i64,
+        offset: i64,
+    ) -> Result<Vec<IklanPekerjaan>, anyhow::Error> {
+        let t = Instant::now();
+        let rows = sqlx::query(concat!(
+            "SELECT ",
+            pekerjaan_cols!(),
+            " FROM iklan_pekerjaan.iklan WHERE poster_id=$1 AND deleted_at IS NULL \
+             ORDER BY created_at DESC LIMIT $2 OFFSET $3"
+        ))
+        .bind(poster_id)
         .bind(limit)
         .bind(offset)
         .fetch_all(&self.pool)
         .await?;
+        warn_slow!(t, "iklan_pekerjaan.list_by_poster");
+        Ok(rows.iter().map(row_to_entity).collect())
+    }
+
+    async fn list(
+        &self,
+        limit: i64,
+        offset: i64,
+        radius: Option<common_geo::RadiusQuery>,
+    ) -> Result<Vec<IklanPekerjaan>, anyhow::Error> {
+        let t = Instant::now();
+        // sqlx 0.9 mewajibkan literal `&'static str` (audit anti-injection) — dua varian SQL
+        // literal terpisah; formula Haversine identik dengan `common_geo::haversine_km()`.
+        let rows = if let Some(r) = radius {
+            let bb = common_geo::bounding_box(r.lat, r.lng, r.radius_km);
+            sqlx::query(concat!(
+                "SELECT ",
+                pekerjaan_cols!(),
+                " FROM iklan_pekerjaan.iklan \
+                 WHERE is_active=true AND moderation_status='active' AND deleted_at IS NULL \
+                   AND status != 'sedang_dikerjakan' \
+                   AND latitude IS NOT NULL AND longitude IS NOT NULL \
+                   AND latitude BETWEEN $3 AND $4 AND longitude BETWEEN $5 AND $6 \
+                   AND (2 * 6371 * asin(sqrt( \
+                         power(sin(radians((latitude - $7) / 2)), 2) + \
+                         cos(radians($7)) * cos(radians(latitude)) * power(sin(radians((longitude - $8) / 2)), 2) \
+                       ))) <= $9 \
+                 ORDER BY (2 * 6371 * asin(sqrt( \
+                         power(sin(radians((latitude - $7) / 2)), 2) + \
+                         cos(radians($7)) * cos(radians(latitude)) * power(sin(radians((longitude - $8) / 2)), 2) \
+                       ))) ASC \
+                 LIMIT $1 OFFSET $2"
+            ))
+            .bind(limit)
+            .bind(offset)
+            .bind(bb.min_lat)
+            .bind(bb.max_lat)
+            .bind(bb.min_lng)
+            .bind(bb.max_lng)
+            .bind(r.lat)
+            .bind(r.lng)
+            .bind(r.radius_km)
+            .fetch_all(&self.pool)
+            .await?
+        } else {
+            sqlx::query(concat!(
+                "SELECT ", pekerjaan_cols!(), " FROM iklan_pekerjaan.iklan WHERE is_active=true AND moderation_status='active' AND deleted_at IS NULL AND status != 'sedang_dikerjakan' ORDER BY created_at DESC LIMIT $1 OFFSET $2"
+            ))
+            .bind(limit)
+            .bind(offset)
+            .fetch_all(&self.pool)
+            .await?
+        };
         warn_slow!(t, "iklan_pekerjaan.list");
         Ok(rows.iter().map(row_to_entity).collect())
     }
@@ -106,7 +211,7 @@ impl IklanPekerjaanRepository for PgIklanPekerjaanRepository {
     ) -> Result<IklanPekerjaan, anyhow::Error> {
         let t = Instant::now();
         let r = sqlx::query(concat!(
-            "INSERT INTO iklan_pekerjaan.iklan (id,poster_id,judul,perusahaan,deskripsi,tipe,lokasi,region_id,gaji_min,gaji_max) VALUES (gen_random_uuid(),$1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING ", pekerjaan_cols!(),
+            "INSERT INTO iklan_pekerjaan.iklan (id,poster_id,judul,perusahaan,deskripsi,tipe,lokasi,region_id,gaji_min,gaji_max,jam_kerja,latitude,longitude) VALUES (gen_random_uuid(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING ", pekerjaan_cols!(),
         ))
         .bind(params.poster_id)
         .bind(params.judul)
@@ -117,6 +222,9 @@ impl IklanPekerjaanRepository for PgIklanPekerjaanRepository {
         .bind(params.region_id)
         .bind(params.gaji_min)
         .bind(params.gaji_max)
+        .bind(params.jam_kerja)
+        .bind(params.latitude)
+        .bind(params.longitude)
         .fetch_one(&self.pool)
         .await?;
         warn_slow!(t, "iklan_pekerjaan.create");
@@ -151,6 +259,9 @@ impl IklanPekerjaanRepository for PgIklanPekerjaanRepository {
             "tipe=COALESCE($9,tipe), ",
             "foto_urls=COALESCE($10,foto_urls), ",
             "is_active=COALESCE($11,is_active), ",
+            "latitude=COALESCE($13,latitude), ",
+            "longitude=COALESCE($14,longitude), ",
+            "jam_kerja=COALESCE($15,jam_kerja), ",
             "updated_at=now() ",
             "WHERE id=$1 AND poster_id=$12 AND moderation_status='active' AND deleted_at IS NULL ",
             "RETURNING ",
@@ -168,6 +279,9 @@ impl IklanPekerjaanRepository for PgIklanPekerjaanRepository {
         .bind(params.foto_urls)
         .bind(params.is_active)
         .bind(params.poster_id)
+        .bind(params.latitude)
+        .bind(params.longitude)
+        .bind(params.jam_kerja)
         .fetch_optional(&self.pool)
         .await?;
         warn_slow!(t, "iklan_pekerjaan.update");
@@ -337,5 +451,246 @@ impl IklanPekerjaanRepository for PgIklanPekerjaanRepository {
         .await?;
         warn_slow!(t, "iklan_pekerjaan.is_poster_in_cooldown");
         Ok(r.unwrap_or(false))
+    }
+
+    // ── Lamaran (F-3, Kelompok 3 Phase 1) ───────────────────────────────
+
+    async fn find_lamaran_by_id(&self, id: Uuid) -> Result<Option<Lamaran>, anyhow::Error> {
+        let t = Instant::now();
+        let r = sqlx::query(concat!(
+            "SELECT ",
+            lamaran_cols!(),
+            " FROM iklan_pekerjaan.lamaran WHERE id=$1"
+        ))
+        .bind(id)
+        .fetch_optional(&self.pool)
+        .await?;
+        warn_slow!(t, "iklan_pekerjaan.find_lamaran_by_id");
+        Ok(r.as_ref().map(row_to_lamaran))
+    }
+
+    async fn find_lamaran_by_iklan_and_pelamar(
+        &self,
+        iklan_id: Uuid,
+        pelamar_id: Uuid,
+    ) -> Result<Option<Lamaran>, anyhow::Error> {
+        let t = Instant::now();
+        let r = sqlx::query(concat!(
+            "SELECT ",
+            lamaran_cols!(),
+            " FROM iklan_pekerjaan.lamaran WHERE iklan_id=$1 AND pelamar_id=$2 ",
+            "ORDER BY created_at DESC LIMIT 1"
+        ))
+        .bind(iklan_id)
+        .bind(pelamar_id)
+        .fetch_optional(&self.pool)
+        .await?;
+        warn_slow!(t, "iklan_pekerjaan.find_lamaran_by_iklan_and_pelamar");
+        Ok(r.as_ref().map(row_to_lamaran))
+    }
+
+    async fn create_lamaran(&self, params: CreateLamaranParams) -> Result<Lamaran, anyhow::Error> {
+        let t = Instant::now();
+        let r = sqlx::query(concat!(
+            "INSERT INTO iklan_pekerjaan.lamaran (id,iklan_id,pelamar_id,tanggal,jam_mulai,jam_akhir,kuota_diambil) ",
+            "VALUES (gen_random_uuid(),$1,$2,$3,$4,$5,$6) RETURNING ",
+            lamaran_cols!(),
+        ))
+        .bind(params.iklan_id)
+        .bind(params.pelamar_id)
+        .bind(params.tanggal)
+        .bind(params.jam_mulai)
+        .bind(params.jam_akhir)
+        .bind(params.kuota_diambil)
+        .fetch_one(&self.pool)
+        .await?;
+        warn_slow!(t, "iklan_pekerjaan.create_lamaran");
+        Ok(row_to_lamaran(&r))
+    }
+
+    async fn list_lamaran_for_iklan(&self, iklan_id: Uuid) -> Result<Vec<Lamaran>, anyhow::Error> {
+        let t = Instant::now();
+        let rows = sqlx::query(concat!(
+            "SELECT ",
+            lamaran_cols!(),
+            " FROM iklan_pekerjaan.lamaran WHERE iklan_id=$1 ORDER BY created_at DESC"
+        ))
+        .bind(iklan_id)
+        .fetch_all(&self.pool)
+        .await?;
+        warn_slow!(t, "iklan_pekerjaan.list_lamaran_for_iklan");
+        Ok(rows.iter().map(row_to_lamaran).collect())
+    }
+
+    async fn list_lamaran_for_pelamar(
+        &self,
+        pelamar_id: Uuid,
+    ) -> Result<Vec<Lamaran>, anyhow::Error> {
+        let t = Instant::now();
+        let rows = sqlx::query(concat!(
+            "SELECT ",
+            lamaran_cols!(),
+            " FROM iklan_pekerjaan.lamaran WHERE pelamar_id=$1 ORDER BY created_at DESC"
+        ))
+        .bind(pelamar_id)
+        .fetch_all(&self.pool)
+        .await?;
+        warn_slow!(t, "iklan_pekerjaan.list_lamaran_for_pelamar");
+        Ok(rows.iter().map(row_to_lamaran).collect())
+    }
+
+    async fn has_conflicting_lamaran(
+        &self,
+        pelamar_id: Uuid,
+        tanggal: NaiveDate,
+        jam_mulai: NaiveTime,
+        jam_akhir: NaiveTime,
+    ) -> Result<bool, anyhow::Error> {
+        let t = Instant::now();
+        // Overlap standar: existing.jam_mulai < new.jam_akhir AND existing.jam_akhir > new.jam_mulai.
+        let r: Option<bool> = sqlx::query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM iklan_pekerjaan.lamaran \
+             WHERE pelamar_id=$1 AND tanggal=$2 AND status IN ('diterima','proses') \
+               AND jam_mulai < $4 AND jam_akhir > $3)",
+        )
+        .bind(pelamar_id)
+        .bind(tanggal)
+        .bind(jam_mulai)
+        .bind(jam_akhir)
+        .fetch_one(&self.pool)
+        .await?;
+        warn_slow!(t, "iklan_pekerjaan.has_conflicting_lamaran");
+        Ok(r.unwrap_or(false))
+    }
+
+    async fn review_lamaran(
+        &self,
+        id: Uuid,
+        iklan_owner_id: Uuid,
+        approved: bool,
+    ) -> Result<Option<Lamaran>, anyhow::Error> {
+        let t = Instant::now();
+        let new_status = if approved {
+            LamaranStatus::Diterima.as_str()
+        } else {
+            LamaranStatus::Ditolak.as_str()
+        };
+        let r = sqlx::query(concat!(
+            "UPDATE iklan_pekerjaan.lamaran SET status=$1, updated_at=now() ",
+            "WHERE id=$2 AND status='diajukan' ",
+            "AND EXISTS(SELECT 1 FROM iklan_pekerjaan.iklan WHERE id=lamaran.iklan_id AND poster_id=$3) ",
+            "RETURNING ",
+            lamaran_cols!(),
+        ))
+        .bind(new_status)
+        .bind(id)
+        .bind(iklan_owner_id)
+        .fetch_optional(&self.pool)
+        .await?;
+        warn_slow!(t, "iklan_pekerjaan.review_lamaran");
+        Ok(r.as_ref().map(row_to_lamaran))
+    }
+
+    async fn mulai_bekerja(
+        &self,
+        lamaran_id: Uuid,
+        pelamar_id: Uuid,
+    ) -> Result<Option<Lamaran>, anyhow::Error> {
+        let t = Instant::now();
+        let mut tx = self.pool.begin().await?;
+
+        let r = sqlx::query(concat!(
+            "UPDATE iklan_pekerjaan.lamaran SET status='proses', updated_at=now() ",
+            "WHERE id=$1 AND pelamar_id=$2 AND status='diterima' RETURNING ",
+            lamaran_cols!(),
+        ))
+        .bind(lamaran_id)
+        .bind(pelamar_id)
+        .fetch_optional(&mut *tx)
+        .await?;
+
+        let lamaran = match r {
+            Some(row) => row_to_lamaran(&row),
+            None => {
+                tx.rollback().await?;
+                warn_slow!(t, "iklan_pekerjaan.mulai_bekerja");
+                return Ok(None);
+            }
+        };
+
+        sqlx::query(
+            "UPDATE iklan_pekerjaan.iklan SET status='sedang_dikerjakan', updated_at=now() \
+             WHERE id=$1 AND status='tersedia'",
+        )
+        .bind(lamaran.iklan_id)
+        .execute(&mut *tx)
+        .await?;
+
+        tx.commit().await?;
+        warn_slow!(t, "iklan_pekerjaan.mulai_bekerja");
+        Ok(Some(lamaran))
+    }
+
+    async fn tandai_selesai(
+        &self,
+        lamaran_id: Uuid,
+        pelamar_id: Uuid,
+    ) -> Result<Option<Lamaran>, anyhow::Error> {
+        let t = Instant::now();
+        let mut tx = self.pool.begin().await?;
+
+        let r = sqlx::query(concat!(
+            "UPDATE iklan_pekerjaan.lamaran SET status='selesai', updated_at=now() ",
+            "WHERE id=$1 AND pelamar_id=$2 AND status='proses' RETURNING ",
+            lamaran_cols!(),
+        ))
+        .bind(lamaran_id)
+        .bind(pelamar_id)
+        .fetch_optional(&mut *tx)
+        .await?;
+
+        let lamaran = match r {
+            Some(row) => row_to_lamaran(&row),
+            None => {
+                tx.rollback().await?;
+                warn_slow!(t, "iklan_pekerjaan.tandai_selesai");
+                return Ok(None);
+            }
+        };
+
+        sqlx::query(
+            "UPDATE iklan_pekerjaan.iklan SET status='selesai', updated_at=now() \
+             WHERE id=$1 AND status='sedang_dikerjakan'",
+        )
+        .bind(lamaran.iklan_id)
+        .execute(&mut *tx)
+        .await?;
+
+        tx.commit().await?;
+        warn_slow!(t, "iklan_pekerjaan.tandai_selesai");
+        Ok(Some(lamaran))
+    }
+
+    async fn batalkan_lamaran(
+        &self,
+        lamaran_id: Uuid,
+        iklan_owner_id: Uuid,
+        alasan: &str,
+    ) -> Result<Option<Lamaran>, anyhow::Error> {
+        let t = Instant::now();
+        let r = sqlx::query(concat!(
+            "UPDATE iklan_pekerjaan.lamaran SET status='ditolak', alasan_batal=$1, updated_at=now() ",
+            "WHERE id=$2 AND status='diterima' ",
+            "AND EXISTS(SELECT 1 FROM iklan_pekerjaan.iklan WHERE id=lamaran.iklan_id AND poster_id=$3) ",
+            "RETURNING ",
+            lamaran_cols!(),
+        ))
+        .bind(alasan)
+        .bind(lamaran_id)
+        .bind(iklan_owner_id)
+        .fetch_optional(&self.pool)
+        .await?;
+        warn_slow!(t, "iklan_pekerjaan.batalkan_lamaran");
+        Ok(r.as_ref().map(row_to_lamaran))
     }
 }

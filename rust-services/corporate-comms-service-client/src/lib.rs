@@ -4,23 +4,27 @@
 pub enum ArticleCategory {
     #[default]
     Informasi,
+    TipsTrick,
 }
 
 /// Nama kategori yang disimpan di DB — jangan hardcode string literal.
 pub mod category_name {
     pub const INFORMASI: &str = "informasi";
+    pub const TIPS_TRICK: &str = "tips_trick";
 }
 
 impl ArticleCategory {
     pub fn as_str(&self) -> &'static str {
         match self {
             ArticleCategory::Informasi => category_name::INFORMASI,
+            ArticleCategory::TipsTrick => category_name::TIPS_TRICK,
         }
     }
 
     pub fn parse(s: &str) -> Option<Self> {
         match s {
             category_name::INFORMASI => Some(ArticleCategory::Informasi),
+            category_name::TIPS_TRICK => Some(ArticleCategory::TipsTrick),
             _ => None,
         }
     }

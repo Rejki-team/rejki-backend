@@ -186,6 +186,30 @@ pub trait AuthClient: Send + Sync {
     /// (mis. corporate-comms service menyiarkan artikel ke seluruh pengguna).
     /// Arah: corporate-comms -> auth.
     async fn list_active_user_ids(&self) -> Result<Vec<Uuid>, AuthClientError>;
+
+    /// Suspend akun sementara `days` hari (auto-pulih lazy saat login berikutnya
+    /// setelah `expires_at` lewat — pola sama dengan suspend manual admin), dengan
+    /// audit trail (`auth.account_suspension`) + revoke seluruh refresh token.
+    /// Dipicu tugas otomatis Bab 10 (mis. `common-scheduler` job — F-32), BUKAN oleh
+    /// admin manusia — `created_by` di audit trail memakai `Uuid::nil()` sebagai
+    /// sentinel "sistem". Arah: iklan-pelatihan-service (dan tugas otomatis lain) -> auth.
+    async fn suspend_temporarily(
+        &self,
+        user_id: Uuid,
+        days: i64,
+        reason: &str,
+    ) -> Result<(), AuthClientError>;
+
+    /// Suspend akun permanen (P9.0c, Kelompok 6 Q9) — dipakai endpoint
+    /// approve-and-suspend (`report-service`) saat admin memilih durasi
+    /// permanen untuk `target_type=User`. Pola sama `suspend_temporarily`
+    /// (langsung ke repository, tanpa notifier/audit — jalur cross-service
+    /// ringan; notifikasi/audit lengkap tetap ada di endpoint suspend mandiri
+    /// admin existing, P9.2). `created_by` memakai `Uuid::nil()` sebagai
+    /// sentinel "sistem" — konsisten `suspend_temporarily`, pemanggil asli
+    /// (admin) sudah tercatat di audit trail `report.report` sendiri.
+    async fn suspend_permanently(&self, user_id: Uuid, reason: &str)
+        -> Result<(), AuthClientError>;
 }
 
 #[derive(Debug, thiserror::Error)]
