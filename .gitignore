@@ -3,6 +3,9 @@
 **/*.rs.bk
 Cargo.lock.bk
 
+# Node dependencies (bun install) — jangan pernah di-commit
+node_modules/
+
 # Secrets — JANGAN di-commit
 .env
 .env.local
