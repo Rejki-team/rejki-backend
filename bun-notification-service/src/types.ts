@@ -6,6 +6,8 @@ export interface NotificationEvent {
   body:         string;
   data?:        Record<string, unknown>;
   channel?:     string;
+  /** Token FCM aktif milik recipient_id, sudah di-resolve Rust saat publish (Opsi C) — tidak query Postgres lagi di sini. */
+  tokens:       string[];
 }
 
 /** Event email transaksional (channel === "email"), mis. OTP dari auth-service. */
@@ -21,9 +23,4 @@ export type StreamEvent = NotificationEvent | EmailEvent;
 
 export function is_email_event(e: StreamEvent): e is EmailEvent {
   return (e as EmailEvent).channel === "email";
-}
-
-export interface FcmToken {
-  user_id:   string;
-  fcm_token: string;
 }

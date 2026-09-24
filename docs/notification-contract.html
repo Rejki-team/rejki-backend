@@ -189,13 +189,13 @@
           </tr>
           <tr>
             <td><strong>bun-notification-service</strong> <span class="role-tag rt-bun">Bun.js</span></td>
-            <td>XREADGROUP dari Redis → cek idempotency → dispatch FCM/email → tulis DB</td>
-            <td>Tidak expose REST API (kecuali health check), tidak tahu business logic Rust</td>
+            <td>XREADGROUP dari Redis → cek idempotency (Redis <code>SET NX EX</code>) → dispatch FCM (token sudah ada di payload) / email</td>
+            <td>Tidak expose REST API (kecuali health check), <strong>tidak akses PostgreSQL sama sekali</strong> — stateless (Opsi C)</td>
           </tr>
           <tr>
             <td><strong>PostgreSQL</strong> <span class="role-tag rt-db">DB</span></td>
-            <td>Simpan notifikasi in-app, idempotency keys, device tokens, user preferences</td>
-            <td>Tidak diakses langsung oleh Rust untuk keperluan notifikasi delivery</td>
+            <td>Simpan notifikasi in-app &amp; device token FCM — ditulis &amp; dibaca langsung oleh notification-service Rust</td>
+            <td>Idempotency key TIDAK disimpan di Postgres (pindah ke Redis); tidak pernah diakses oleh bun-notification-service</td>
           </tr>
         </tbody>
       </table></div>
@@ -294,10 +294,19 @@ XACK notifications_stream bun-consumers {stream-id}</pre></div>
     <span class="ck">pub</span> actor_id:        <span class="ct">Option</span>&lt;<span class="ct">Uuid</span>&gt;,
     <span class="ck">pub</span> actor_name:      <span class="ct">Option</span>&lt;String&gt;,
     <span class="ck">pub</span> data:            serde_json::<span class="ct">Value</span>,  <span class="cc">// data bebas sesuai event</span>
+    <span class="ck">pub</span> tokens:          <span class="ct">Vec</span>&lt;String&gt;,  <span class="cc">// token FCM aktif milik recipient_id — di-resolve Rust SAAT publish (Opsi C)</span>
 }
 
 <span class="cc">// Cara buat idempotency_key oleh service pengirim:</span>
 <span class="cc">// format!("lamaran_diterima_{}_{}", lamaran_id, Utc::now().format("%Y%m%d"))</span></pre></div>
+
+      <div class="callout c-ok">
+        <span class="callout-icon">✅</span>
+        <div>
+          <strong>Opsi C — token FCM di-resolve Rust, Bun jadi stateless untuk Postgres</strong>
+          <p>notification-service Rust query <code>notification.device_tokens</code> SAAT publish dan menyisipkan hasilnya ke field <code>tokens</code>. bun-notification-service tinggal baca <code>event.tokens</code> langsung dari payload — tidak perlu query Postgres apa pun lagi (menghapus konflik kepemilikan skema <code>notification.*</code> antara Rust dan Bun).</p>
+        </div>
+      </div>
 
       <div class="sub-title">Cara Service Lain Mengirim Notifikasi</div>
       <div class="code"><pre><span class="cc">// iklan-pekerjaan-service/src/application/service.rs</span>
@@ -374,9 +383,10 @@ recipient_id    : <span class="cs">"550e8400-e29b-41d4-a716-446655440000"</span>
 actor_id        : <span class="cs">"660e8400-..."</span>       <span class="cc">// kosong jika tidak ada</span>
 actor_name      : <span class="cs">"PT Maju Jaya"</span>
 data            : <span class="cs">'{"lamaran_id":"abc123","posisi":"Frontend Developer"}'</span>
-published_at    : <span class="cs">"2026-06-09T10:00:00Z"</span></pre></div>
+published_at    : <span class="cs">"2026-06-09T10:00:00Z"</span>
+tokens          : <span class="cs">["fcm-token-abc...", "fcm-token-def..."]</span>  <span class="cc">// resolved Rust saat publish, array kosong jika user tanpa device aktif</span></pre></div>
 
-      <div class="sub-title">Notifikasi In-App di DB (disimpan oleh Bun.js)</div>
+      <div class="sub-title">Notifikasi In-App di DB (disimpan oleh notification-service Rust)</div>
       <div class="code"><pre><span class="cc">// Isi tabel notification.notifications</span>
 {
   <span class="cs">"id"</span>:           <span class="cs">"notif-uuid"</span>,
@@ -405,8 +415,8 @@ published_at    : <span class="cs">"2026-06-09T10:00:00Z"</span></pre></div>
       <div class="callout c-info">
         <span class="callout-icon">ℹ️</span>
         <div>
-          <strong>REST API tetap di Rust, bukan di Bun</strong>
-          <p>Endpoint list/read notifikasi tetap dilayani oleh notification-service Rust yang membaca dari <code>notification.notifications</code> di PostgreSQL. Bun.js hanya menulis ke DB, tidak expose REST API (kecuali <code>/health</code>).</p>
+          <strong>REST API & penulisan DB tetap 100% di Rust, Bun tidak pernah sentuh Postgres</strong>
+          <p>notification-service Rust menulis baris <code>notification.notifications</code> secara sinkron saat <code>send()</code> dipanggil, sebelum XADD ke Redis. Endpoint list/read/device-token juga dilayani Rust. bun-notification-service hanya konsumen event untuk dispatch FCM/email — tidak expose REST API (kecuali <code>/health</code>) dan tidak punya koneksi Postgres sama sekali (Opsi C).</p>
         </div>
       </div>
     </section>
@@ -479,15 +489,18 @@ stream name: <span class="cv">notifications_dlq</span>
     <section id="dedup">
       <h2 class="sec-title"><span class="sec-icon ic-b">🛡️</span>Deduplication</h2>
 
-      <p style="color:var(--muted);font-size:.85rem;margin-bottom:.8rem;">Redis Streams dengan consumer group menjamin setiap message diproses tepat satu kali per group. Tapi jika Bun crash setelah dispatch tapi sebelum XACK, message akan di-deliver ulang. Idempotency key di DB mencegah double delivery.</p>
+      <p style="color:var(--muted);font-size:.85rem;margin-bottom:.8rem;">Redis Streams dengan consumer group menjamin setiap message diproses tepat satu kali per group. Tapi jika Bun crash setelah dispatch tapi sebelum XACK, message akan di-deliver ulang. Idempotency key di <strong>Redis</strong> (bukan Postgres — Opsi C) mencegah double delivery.</p>
 
-      <div class="code"><pre><span class="cc">-- Bun.js: sebelum proses, cek dan insert idempotency key atomik</span>
-<span class="ck">INSERT INTO</span> notification.processed_events (idempotency_key, processed_at)
-<span class="ck">VALUES</span> ($1, <span class="cfn">now</span>())
-<span class="ck">ON CONFLICT</span> (idempotency_key) <span class="ck">DO NOTHING</span>;
+      <div class="code"><pre><span class="cc">// Bun.js: sebelum proses, cek dan set idempotency key atomik di Redis</span>
+<span class="ck">const</span> ok = <span class="ck">await</span> redis.<span class="cfn">set</span>(
+  <span class="cs">`notif:processed:${event.idempotency_key}`</span>,
+  <span class="cs">"1"</span>,
+  <span class="cs">"EX"</span>, <span class="cv">604800</span>,  <span class="cc">// TTL 7 hari — pengganti cron cleanup processed_events</span>
+  <span class="cs">"NX"</span>,
+);
 
-<span class="cc">-- Jika rows_affected = 0 → sudah pernah diproses → skip, XACK</span>
-<span class="cc">-- Jika rows_affected = 1 → lanjut proses</span></pre></div>
+<span class="cc">// ok === null → key sudah ada → sudah pernah diproses → skip, XACK</span>
+<span class="cc">// ok === "OK"  → key baru dibuat → lanjut proses</span></pre></div>
 
       <div class="sub-title">Format Idempotency Key</div>
       <div class="tbl-wrap"><table class="tbl">
@@ -512,9 +525,9 @@ stream name: <span class="cv">notifications_dlq</span>
     <!-- DB SCHEMA -->
     <section id="db-schema">
       <h2 class="sec-title"><span class="sec-icon ic-p">🗄️</span>DB Schema</h2>
-      <p style="color:var(--muted);font-size:.85rem;margin-bottom:.8rem;">Semua tabel berada di schema <code>notification</code> di PostgreSQL yang sama. Migration dikelola oleh Bun.js menggunakan <code>node-pg-migrate</code> atau SQL files yang dijalankan saat startup.</p>
+      <p style="color:var(--muted);font-size:.85rem;margin-bottom:.8rem;">Semua tabel berada di schema <code>notification</code>, dikelola SATU-SATUNYA oleh migration <code>sqlx</code> milik <code>notification-service</code> Rust (<code>rust-services/notification-service/migrations/</code>). bun-notification-service tidak punya migration sendiri dan tidak menyentuh schema ini sama sekali (Opsi C — menghapus konflik kepemilikan skema ganda Rust/Bun).</p>
 
-      <div class="code"><pre><span class="cc">-- notification.notifications — disimpan Bun.js, dibaca Rust REST API</span>
+      <div class="code"><pre><span class="cc">-- notification.notifications — ditulis & dibaca notification-service Rust</span>
 <span class="ck">CREATE TABLE</span> notification.notifications (
     id           UUID        <span class="ck">PRIMARY KEY DEFAULT</span> gen_random_uuid(),
     recipient_id UUID        <span class="ck">NOT NULL</span>,
@@ -528,14 +541,10 @@ stream name: <span class="cv">notifications_dlq</span>
 <span class="ck">CREATE INDEX</span> ON notification.notifications (recipient_id, created_at <span class="ck">DESC</span>);
 <span class="ck">CREATE INDEX</span> ON notification.notifications (recipient_id) <span class="ck">WHERE</span> is_read = <span class="cv">false</span>;
 
-<span class="cc">-- notification.processed_events — idempotency tracking oleh Bun.js</span>
-<span class="ck">CREATE TABLE</span> notification.processed_events (
-    idempotency_key TEXT        <span class="ck">PRIMARY KEY</span>,
-    processed_at    TIMESTAMPTZ <span class="ck">NOT NULL DEFAULT</span> <span class="cfn">now</span>()
-);
-<span class="cc">-- TTL cleanup: hapus entry > 7 hari (pg_cron atau cron job di Bun.js)</span>
+<span class="cc">-- idempotency tracking TIDAK LAGI di Postgres — pindah ke Redis</span>
+<span class="cc">-- key: notif:processed:{idempotency_key}, TTL 7 hari (lihat section Deduplication)</span>
 
-<span class="cc">-- notification.device_tokens — FCM token per user</span>
+<span class="cc">-- notification.device_tokens — FCM token per user, resolve saat publish (Opsi C)</span>
 <span class="ck">CREATE TABLE</span> notification.device_tokens (
     id         UUID        <span class="ck">PRIMARY KEY DEFAULT</span> gen_random_uuid(),
     user_id    UUID        <span class="ck">NOT NULL</span>,
@@ -543,21 +552,21 @@ stream name: <span class="cv">notifications_dlq</span>
     platform   TEXT        <span class="ck">NOT NULL</span>,  <span class="cc">-- 'android' | 'ios' | 'web'</span>
     created_at TIMESTAMPTZ <span class="ck">NOT NULL DEFAULT</span> <span class="cfn">now</span>()
 );
-<span class="ck">CREATE INDEX</span> ON notification.device_tokens (user_id);
+<span class="ck">CREATE INDEX</span> ON notification.device_tokens (user_id);</pre></div>
 
-<span class="cc">-- notification.user_preferences — opt-out per saluran</span>
-<span class="ck">CREATE TABLE</span> notification.user_preferences (
-    user_id       UUID    <span class="ck">PRIMARY KEY</span>,
-    push_enabled  BOOLEAN <span class="ck">NOT NULL DEFAULT true</span>,
-    email_enabled BOOLEAN <span class="ck">NOT NULL DEFAULT true</span>,
-    updated_at    TIMESTAMPTZ <span class="ck">NOT NULL DEFAULT</span> <span class="cfn">now</span>()
-);</pre></div>
+      <div class="callout c-warn">
+        <span class="callout-icon">⚠️</span>
+        <div>
+          <strong>user_preferences (opt-out per saluran) — belum diimplementasikan</strong>
+          <p>Tabel ini pernah dirancang tapi tidak pernah dibuat di migration manapun (Rust maupun Bun) dan tidak dibaca oleh kode manapun saat ini. Bukan bagian dari Opsi C — catat sebagai backlog terpisah bila fitur opt-out per saluran dibutuhkan.</p>
+        </div>
+      </div>
 
       <div class="callout c-info">
         <span class="callout-icon">ℹ️</span>
         <div>
-          <strong>Migration dijalankan oleh Bun.js, bukan sqlx</strong>
-          <p>Karena Bun.js yang owns schema <code>notification</code> (dia yang write), Bun juga yang jalankan migration-nya saat startup. File SQL disimpan di <code>bun-notification-service/migrations/</code>. Rust notification-service hanya membaca tabel <code>notifications</code> untuk REST API.</p>
+          <strong>Migration hanya dijalankan oleh notification-service Rust (sqlx)</strong>
+          <p>bun-notification-service tidak punya folder migration lagi dan tidak pernah connect ke Postgres — seluruh baca/tulis <code>notification.*</code> (notifications, device_tokens) terjadi di Rust.</p>
         </div>
       </div>
     </section>
@@ -568,13 +577,14 @@ stream name: <span class="cv">notifications_dlq</span>
       <p style="color:var(--muted);font-size:.85rem;margin-bottom:.85rem;">Item berikut wajib selesai sebelum mulai implementasi Phase 2.</p>
       <div class="checklist">
         <div class="chk"><div class="chk-box"></div><div class="chk-text">Redis Stream <code>notifications_stream</code> dan consumer group <code>bun-consumers</code> terdefinisi di docker-compose.yml (dibuat saat startup Bun)</div></div>
-        <div class="chk"><div class="chk-box"></div><div class="chk-text"><code>NotificationEvent</code> struct di Rust terdefinisi dengan semua field yang diperlukan (idempotency_key, event_type, recipient_id, actor_*, data)</div></div>
-        <div class="chk"><div class="chk-box"></div><div class="chk-text"><code>RedisPublisher</code> di notification-service Rust: XADD dengan MAXLEN Approx 10_000</div></div>
+        <div class="chk"><div class="chk-box"></div><div class="chk-text"><code>NotificationEvent</code> struct di Rust terdefinisi dengan semua field yang diperlukan (idempotency_key, event_type, recipient_id, actor_*, data, <strong>tokens</strong>)</div></div>
+        <div class="chk"><div class="chk-box"></div><div class="chk-text"><code>RedisPublisher</code> di notification-service Rust: resolve token FCM dari <code>notification.device_tokens</code> lalu XADD dengan MAXLEN Approx 10_000</div></div>
         <div class="chk"><div class="chk-box"></div><div class="chk-text">Bun.js service: consumer loop XREADGROUP dengan handling PEL saat startup (recovery dari crash)</div></div>
-        <div class="chk"><div class="chk-box"></div><div class="chk-text">Bun.js: idempotency check via <code>INSERT ... ON CONFLICT DO NOTHING</code> sebelum proses</div></div>
+        <div class="chk"><div class="chk-box"></div><div class="chk-text">Bun.js: idempotency check via Redis <code>SET notif:processed:{key} 1 EX 604800 NX</code> sebelum proses (bukan Postgres)</div></div>
         <div class="chk"><div class="chk-box"></div><div class="chk-text">Bun.js: <code>firebase-admin</code> configured dengan Service Account JSON dari env var <code>FIREBASE_SERVICE_ACCOUNT_PATH</code></div></div>
         <div class="chk"><div class="chk-box"></div><div class="chk-text">Bun.js: DLQ — message gagal max retry di-XADD ke <code>notifications_dlq</code> sebelum XACK</div></div>
-        <div class="chk"><div class="chk-box"></div><div class="chk-text">DB schema: 4 tabel (<code>notifications</code>, <code>processed_events</code>, <code>device_tokens</code>, <code>user_preferences</code>) dengan migration SQL</div></div>
+        <div class="chk"><div class="chk-box"></div><div class="chk-text">Bun.js: <strong>tanpa dependency Postgres sama sekali</strong> — tidak ada pool/<code>pg</code> package, tidak ada env <code>DATABASE_URL</code> (Opsi C)</div></div>
+        <div class="chk"><div class="chk-box"></div><div class="chk-text">DB schema: 2 tabel (<code>notifications</code>, <code>device_tokens</code>) dengan migration <code>sqlx</code> — SATU-SATUNYA dikelola notification-service Rust</div></div>
         <div class="chk"><div class="chk-box"></div><div class="chk-text">REST API device token: POST register + DELETE saat logout (di Rust notification-service)</div></div>
         <div class="chk"><div class="chk-box"></div><div class="chk-text">Env var <code>FIREBASE_SERVICE_ACCOUNT_PATH</code>, <code>FIREBASE_PROJECT_ID</code>, <code>REDIS_URL</code> terdokumentasi di <code>.env.example</code></div></div>
       </div>

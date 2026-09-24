@@ -21,7 +21,6 @@ RUN addgroup -S rejki && adduser -S -G rejki rejki
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY src/       ./src/
-COPY migrations/ ./migrations/
 
 # Direktori keys akan di-mount via volume
 RUN mkdir -p /app/keys && chown -R rejki:rejki /app

@@ -63,7 +63,6 @@ services:
     environment:
       APP_ENV:                      development
       REDIS_URL:                    redis://redis:6379/0
-      DATABASE_URL:                 postgres://rejki:${POSTGRES_PASSWORD:?err_PGPASSWORD_wajib_di_set}@postgres:5432/rejki_dev
       FIREBASE_SERVICE_ACCOUNT_PATH: /app/keys/firebase-service-account-dev.json
       FIREBASE_PROJECT_ID:          ${FIREBASE_PROJECT_ID_DEV}
       SMTP_HOST:                    ${SMTP_HOST:-smtp.mailtrap.io}

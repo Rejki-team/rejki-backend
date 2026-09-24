@@ -63,7 +63,6 @@ services:
     environment:
       APP_ENV:                      production
       REDIS_URL:                    redis://redis:6379/1
-      DATABASE_URL:                 postgres://rejki:${POSTGRES_PASSWORD:?err_PGPASSWORD_wajib_di_set}@postgres:5432/rejki_prod
       FIREBASE_SERVICE_ACCOUNT_PATH: /app/keys/firebase-service-account-prod.json
       FIREBASE_PROJECT_ID:          ${FIREBASE_PROJECT_ID_PROD}
       SMTP_HOST:                    ${SMTP_HOST}
