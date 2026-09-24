@@ -10,7 +10,6 @@ import {
   type NotificationEvent,
   type EmailEvent,
   type StreamEvent,
-  type FcmToken,
 } from "../src/types";
 
 describe("is_email_event() type guard", () => {
@@ -31,6 +30,7 @@ describe("is_email_event() type guard", () => {
       recipient_id: "user-abc",
       title: "New Message",
       body: "You have a new message",
+      tokens: ["t1"],
     };
     expect(is_email_event(e)).toBe(false);
   });
@@ -72,9 +72,9 @@ describe("event routing — discriminated union", () => {
   test("separates mixed events correctly", () => {
     const events: StreamEvent[] = [
       { event_id: "1", channel: "email", to: "a@b.com", subject: "S", body: "B" },
-      { event_id: "2", recipient_id: "u1", title: "Push", body: "Hello" },
+      { event_id: "2", recipient_id: "u1", title: "Push", body: "Hello", tokens: ["t1"] },
       { event_id: "3", channel: "email", to: "c@d.com", subject: "OTP", body: "123456" },
-      { event_id: "4", recipient_id: "u2", title: "T2", body: "B2", channel: "push" },
+      { event_id: "4", recipient_id: "u2", title: "T2", body: "B2", channel: "push", tokens: ["t2"] },
     ];
 
     const emailEvents = events.filter(is_email_event);
@@ -104,8 +104,8 @@ describe("event routing — discriminated union", () => {
 
   test("all push", () => {
     const events: StreamEvent[] = [
-      { event_id: "1", recipient_id: "u1", title: "A", body: "B" },
-      { event_id: "2", recipient_id: "u2", title: "C", body: "D" },
+      { event_id: "1", recipient_id: "u1", title: "A", body: "B", tokens: ["t1"] },
+      { event_id: "2", recipient_id: "u2", title: "C", body: "D", tokens: ["t2"] },
     ];
     expect(events.filter(is_email_event).length).toBe(0);
     expect(events.filter((e) => !is_email_event(e)).length).toBe(2);
@@ -119,6 +119,7 @@ describe("NotificationEvent shape", () => {
       recipient_id: "u-1",
       title: "Hello",
       body: "World",
+      tokens: [],
     };
     expect(e.event_id).toBe("n-1");
     expect(e.recipient_id).toBe("u-1");
@@ -134,6 +135,7 @@ describe("NotificationEvent shape", () => {
       body: "Shipped",
       data: { order_id: 42, status: "shipping" },
       channel: "push",
+      tokens: ["fcm-tok-1"],
     };
     expect(e.data).toEqual({ order_id: 42, status: "shipping" });
     expect(e.channel).toBe("push");
@@ -146,6 +148,7 @@ describe("NotificationEvent shape", () => {
       title: "Mixed",
       body: "Data",
       data: { str: "hello", num: 100, bool: true, nil: null, obj: { n: 1 } },
+      tokens: ["fcm-tok-2"],
     };
     expect(e.data?.bool).toBe(true);
     expect(e.data?.nil).toBeNull();
@@ -167,10 +170,3 @@ describe("EmailEvent shape", () => {
   });
 });
 
-describe("FcmToken shape", () => {
-  test("holds user_id + fcm_token", () => {
-    const t: FcmToken = { user_id: "u-abc", fcm_token: "tok-xyz" };
-    expect(t.user_id).toBe("u-abc");
-    expect(t.fcm_token).toBe("tok-xyz");
-  });
-});

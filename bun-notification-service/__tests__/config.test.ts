@@ -15,9 +15,8 @@ import { is_email_event, type EmailEvent, type NotificationEvent, type StreamEve
 // ── Config ────────────────────────────────────────────────────────────────
 
 describe("config — required env vars (docker-compose aligned)", () => {
-  test("redis_url and database_url", () => {
+  test("redis_url (no database_url — Bun stateless untuk Postgres, Opsi C)", () => {
     expect(config.redis_url).toBe("redis://localhost:6379");
-    expect(config.database_url).toBe("postgresql://localhost:5432/test");
     expect(config.email_from).toBe("noreply@rejki.id");
   });
 
@@ -83,6 +82,7 @@ describe("email — event routing with is_email_event", () => {
       recipient_id: "u-1",
       title: "Hello",
       body: "World",
+      tokens: ["fcm-token-1"],
     };
     expect(is_email_event(e)).toBe(false);
   });
@@ -94,6 +94,7 @@ describe("email — event routing with is_email_event", () => {
       title: "Alert",
       body: "Something",
       channel: "push",
+      tokens: ["fcm-token-2"],
     } as StreamEvent;
     expect(is_email_event(e)).toBe(false);
   });

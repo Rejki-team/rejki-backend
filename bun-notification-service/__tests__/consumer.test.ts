@@ -1,8 +1,9 @@
 /**
  * Consumer module tests
  *
- * Karena consumer.ts mengimpor redis + pg connections (side-effect),
- * test ini fokus pada pure logic yang bisa diverifikasi tanpa mocking:
+ * Karena consumer.ts mengimpor redis connections (side-effect; sudah tidak
+ * ada Postgres sama sekali — Opsi C), test ini fokus pada pure logic yang
+ * bisa diverifikasi tanpa mocking:
  * - Event routing (email vs push)
  * - Data transformation (Record<string, unknown> → Record<string, string>)
  * - Retry + DLQ logic pattern
@@ -22,7 +23,7 @@ describe("consumer — event routing (pure logic)", () => {
   test("email events route to send_email path", () => {
     const events: StreamEvent[] = [
       { event_id: "e1", channel: "email", to: "a@b.com", subject: "S", body: "B" },
-      { event_id: "e2", recipient_id: "u1", title: "Push", body: "Hello" },
+      { event_id: "e2", recipient_id: "u1", title: "Push", body: "Hello", tokens: ["t1"] },
       { event_id: "e3", channel: "email", to: "c@d.com", subject: "OTP", body: "123456" },
     ];
 
@@ -40,8 +41,8 @@ describe("consumer — event routing (pure logic)", () => {
 
   test("all push events = zero email routing", () => {
     const events: StreamEvent[] = [
-      { event_id: "1", recipient_id: "u1", title: "A", body: "B" },
-      { event_id: "2", recipient_id: "u2", title: "C", body: "D", channel: "push" },
+      { event_id: "1", recipient_id: "u1", title: "A", body: "B", tokens: ["t1"] },
+      { event_id: "2", recipient_id: "u2", title: "C", body: "D", channel: "push", tokens: ["t2"] },
     ];
     expect(events.filter(is_email_event).length).toBe(0);
   });
@@ -119,7 +120,7 @@ describe("consumer — process_event logic simulation", () => {
   /**
    * Simulasi logika process_event tanpa side effect:
    * - Email event → send_email dipanggil
-   * - Push event → get_fcm_tokens lalu send_push per token
+   * - Push event → event.tokens (sudah di-resolve Rust) lalu send_push per token
    * - Tokens kosong → warning, no send
    */
   test("email event identified for SMTP routing", () => {
@@ -144,6 +145,7 @@ describe("consumer — process_event logic simulation", () => {
       title: "New Message",
       body: "You have a message",
       data: { conversation_id: 42 },
+      tokens: ["fcm-token-1"],
     };
 
     expect(is_email_event(event)).toBe(false);
@@ -157,11 +159,11 @@ describe("consumer — process_event logic simulation", () => {
       recipient_id: "user-no-tokens",
       title: "Hello",
       body: "World",
+      tokens: [],
     };
 
     // Simulasi: jika tokens.length === 0, tidak ada send_push dipanggil
-    const mockTokens: string[] = [];
-    const sentPush = mockTokens.length > 0;
+    const sentPush = event.tokens.length > 0;
 
     expect(sentPush).toBe(false);
     expect(event.recipient_id).toBe("user-no-tokens");

@@ -1,13 +1,11 @@
 import Redis from "ioredis";
-import { Pool } from "pg";
 import { config } from "./config";
 import { transporter } from "./email";
 
 // Redis connection — shared with consumer.ts
 export const redis = new Redis(config.redis_url);
 
-// PostgreSQL connection pool — shared with db.ts
-export const pool = new Pool({ connectionString: config.database_url });
+// Tanpa koneksi Postgres — bun-notification-service stateless untuk DB (Opsi C).
 
 /**
  * Graceful shutdown: close semua koneksi sebelum exit.
@@ -18,13 +16,6 @@ export async function shutdown_connections(): Promise<void> {
     await redis.quit();
   } catch (e) {
     console.error("Redis quit error:", e);
-  }
-
-  console.log("Closing PostgreSQL pool...");
-  try {
-    await pool.end();
-  } catch (e) {
-    console.error("PG pool end error:", e);
   }
 
   console.log("Closing SMTP transporter...");

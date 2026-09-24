@@ -1,9 +1,21 @@
 import { redis } from "./connections";
 import { config } from "./config";
-import { get_fcm_tokens_column, mark_event_processed } from "./db";
 import { send_push } from "./firebase";
 import { send_email } from "./email";
-import { is_email_event, type StreamEvent, type NotificationEvent } from "./types";
+import { is_email_event, type StreamEvent } from "./types";
+
+const PROCESSED_TTL_SECS = 7 * 24 * 60 * 60; // 7 hari
+
+/** Idempotency marker di Redis (bukan Postgres — Opsi C). */
+async function mark_event_processed(event_id: string): Promise<void> {
+  await redis.set(
+    `notif:processed:${event_id}`,
+    "1",
+    "EX",
+    PROCESSED_TTL_SECS,
+    "NX",
+  );
+}
 
 async function ensure_consumer_group(): Promise<void> {
   try {
@@ -28,8 +40,8 @@ async function process_event(event: StreamEvent): Promise<void> {
     return;
   }
 
-  // Default: push FCM.
-  const tokens = await get_fcm_tokens_column(event.recipient_id);
+  // Default: push FCM — token sudah di-resolve Rust saat publish (Opsi C), tidak query Postgres.
+  const tokens = event.tokens;
   if (tokens.length === 0) {
     console.warn(`No FCM tokens for user ${event.recipient_id}`);
     return;

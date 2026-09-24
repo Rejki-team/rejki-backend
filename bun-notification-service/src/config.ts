@@ -25,7 +25,6 @@ function load_firebase_credentials(): string {
 
 export const config = {
   redis_url:             require_env("REDIS_URL"),
-  database_url:          require_env("DATABASE_URL"),
   firebase_credentials:  load_firebase_credentials(),
 
   stream_name:     "notifications_stream",
