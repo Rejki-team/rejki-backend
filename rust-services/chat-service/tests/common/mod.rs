@@ -32,7 +32,7 @@ pub async fn build_test_app(pool: PgPool) -> Router {
     let auth_client: Arc<dyn auth_service::AuthClient> =
         Arc::new(auth_service::AuthInProcessClient::new(jwt, auth_repo));
 
-    let chat_router = chat_service::router(pool, auth_client, None);
+    let chat_router = chat_service::router(pool, auth_client, None, None, None, None);
 
     Router::new().nest("/api/v1/chat", chat_router)
 }
@@ -52,6 +52,17 @@ pub async fn test_pool() -> PgPool {
 pub fn post_authed(uri: &str, token: &str, body: Value) -> Request<Body> {
     Request::builder()
         .method("POST")
+        .uri(uri)
+        .header("authorization", format!("Bearer {token}"))
+        .header("content-type", "application/json")
+        .body(Body::from(body.to_string()))
+        .unwrap()
+}
+
+/// Helper: PATCH request dengan JSON body dan Bearer token.
+pub fn patch_authed(uri: &str, token: &str, body: Value) -> Request<Body> {
+    Request::builder()
+        .method("PATCH")
         .uri(uri)
         .header("authorization", format!("Bearer {token}"))
         .header("content-type", "application/json")

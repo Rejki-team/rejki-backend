@@ -23,9 +23,11 @@ common-errors  = { workspace = true }
 common-tracing = { workspace = true }
 common-auth-mw = { workspace = true }
 common-rate-limit = { workspace = true }
+common-scheduler   = { workspace = true }
 chat-service-client  = { path = "../chat-service-client" }
 user-service-client  = { path = "../user-service-client" }
 auth-service-client  = { path = "../auth-service-client" }
+storage-service-client = { path = "../storage-service-client" }
 
 axum        = { workspace = true }
 tokio       = { workspace = true }
@@ -41,3 +43,5 @@ dotenvy     = { workspace = true }
 anyhow      = { workspace = true }
 validator   = { workspace = true }
 ammonia     = { workspace = true }
+async-trait = { workspace = true }
+dashmap     = { workspace = true }

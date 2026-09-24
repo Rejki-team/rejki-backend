@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE chat.conversations SET\n                   user_a_last_read_message_id = CASE WHEN user_a = $2\n                       THEN (SELECT id FROM chat.messages WHERE conversation_id = $1 ORDER BY created_at DESC LIMIT 1)\n                       ELSE user_a_last_read_message_id END,\n                   user_b_last_read_message_id = CASE WHEN user_b = $2\n                       THEN (SELECT id FROM chat.messages WHERE conversation_id = $1 ORDER BY created_at DESC LIMIT 1)\n                       ELSE user_b_last_read_message_id END\n               WHERE id = $1 AND (user_a = $2 OR user_b = $2)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "a38a8e66e3e3e43a9d8288bdccb1c3b785162219bedeaf744d9349d2208d01c1"
+}

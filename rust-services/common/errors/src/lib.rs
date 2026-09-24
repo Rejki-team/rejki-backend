@@ -275,3 +275,55 @@ pub fn deprecated_headers(resp: &mut Response) {
         HeaderValue::from_static("Sat, 31 Dec 2026 23:59:59 GMT"),
     );
 }
+
+// ── CSV export helper (UTF-8 BOM) ──────────────────────────────────────────────
+
+/// Bangun response unduhan CSV dengan BOM UTF-8 diawal body, agar file terbuka benar
+/// (bukan mojibake) di Microsoft Excel / Google Sheets untuk karakter non-ASCII.
+/// `body` adalah teks CSV lengkap (header + baris), TANPA BOM — fungsi ini yang menambahkannya.
+pub fn csv_response(body: String, filename: &str) -> Response {
+    const UTF8_BOM: &str = "\u{FEFF}";
+    let mut bytes = Vec::with_capacity(UTF8_BOM.len() + body.len());
+    bytes.extend_from_slice(UTF8_BOM.as_bytes());
+    bytes.extend_from_slice(body.as_bytes());
+
+    let content_disposition = format!("attachment; filename={filename}");
+    let mut resp = (StatusCode::OK, Body::from(bytes)).into_response();
+    resp.headers_mut().insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static("text/csv; charset=utf-8"),
+    );
+    if let Ok(val) = HeaderValue::from_str(&content_disposition) {
+        resp.headers_mut().insert(header::CONTENT_DISPOSITION, val);
+    }
+    resp
+}
+
+#[cfg(test)]
+mod csv_response_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_csv_response_given_body_when_built_then_prefixed_with_utf8_bom() {
+        let resp = csv_response("ID,Nama\n1,Budi\n".to_string(), "test.csv");
+
+        assert_eq!(
+            resp.headers().get(header::CONTENT_TYPE).unwrap(),
+            "text/csv; charset=utf-8"
+        );
+        assert_eq!(
+            resp.headers().get(header::CONTENT_DISPOSITION).unwrap(),
+            "attachment; filename=test.csv"
+        );
+
+        let body_bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        assert_eq!(
+            &body_bytes[0..3],
+            [0xEF, 0xBB, 0xBF],
+            "byte awal harus BOM UTF-8"
+        );
+        assert_eq!(&body_bytes[3..], b"ID,Nama\n1,Budi\n");
+    }
+}

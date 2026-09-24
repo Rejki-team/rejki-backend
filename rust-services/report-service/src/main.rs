@@ -46,6 +46,21 @@ async fn main() {
         ) -> Result<Vec<uuid::Uuid>, auth_service_client::AuthClientError> {
             Err(auth_service_client::AuthClientError::Unavailable)
         }
+        async fn suspend_temporarily(
+            &self,
+            _user_id: uuid::Uuid,
+            _days: i64,
+            _reason: &str,
+        ) -> Result<(), auth_service_client::AuthClientError> {
+            Err(auth_service_client::AuthClientError::Unavailable)
+        }
+        async fn suspend_permanently(
+            &self,
+            _user_id: uuid::Uuid,
+            _reason: &str,
+        ) -> Result<(), auth_service_client::AuthClientError> {
+            Err(auth_service_client::AuthClientError::Unavailable)
+        }
     }
 
     let auth_client: std::sync::Arc<dyn auth_service_client::AuthClient> =
@@ -63,7 +78,18 @@ async fn main() {
     tracing::info!("report-service (standalone) listening on :{port}");
     axum::serve(
         listener,
-        report_service::router(pool, auth_client, None, None, None),
+        report_service::router(report_service::RouterDeps {
+            pool,
+            auth_client,
+            storage: None,
+            notifier: None,
+            rate_limiter: None,
+            user_client: None,
+            region_client: None,
+            iklan_pekerjaan_client: None,
+            iklan_pekerja_client: None,
+            iklan_barang_bekas_client: None,
+        }),
     )
     .await
     .unwrap();

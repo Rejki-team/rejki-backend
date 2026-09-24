@@ -24,6 +24,7 @@ services:
       JWT_ACCESS_TTL_SECS:   ${JWT_ACCESS_TTL_SECS:-900}
       JWT_REFRESH_TTL_SECS:  ${JWT_REFRESH_TTL_SECS:-2592000}
       DATA_ENCRYPTION_KEY:   ${DATA_ENCRYPTION_KEY}
+      DATA_HASH_KEY:         ${DATA_HASH_KEY}
       RUST_LOG:              ${RUST_LOG:-debug}
       MINIO_ENDPOINT:        http://minio:9000
       MINIO_ACCESS_KEY:      ${MINIO_ACCESS_KEY}

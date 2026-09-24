@@ -8,10 +8,13 @@
 use redis::aio::ConnectionManager;
 use redis::AsyncCommands;
 use serde::Serialize;
+use sqlx::PgPool;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
+use crate::domain::repository::NotificationRepository;
+use crate::infrastructure::PgNotificationRepository;
 use notification_service_client::{
     DeviceToken, DeviceTokenInput, EmailMessage, NotificationClient, NotificationClientError,
     NotificationPayload,
@@ -27,6 +30,9 @@ struct PushEvent {
     body: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     data: Option<serde_json::Value>,
+    /// Token FCM aktif milik `recipient_id`, di-resolve SEKARANG (saat publish),
+    /// bukan di-lookup Bun consumer — Bun jadi stateless untuk Postgres (Opsi C).
+    tokens: Vec<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -45,19 +51,37 @@ struct ManagedChannel {
 }
 
 /// Publisher Redis Stream sebagai implementasi NotificationClient.
+///
+/// Menyimpan `repo` untuk resolve token FCM SAAT publish (bukan di-lookup oleh
+/// Bun consumer) — Opsi C: bun-notification-service jadi stateless untuk Postgres.
 pub struct NotificationPublisher {
     channel: Arc<ManagedChannel>,
+    repo: Arc<PgNotificationRepository>,
 }
 
 impl NotificationPublisher {
-    pub fn new(redis_url: &str) -> Result<Self, anyhow::Error> {
+    pub fn new(redis_url: &str, pool: PgPool) -> Result<Self, anyhow::Error> {
         let client = redis::Client::open(redis_url)?;
         Ok(Self {
             channel: Arc::new(ManagedChannel {
                 client,
                 conn: Mutex::new(None),
             }),
+            repo: Arc::new(PgNotificationRepository::new(pool)),
         })
+    }
+
+    /// Resolve token FCM aktif milik `recipient_id`. Gagal query → treat sebagai
+    /// tanpa token (Bun akan skip push, sama seperti perilaku lama saat user
+    /// tidak punya token — degradasi anggun, bukan gagal total publish).
+    async fn resolve_tokens(&self, recipient_id: Uuid) -> Vec<String> {
+        match self.repo.list_device_tokens_for_user(recipient_id).await {
+            Ok(tokens) => tokens.into_iter().map(|t| t.token).collect(),
+            Err(e) => {
+                tracing::warn!(error = ?e, %recipient_id, "gagal resolve FCM token saat publish — publish tanpa token");
+                Vec::new()
+            }
+        }
     }
 
     /// Dapatkan atau buat ConnectionManager (lazy init).
@@ -99,12 +123,14 @@ impl NotificationClient for NotificationPublisher {
         recipient_id: Uuid,
         payload: NotificationPayload,
     ) -> Result<(), NotificationClientError> {
+        let tokens = self.resolve_tokens(recipient_id).await;
         let event = PushEvent {
             event_id: new_event_id(),
             recipient_id,
             title: payload.title,
             body: payload.body,
             data: payload.data,
+            tokens,
         };
         let s = serde_json::to_string(&event).map_err(|_| NotificationClientError::Unavailable)?;
         self.xadd(s).await
@@ -119,8 +145,9 @@ impl NotificationClient for NotificationPublisher {
         let mut handles = Vec::with_capacity(recipient_ids.len());
         for id in recipient_ids {
             let payload = payload.clone();
-            let this = self.channel.clone();
-            let publisher = NotificationPublisher { channel: this };
+            let channel = self.channel.clone();
+            let repo = self.repo.clone();
+            let publisher = NotificationPublisher { channel, repo };
             handles.push(tokio::spawn(
                 async move { publisher.send(id, payload).await },
             ));

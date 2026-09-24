@@ -9,15 +9,19 @@ use super::dto::{
     SuspendEvidenceInput, SuspendInput, SuspendResponse, SuspendResultItem,
     UpdateIklanPelatihanInput, UpdatePelatihanInput,
 };
+use crate::domain::cert_generator::{CertificateGenerator, CertificateInput};
 use crate::domain::entity::{CreatedByRole, ModerationStatus, PelatihanStatus};
 use crate::domain::repository::{
     CreatePelatihanParams, IklanPelatihanRepository, ListParams, PatchPelatihanParams,
     UpdatePelatihanParams, CSV_MAX, DEFAULT_LIMIT,
 };
+use common_geocoding::{GeocodeInput, GeocodingClient};
 use common_rate_limit::RateLimiter;
+use common_scheduler::{JobEnvelope, SchedulerClient};
 use notification_service_client::NotificationClient;
 use region_service_client::RegionClient;
 use storage_service_client::StorageClient;
+use user_service_client::UserClient;
 
 /// Nama kategori storage — bukan hardcoded string literal.
 pub mod storage_category {
@@ -26,10 +30,15 @@ pub mod storage_category {
     pub const TRAINING_CERTIFICATE: &str = "training-certificate";
 }
 
+/// Radius default listing Iklan Pelatihan (PRD §5.13.1).
+const DEFAULT_RADIUS_KM: f64 = 10.0;
+
 pub struct IklanPelatihanService<R: IklanPelatihanRepository> {
     repo: Arc<R>,
     rate_limiter: Option<Arc<dyn RateLimiter>>,
     region_client: Option<Arc<dyn RegionClient>>,
+    geocoding_client: Option<Arc<dyn GeocodingClient>>,
+    scheduler_client: Option<Arc<SchedulerClient>>,
 }
 
 impl<R: IklanPelatihanRepository> IklanPelatihanService<R> {
@@ -38,6 +47,8 @@ impl<R: IklanPelatihanRepository> IklanPelatihanService<R> {
             repo,
             rate_limiter: None,
             region_client: None,
+            geocoding_client: None,
+            scheduler_client: None,
         }
     }
     pub fn with_rate_limiter(mut self, rl: Arc<dyn RateLimiter>) -> Self {
@@ -50,12 +61,131 @@ impl<R: IklanPelatihanRepository> IklanPelatihanService<R> {
         self
     }
 
+    pub fn with_geocoding_client(mut self, gc: Arc<dyn GeocodingClient>) -> Self {
+        self.geocoding_client = Some(gc);
+        self
+    }
+
+    pub fn with_scheduler_client(mut self, sc: Arc<SchedulerClient>) -> Self {
+        self.scheduler_client = Some(sc);
+        self
+    }
+
+    /// Jadwalkan satu tugas otomatis Bab 10 (F-32) — fail-open: gagal menjadwalkan
+    /// (`scheduler_client` tidak terpasang, atau Redis tidak tersedia) TIDAK PERNAH
+    /// menggagalkan operasi utama (create/enroll), hanya `warn!` (§4.5 backend I/O aman).
+    async fn schedule_job(
+        &self,
+        job_type: &str,
+        payload: serde_json::Value,
+        execute_after: chrono::DateTime<chrono::Utc>,
+    ) {
+        let Some(scheduler) = &self.scheduler_client else {
+            return;
+        };
+        let envelope = JobEnvelope::new(job_type, payload, execute_after);
+        if let Err(e) = scheduler.schedule(&envelope).await {
+            tracing::warn!(
+                job_type,
+                error = ?e,
+                "gagal menjadwalkan tugas otomatis Bab 10 — dilewati (fail-open)"
+            );
+        }
+    }
+
+    /// Jadwalkan 3 tugas otomatis Bab 10 sekaligus saat pelatihan dibuat (P6.4, P6.6,
+    /// P6.7) — dipanggil dari `create_user`/`create_admin`. Setiap handler mengecek
+    /// ULANG status/kondisi terkini saat dieksekusi (idempoten) — menjadwalkan di sini
+    /// TIDAK berarti tindakan pasti dijalankan, hanya "cek nanti pada waktunya".
+    async fn schedule_pelatihan_lifecycle_jobs(
+        &self,
+        pelatihan_id: Uuid,
+        tanggal_mulai: Option<chrono::DateTime<chrono::Utc>>,
+        tanggal_selesai: Option<chrono::DateTime<chrono::Utc>>,
+    ) {
+        if let Some(mulai) = tanggal_mulai {
+            // P6.4: H-8 jam sebelum mulai, masih verifikasi → batalkan otomatis.
+            self.schedule_job(
+                crate::application::scheduled_jobs::JOB_CANCEL_UNVERIFIED,
+                serde_json::json!({ "pelatihan_id": pelatihan_id }),
+                mulai - chrono::Duration::hours(8),
+            )
+            .await;
+        }
+        if let Some(selesai) = tanggal_selesai {
+            // P6.6: 1x24 jam setelah berakhir, belum ditekan Akhiri → tandai Selesai.
+            self.schedule_job(
+                crate::application::scheduled_jobs::JOB_MARK_SELESAI,
+                serde_json::json!({ "pelatihan_id": pelatihan_id }),
+                selesai + chrono::Duration::hours(24),
+            )
+            .await;
+            // P6.7: 3x24 jam setelah selesai, badge belum diajukan → suspend penyelenggara.
+            self.schedule_job(
+                crate::application::scheduled_jobs::JOB_CHECK_BADGE_DEADLINE,
+                serde_json::json!({ "pelatihan_id": pelatihan_id }),
+                selesai + chrono::Duration::days(3),
+            )
+            .await;
+        }
+    }
+
+    /// Geocode `lokasi` (teks bebas) + nama wilayah dari `region_id` (F-1). `None` bila
+    /// tidak ada geocoding client terpasang, tidak ada input, atau provider gagal —
+    /// pemanggil menyimpan tanpa koordinat (degradasi anggun).
+    async fn geocode_lokasi(
+        &self,
+        lokasi: Option<&str>,
+        region_id: Option<&str>,
+    ) -> Option<(f64, f64)> {
+        let geocoding = self.geocoding_client.as_ref()?;
+        if lokasi.is_none() && region_id.is_none() {
+            return None;
+        }
+        let regency_name = match region_id {
+            Some(rid) => self
+                .region_client
+                .as_ref()?
+                .get_region(rid)
+                .await
+                .ok()
+                .map(|r| r.name),
+            None => None,
+        };
+        let input = GeocodeInput {
+            address_line: lokasi.map(String::from),
+            regency_name,
+            ..Default::default()
+        };
+        match geocoding.geocode(&input).await {
+            Ok(Some(c)) => Some((c.latitude, c.longitude)),
+            Ok(None) => None,
+            Err(e) => {
+                tracing::warn!(error = ?e, "geocoding gagal — pelatihan disimpan tanpa koordinat");
+                None
+            }
+        }
+    }
+
     // ── Public listing ───────────────────────────────────────────────────
 
     pub async fn list(&self, q: ListQuery) -> Result<Vec<IklanPelatihanResponse>, anyhow::Error> {
+        // Filter radius (F-1, F-14, PRD §5.13.1): aktif hanya bila KEDUA lat/lng dikirim.
+        let radius = match (q.latitude, q.longitude) {
+            (Some(lat), Some(lng)) => Some(common_geo::RadiusQuery {
+                lat,
+                lng,
+                radius_km: DEFAULT_RADIUS_KM,
+            }),
+            _ => None,
+        };
         Ok(self
             .repo
-            .list(q.limit.unwrap_or(DEFAULT_LIMIT), q.offset.unwrap_or(0))
+            .list(
+                q.limit.unwrap_or(DEFAULT_LIMIT),
+                q.offset.unwrap_or(0),
+                radius,
+            )
             .await?
             .into_iter()
             .map(to_resp)
@@ -110,24 +240,38 @@ impl<R: IklanPelatihanRepository> IklanPelatihanService<R> {
             }
         }
 
-        Ok(to_resp(
-            self.repo
-                .create(CreatePelatihanParams {
-                    poster_id,
-                    judul: &sanitize(&input.judul),
-                    penyelenggara: &sanitize(&input.penyelenggara),
-                    deskripsi: &sanitize(&input.deskripsi),
-                    lokasi: input.lokasi.as_deref(),
-                    region_id: input.region_id.as_deref(),
-                    harga: input.harga,
-                    tanggal_mulai: input.tanggal_mulai,
-                    tanggal_selesai: input.tanggal_selesai,
-                    created_by_role: CreatedByRole::User.as_str(),
-                    initial_status: PelatihanStatus::VerifikasiTertunda.as_str(),
-                    jumlah_peserta: input.jumlah_peserta,
-                })
-                .await?,
-        ))
+        let coords = self
+            .geocode_lokasi(input.lokasi.as_deref(), input.region_id.as_deref())
+            .await;
+        let tanggal_mulai = input.tanggal_mulai;
+        let tanggal_selesai = input.tanggal_selesai;
+
+        let created = self
+            .repo
+            .create(CreatePelatihanParams {
+                poster_id,
+                judul: &sanitize(&input.judul),
+                penyelenggara: &sanitize(&input.penyelenggara),
+                deskripsi: &sanitize(&input.deskripsi),
+                lokasi: input.lokasi.as_deref(),
+                region_id: input.region_id.as_deref(),
+                harga: input.harga,
+                tanggal_mulai,
+                tanggal_selesai,
+                created_by_role: CreatedByRole::User.as_str(),
+                initial_status: PelatihanStatus::VerifikasiTertunda.as_str(),
+                jumlah_peserta: input.jumlah_peserta,
+                latitude: coords.map(|(lat, _)| lat),
+                longitude: coords.map(|(_, lng)| lng),
+                bank_name: &sanitize(&input.bank_name),
+                bank_account_number: &sanitize(&input.bank_account_number),
+                bank_account_holder_name: &sanitize(&input.bank_account_holder_name),
+                signature_object_key: input.signature_object_key.as_deref(),
+            })
+            .await?;
+        self.schedule_pelatihan_lifecycle_jobs(created.id, tanggal_mulai, tanggal_selesai)
+            .await;
+        Ok(to_resp(created))
     }
 
     /// Admin create: auto-approve → `verifikasi_diterima`.
@@ -136,24 +280,38 @@ impl<R: IklanPelatihanRepository> IklanPelatihanService<R> {
         admin_id: Uuid,
         input: CreateIklanPelatihanInput,
     ) -> Result<IklanPelatihanResponse, anyhow::Error> {
-        Ok(to_resp(
-            self.repo
-                .create(CreatePelatihanParams {
-                    poster_id: admin_id,
-                    judul: &sanitize(&input.judul),
-                    penyelenggara: &sanitize(&input.penyelenggara),
-                    deskripsi: &sanitize(&input.deskripsi),
-                    lokasi: input.lokasi.as_deref(),
-                    region_id: input.region_id.as_deref(),
-                    harga: input.harga,
-                    tanggal_mulai: input.tanggal_mulai,
-                    tanggal_selesai: input.tanggal_selesai,
-                    created_by_role: CreatedByRole::Admin.as_str(),
-                    initial_status: PelatihanStatus::VerifikasiDiterima.as_str(),
-                    jumlah_peserta: input.jumlah_peserta,
-                })
-                .await?,
-        ))
+        let coords = self
+            .geocode_lokasi(input.lokasi.as_deref(), input.region_id.as_deref())
+            .await;
+        let tanggal_mulai = input.tanggal_mulai;
+        let tanggal_selesai = input.tanggal_selesai;
+
+        let created = self
+            .repo
+            .create(CreatePelatihanParams {
+                poster_id: admin_id,
+                judul: &sanitize(&input.judul),
+                penyelenggara: &sanitize(&input.penyelenggara),
+                deskripsi: &sanitize(&input.deskripsi),
+                lokasi: input.lokasi.as_deref(),
+                region_id: input.region_id.as_deref(),
+                harga: input.harga,
+                tanggal_mulai,
+                tanggal_selesai,
+                created_by_role: CreatedByRole::Admin.as_str(),
+                initial_status: PelatihanStatus::VerifikasiDiterima.as_str(),
+                jumlah_peserta: input.jumlah_peserta,
+                latitude: coords.map(|(lat, _)| lat),
+                longitude: coords.map(|(_, lng)| lng),
+                bank_name: &sanitize(&input.bank_name),
+                bank_account_number: &sanitize(&input.bank_account_number),
+                bank_account_holder_name: &sanitize(&input.bank_account_holder_name),
+                signature_object_key: input.signature_object_key.as_deref(),
+            })
+            .await?;
+        self.schedule_pelatihan_lifecycle_jobs(created.id, tanggal_mulai, tanggal_selesai)
+            .await;
+        Ok(to_resp(created))
     }
 
     // ── Delete ──────────────────────────────────────────────────────────
@@ -213,6 +371,10 @@ impl<R: IklanPelatihanRepository> IklanPelatihanService<R> {
         let sanitized_deskripsi = input.deskripsi.as_ref().map(|v| sanitize(v));
         let sanitized_lokasi = input.lokasi.as_ref().map(|v| sanitize(v));
         let sanitized_region_id = input.region_id.as_ref().map(|v| sanitize(v));
+        let sanitized_bank_name = input.bank_name.as_ref().map(|v| sanitize(v));
+        let sanitized_bank_account_number = input.bank_account_number.as_ref().map(|v| sanitize(v));
+        let sanitized_bank_account_holder_name =
+            input.bank_account_holder_name.as_ref().map(|v| sanitize(v));
 
         // 5. Region validation
         if let (Some(rc), Some(ref rid)) = (&self.region_client, &input.region_id) {
@@ -229,6 +391,14 @@ impl<R: IklanPelatihanRepository> IklanPelatihanService<R> {
             }
         }
 
+        // Re-geocode (F-1) hanya bila `lokasi`/`region_id` benar-benar diubah.
+        let coords = if sanitized_lokasi.is_some() || sanitized_region_id.is_some() {
+            self.geocode_lokasi(sanitized_lokasi.as_deref(), sanitized_region_id.as_deref())
+                .await
+        } else {
+            None
+        };
+
         // 6. Build optional params and call repo.update()
         let params = PatchPelatihanParams {
             judul: sanitized_judul,
@@ -242,6 +412,12 @@ impl<R: IklanPelatihanRepository> IklanPelatihanService<R> {
             foto_urls: input.foto_urls,
             jumlah_peserta: input.jumlah_peserta,
             is_active: input.is_active,
+            latitude: coords.map(|(lat, _)| lat),
+            longitude: coords.map(|(_, lng)| lng),
+            bank_name: sanitized_bank_name,
+            bank_account_number: sanitized_bank_account_number,
+            bank_account_holder_name: sanitized_bank_account_holder_name,
+            signature_object_key: input.signature_object_key,
         };
 
         let updated = self
@@ -313,6 +489,9 @@ impl<R: IklanPelatihanRepository> IklanPelatihanService<R> {
                 "Pelatihan milik pengguna tidak dapat disunting"
             ));
         }
+        let coords = self
+            .geocode_lokasi(input.lokasi.as_deref(), input.region_id.as_deref())
+            .await;
         let updated = self
             .repo
             .update_pelatihan(UpdatePelatihanParams {
@@ -327,6 +506,12 @@ impl<R: IklanPelatihanRepository> IklanPelatihanService<R> {
                 tanggal_mulai: input.tanggal_mulai,
                 tanggal_selesai: input.tanggal_selesai,
                 jumlah_peserta: input.jumlah_peserta,
+                latitude: coords.map(|(lat, _)| lat),
+                longitude: coords.map(|(_, lng)| lng),
+                bank_name: &sanitize(&input.bank_name),
+                bank_account_number: &sanitize(&input.bank_account_number),
+                bank_account_holder_name: &sanitize(&input.bank_account_holder_name),
+                signature_object_key: input.signature_object_key.as_deref(),
             })
             .await?
             .ok_or_else(|| anyhow::anyhow!("tidak ditemukan"))?;
@@ -573,7 +758,26 @@ impl<R: IklanPelatihanRepository> IklanPelatihanService<R> {
                 "Pelatihan belum tersedia untuk pendaftaran"
             ));
         }
+        // P6.5 (Bab 10, F-32): tutup pendaftaran 30 menit sebelum mulai — lazy check
+        // (bukan job aktif, konsisten dengan pola cooldown KYC/OTP existing) karena
+        // tidak ada state tersimpan untuk "ditutup"/"dibuka" yang perlu diubah oleh
+        // proses background; cukup dibandingkan langsung terhadap `tanggal_mulai`.
+        if let Some(mulai) = pelatihan.tanggal_mulai {
+            if chrono::Utc::now() >= mulai - chrono::Duration::minutes(30) {
+                return Err(anyhow::anyhow!(
+                    "pendaftaran sudah ditutup (kurang dari 30 menit sebelum pelatihan dimulai)"
+                ));
+            }
+        }
         let enrollment = self.repo.create_enrollment(pelatihan_id, user_id).await?;
+        // P6.8: 1x24 jam setelah kode pembayaran terbit (= saat enrollment dibuat),
+        // bukti belum dikirim → batalkan pendaftaran.
+        self.schedule_job(
+            crate::application::scheduled_jobs::JOB_CANCEL_ENROLLMENT_UNPAID,
+            serde_json::json!({ "enrollment_id": enrollment.id }),
+            enrollment.created_at + chrono::Duration::hours(24),
+        )
+        .await;
         Ok(to_enrollment_resp(enrollment))
     }
 
@@ -795,6 +999,7 @@ impl<R: IklanPelatihanRepository> IklanPelatihanService<R> {
 
     // ── Admin: review badge ─────────────────────────────────────────────
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn admin_review_badge(
         &self,
         admin_id: Uuid,
@@ -802,6 +1007,9 @@ impl<R: IklanPelatihanRepository> IklanPelatihanService<R> {
         input: ReviewBadgeInput,
         notifier: Option<&dyn NotificationClient>,
         auth_client: Option<&dyn auth_service_client::AuthClient>,
+        storage: Option<&dyn StorageClient>,
+        user_client: Option<&dyn UserClient>,
+        cert_generator: Option<&dyn CertificateGenerator>,
     ) -> Result<BadgeResponse, anyhow::Error> {
         validate_reject_note(input.approved, input.review_note.as_deref())?;
 
@@ -815,11 +1023,43 @@ impl<R: IklanPelatihanRepository> IklanPelatihanService<R> {
             return Err(anyhow::anyhow!("Badge sudah diverifikasi sebelumnya"));
         }
 
-        let updated = self
+        let mut updated = self
             .repo
             .review_badge(id, input.approved, input.review_note.as_deref(), admin_id)
             .await?
             .ok_or_else(|| anyhow::anyhow!("tidak ditemukan atau sudah diverifikasi"))?;
+
+        // F-12 (Kelompok 6 P6): generate sertifikat PDF resmi otomatis saat
+        // approve. Fail-open — kegagalan apa pun (storage/font/pelatihan
+        // tidak ketemu) TIDAK boleh menggagalkan approval, cukup di-log;
+        // sertifikat lama (hasil commit peserta, bila ada) dibiarkan.
+        let mut sertifikat_read_url = None;
+        if input.approved {
+            if let (Some(storage), Some(cert_gen)) = (storage, cert_generator) {
+                match self
+                    .generate_and_store_certificate(&existing, storage, user_client, cert_gen)
+                    .await
+                {
+                    Ok((new_key, read_url)) => {
+                        match self.repo.set_badge_sertifikat(id, &new_key).await {
+                            Ok(Some(b)) => {
+                                updated = b;
+                                sertifikat_read_url = read_url;
+                            }
+                            Ok(None) => {
+                                tracing::warn!(badge_id = %id, "gagal simpan sertifikat: badge tidak ditemukan")
+                            }
+                            Err(e) => {
+                                tracing::warn!(badge_id = %id, error = ?e, "gagal simpan sertifikat")
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        tracing::warn!(badge_id = %id, error = ?e, "gagal generate sertifikat otomatis")
+                    }
+                }
+            }
+        }
 
         notify_review(
             notifier,
@@ -827,7 +1067,7 @@ impl<R: IklanPelatihanRepository> IklanPelatihanService<R> {
             existing.user_id,
             "Sertifikat pelatihan Anda telah",
             format!(
-                "Pengajuan sertifikat Anda untuk pelatihan (ID: {}) telah {}. {}",
+                "Pengajuan sertifikat Anda untuk pelatihan (ID: {}) telah {}. {}{}",
                 existing.pelatihan_id,
                 if input.approved {
                     "disetujui"
@@ -838,7 +1078,10 @@ impl<R: IklanPelatihanRepository> IklanPelatihanService<R> {
                     .review_note
                     .as_deref()
                     .map(|n| format!("Catatan: {}", n))
-                    .unwrap_or_default()
+                    .unwrap_or_default(),
+                sertifikat_read_url
+                    .map(|u| format!(" Unduh sertifikat: {}", u))
+                    .unwrap_or_default(),
             ),
             input.approved,
             &json!({ "type": "badge_reviewed", "badge_id": id.to_string() }),
@@ -846,6 +1089,66 @@ impl<R: IklanPelatihanRepository> IklanPelatihanService<R> {
         .await;
 
         Ok(to_badge_resp(updated))
+    }
+
+    /// Helper P6.3 — fetch pelatihan + nama peserta, generate PDF, upload ke
+    /// storage. Dipisah dari `admin_review_badge` supaya method utama tidak
+    /// jadi God Function (CLAUDE.md §4.7).
+    async fn generate_and_store_certificate(
+        &self,
+        badge: &crate::domain::entity::PelatihanBadge,
+        storage: &dyn StorageClient,
+        user_client: Option<&dyn UserClient>,
+        cert_gen: &dyn CertificateGenerator,
+    ) -> Result<(String, Option<String>), anyhow::Error> {
+        let pelatihan = self
+            .repo
+            .find_by_id(badge.pelatihan_id)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("pelatihan terkait tidak ditemukan"))?;
+
+        let peserta_nama = match user_client {
+            Some(uc) => uc
+                .get_user_summary(badge.user_id)
+                .await
+                .map(|s| s.username)
+                .unwrap_or_else(|_| badge.user_id.to_string()),
+            None => badge.user_id.to_string(),
+        };
+
+        let signature_bytes = match &pelatihan.signature_object_key {
+            Some(key) => storage.download_bytes(key).await.ok(),
+            None => None,
+        };
+
+        let pdf_bytes = cert_gen.generate(CertificateInput {
+            peserta_nama: &peserta_nama,
+            judul_pelatihan: &pelatihan.judul,
+            nama_perusahaan: &pelatihan.penyelenggara,
+            alamat_perusahaan: pelatihan.lokasi.as_deref().unwrap_or("-"),
+            // Tidak ada field `pejabat_nama` terpisah di entity — pakai
+            // `bank_account_holder_name` (pemegang rekening perusahaan,
+            // proxy wajar untuk pejabat berwenang) sebagai fallback ke nama
+            // perusahaan bila kosong (data historis pra-P1).
+            pejabat_nama: pelatihan
+                .bank_account_holder_name
+                .as_deref()
+                .unwrap_or(&pelatihan.penyelenggara),
+            signature_image: signature_bytes.as_deref(),
+        })?;
+
+        let object_key = storage
+            .upload_bytes(
+                storage_category::TRAINING_CERTIFICATE,
+                badge.user_id,
+                pdf_bytes,
+                "application/pdf",
+            )
+            .await?;
+
+        let read_url = storage.request_download(&object_key).await.ok();
+
+        Ok((object_key, read_url))
     }
 }
 
@@ -1031,6 +1334,10 @@ fn to_resp(e: crate::domain::entity::IklanPelatihan) -> IklanPelatihanResponse {
         created_by_role: e.created_by_role,
         jumlah_peserta: e.jumlah_peserta,
         created_at: e.created_at,
+        bank_name: e.bank_name,
+        bank_account_number: e.bank_account_number,
+        bank_account_holder_name: e.bank_account_holder_name,
+        signature_object_key: e.signature_object_key,
     }
 }
 
@@ -1055,6 +1362,10 @@ fn to_admin_resp(e: crate::domain::entity::IklanPelatihan) -> AdminIklanPelatiha
         deleted_at: e.deleted_at,
         created_at: e.created_at,
         updated_at: e.updated_at,
+        bank_name: e.bank_name,
+        bank_account_number: e.bank_account_number,
+        bank_account_holder_name: e.bank_account_holder_name,
+        signature_object_key: e.signature_object_key,
     }
 }
 
@@ -1069,6 +1380,7 @@ fn to_enrollment_resp(e: crate::domain::entity::PelatihanEnrollment) -> Enrollme
         review_note: e.review_note,
         created_at: e.created_at,
         updated_at: e.updated_at,
+        bukti_transfer_read_url: None,
     }
 }
 
@@ -1084,5 +1396,6 @@ fn to_badge_resp(e: crate::domain::entity::PelatihanBadge) -> BadgeResponse {
         review_note: e.review_note,
         created_at: e.created_at,
         updated_at: e.updated_at,
+        sertifikat_read_url: None,
     }
 }

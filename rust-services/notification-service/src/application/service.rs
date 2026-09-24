@@ -59,12 +59,23 @@ impl<R: NotificationRepository> NotificationService<R> {
             .await?;
 
         if let Some(pub_) = &self.publisher {
+            // Resolve token FCM SEKARANG (bukan di-lookup Bun consumer) — Opsi C.
+            let tokens = self
+                .repo
+                .list_device_tokens_for_user(input.recipient_id)
+                .await
+                .map(|ts| ts.into_iter().map(|t| t.token).collect())
+                .unwrap_or_else(|e| {
+                    tracing::warn!(error = ?e, "gagal resolve FCM token saat publish — publish tanpa token");
+                    Vec::new()
+                });
             let event = NotificationEvent {
                 event_id: notif.id.to_string(),
                 recipient_id: input.recipient_id,
                 title: input.title.clone(),
                 body: input.body.clone(),
                 data: input.data,
+                tokens,
             };
             if let Err(e) = pub_.publish(&event).await {
                 tracing::warn!(error = ?e, "failed to publish notification to Redis stream");

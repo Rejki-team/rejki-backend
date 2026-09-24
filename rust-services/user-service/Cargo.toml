@@ -20,6 +20,7 @@ common-errors  = { workspace = true }
 common-tracing = { workspace = true }
 common-auth-mw = { workspace = true }
 common-crypto  = { workspace = true }
+common-geocoding = { workspace = true }
 user-service-client         = { path = "../user-service-client" }
 auth-service-client         = { path = "../auth-service-client" }
 region-service-client       = { path = "../region-service-client" }

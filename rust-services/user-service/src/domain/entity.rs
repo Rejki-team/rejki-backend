@@ -34,6 +34,9 @@ pub struct UserProfile {
     pub regency_id: Option<String>,
     pub district_id: Option<String>,
     pub village_id: Option<String>,
+    // Koordinat hasil geocoding alamat (F-1) — dipakai filter radius, bukan region_id lama.
+    pub latitude: Option<f64>,
+    pub longitude: Option<f64>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -107,6 +110,8 @@ pub enum DocumentAccessAction {
     Commit,
     /// Presigned read URL diterbitkan (dokumen dibuka/dilihat).
     ReadIssued,
+    /// NIK dibuka penuh oleh admin lewat click-to-view (F-26/F-27a).
+    NikReadIssued,
 }
 
 impl DocumentAccessAction {
@@ -115,6 +120,7 @@ impl DocumentAccessAction {
             DocumentAccessAction::UploadIssued => "upload_issued",
             DocumentAccessAction::Commit => "commit",
             DocumentAccessAction::ReadIssued => "read_issued",
+            DocumentAccessAction::NikReadIssued => "nik_read_issued",
         }
     }
 }

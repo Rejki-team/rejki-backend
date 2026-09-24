@@ -5,11 +5,11 @@ mod tests {
     use uuid::Uuid;
 
     use crate::application::dto::{
-        AdminListQuery, CreateIklanBarangBekasInput, ListQuery, SuspendInput,
+        AdminListQuery, CreateIklanBarangBekasInput, ListQuery, SetujuiBiderInput, SuspendInput,
     };
     use crate::application::service::IklanBarangBekasService;
     use crate::domain::entity::{
-        AvailabilityStatus, IklanBarangBekas, IklanSuspension, ModerationStatus,
+        AvailabilityStatus, Bider, BiderStatus, IklanBarangBekas, IklanSuspension, ModerationStatus,
     };
     use crate::domain::repository::{
         AdminListParams, AdminListResult, CreateBarangBekasParams, IklanBarangBekasRepository,
@@ -20,12 +20,14 @@ mod tests {
 
     struct MockIklanBarangBekasRepository {
         iklan: Mutex<Vec<IklanBarangBekas>>,
+        bider: Mutex<Vec<Bider>>,
     }
 
     impl MockIklanBarangBekasRepository {
         fn new() -> Self {
             Self {
                 iklan: Mutex::new(vec![]),
+                bider: Mutex::new(vec![]),
             }
         }
     }
@@ -46,6 +48,7 @@ mod tests {
             &self,
             limit: i64,
             offset: i64,
+            radius: Option<common_geo::RadiusQuery>,
         ) -> Result<Vec<IklanBarangBekas>, anyhow::Error> {
             Ok(self
                 .iklan
@@ -53,6 +56,15 @@ mod tests {
                 .unwrap()
                 .iter()
                 .filter(|i| i.deleted_at.is_none())
+                .filter(|i| match radius {
+                    None => true,
+                    Some(r) => match (i.latitude, i.longitude) {
+                        (Some(lat), Some(lng)) => {
+                            common_geo::within_radius_km(r.lat, r.lng, lat, lng, r.radius_km)
+                        }
+                        _ => false,
+                    },
+                })
                 .skip(offset as usize)
                 .take(limit as usize)
                 .cloned()
@@ -77,6 +89,8 @@ mod tests {
                 availability_status: AvailabilityStatus::Tersedia,
                 moderation_status: ModerationStatus::Active,
                 deleted_at: None,
+                latitude: params.latitude,
+                longitude: params.longitude,
                 created_at: chrono::Utc::now(),
                 updated_at: chrono::Utc::now(),
             };
@@ -201,6 +215,194 @@ mod tests {
                 Ok(None)
             }
         }
+
+        async fn list_by_seller(
+            &self,
+            seller_id: Uuid,
+            limit: i64,
+            offset: i64,
+        ) -> Result<Vec<IklanBarangBekas>, anyhow::Error> {
+            Ok(self
+                .iklan
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|i| i.seller_id == seller_id && i.deleted_at.is_none())
+                .skip(offset as usize)
+                .take(limit as usize)
+                .cloned()
+                .collect())
+        }
+
+        async fn find_by_ids(&self, ids: &[Uuid]) -> Result<Vec<IklanBarangBekas>, anyhow::Error> {
+            Ok(self
+                .iklan
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|i| ids.contains(&i.id))
+                .cloned()
+                .collect())
+        }
+
+        // ── Bider (F-15, Kelompok 3 Phase 3) ────────────────────────────────────
+
+        async fn find_bider_by_id(&self, id: Uuid) -> Result<Option<Bider>, anyhow::Error> {
+            Ok(self
+                .bider
+                .lock()
+                .unwrap()
+                .iter()
+                .find(|b| b.id == id)
+                .cloned())
+        }
+
+        async fn create_bider(
+            &self,
+            iklan_id: Uuid,
+            peminat_id: Uuid,
+        ) -> Result<Bider, anyhow::Error> {
+            let b = Bider {
+                id: Uuid::now_v7(),
+                iklan_id,
+                peminat_id,
+                status: BiderStatus::Menunggu,
+                sudah_menghubungi: false,
+                created_at: chrono::Utc::now(),
+                updated_at: chrono::Utc::now(),
+            };
+            self.bider.lock().unwrap().push(b.clone());
+            Ok(b)
+        }
+
+        async fn list_bider_for_iklan(&self, iklan_id: Uuid) -> Result<Vec<Bider>, anyhow::Error> {
+            Ok(self
+                .bider
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|b| b.iklan_id == iklan_id)
+                .cloned()
+                .collect())
+        }
+
+        async fn has_pending_bider(
+            &self,
+            iklan_id: Uuid,
+            peminat_id: Uuid,
+        ) -> Result<bool, anyhow::Error> {
+            Ok(self.bider.lock().unwrap().iter().any(|b| {
+                b.iklan_id == iklan_id
+                    && b.peminat_id == peminat_id
+                    && b.status == BiderStatus::Menunggu
+            }))
+        }
+
+        async fn setujui_bider(
+            &self,
+            bider_id: Uuid,
+            iklan_owner_id: Uuid,
+            sudah_menghubungi: bool,
+        ) -> Result<Option<Bider>, anyhow::Error> {
+            let mut bider = self.bider.lock().unwrap();
+            let Some(b) = bider
+                .iter_mut()
+                .find(|b| b.id == bider_id && b.status == BiderStatus::Menunggu)
+            else {
+                return Ok(None);
+            };
+            let is_owner = self
+                .iklan
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|i| i.id == b.iklan_id && i.seller_id == iklan_owner_id);
+            if !is_owner {
+                return Ok(None);
+            }
+            b.status = BiderStatus::Disetujui;
+            b.sudah_menghubungi = sudah_menghubungi;
+            b.updated_at = chrono::Utc::now();
+            let approved = b.clone();
+            let iklan_id = approved.iklan_id;
+            let approved_id = approved.id;
+            drop(bider);
+
+            if let Some(item) = self
+                .iklan
+                .lock()
+                .unwrap()
+                .iter_mut()
+                .find(|i| i.id == iklan_id)
+            {
+                item.availability_status = AvailabilityStatus::SudahDiambil;
+            }
+            for other in self.bider.lock().unwrap().iter_mut() {
+                if other.iklan_id == iklan_id
+                    && other.id != approved_id
+                    && other.status == BiderStatus::Menunggu
+                {
+                    other.status = BiderStatus::Withdrawn;
+                }
+            }
+            Ok(Some(approved))
+        }
+
+        async fn withdraw_bider(
+            &self,
+            bider_id: Uuid,
+            iklan_owner_id: Uuid,
+        ) -> Result<Option<Bider>, anyhow::Error> {
+            let mut bider = self.bider.lock().unwrap();
+            let Some(b) = bider.iter_mut().find(|b| {
+                b.id == bider_id
+                    && (b.status == BiderStatus::Menunggu || b.status == BiderStatus::Disetujui)
+            }) else {
+                return Ok(None);
+            };
+            let is_owner = self
+                .iklan
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|i| i.id == b.iklan_id && i.seller_id == iklan_owner_id);
+            if !is_owner {
+                return Ok(None);
+            }
+            let was_disetujui = b.status == BiderStatus::Disetujui;
+            b.status = BiderStatus::Withdrawn;
+            b.updated_at = chrono::Utc::now();
+            let withdrawn = b.clone();
+            let iklan_id = withdrawn.iklan_id;
+            drop(bider);
+
+            if was_disetujui {
+                if let Some(item) = self
+                    .iklan
+                    .lock()
+                    .unwrap()
+                    .iter_mut()
+                    .find(|i| i.id == iklan_id)
+                {
+                    item.availability_status = AvailabilityStatus::Tersedia;
+                }
+            }
+            Ok(Some(withdrawn))
+        }
+
+        async fn list_bider_for_peminat(
+            &self,
+            peminat_id: Uuid,
+        ) -> Result<Vec<Bider>, anyhow::Error> {
+            Ok(self
+                .bider
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|b| b.peminat_id == peminat_id)
+                .cloned()
+                .collect())
+        }
     }
 
     fn svc() -> IklanBarangBekasService<MockIklanBarangBekasRepository> {
@@ -232,6 +434,8 @@ mod tests {
             .list(ListQuery {
                 limit: Some(10),
                 offset: Some(0),
+                latitude: None,
+                longitude: None,
             })
             .await
             .unwrap();
@@ -539,5 +743,344 @@ mod tests {
             AvailabilityStatus::SudahDiambil.to_string(),
             "sudah_diambil"
         );
+    }
+
+    // ── radius filtering (F-1, Kelompok 2 Phase 3) ────────────────────────────────
+
+    struct MockGeocodingClient {
+        result: Result<Option<common_geocoding::Coordinates>, ()>,
+    }
+
+    #[async_trait::async_trait]
+    impl common_geocoding::GeocodingClient for MockGeocodingClient {
+        async fn geocode(
+            &self,
+            _input: &common_geocoding::GeocodeInput,
+        ) -> Result<Option<common_geocoding::Coordinates>, common_geocoding::GeocodingClientError>
+        {
+            self.result
+                .map_err(|_| common_geocoding::GeocodingClientError::Unavailable)
+        }
+    }
+
+    fn barang_input(lokasi: Option<&str>) -> CreateIklanBarangBekasInput {
+        CreateIklanBarangBekasInput {
+            judul: "Laptop".into(),
+            deskripsi: "Bekas mulus".into(),
+            jenis_barang: "bekas".into(),
+            jumlah: 1,
+            lokasi_pengambilan: "Jakarta".into(),
+            lokasi: lokasi.map(String::from),
+            region_id: None,
+            foto_urls: None,
+        }
+    }
+
+    /// Filter radius (F-1, PRD §5.14.1): iklan di luar radius default (10km) tidak muncul.
+    #[tokio::test]
+    async fn test_list_given_lat_lng_when_filtered_then_only_returns_barang_within_radius() {
+        let repo = std::sync::Arc::new(MockIklanBarangBekasRepository::new());
+        let s = IklanBarangBekasService::new(repo.clone());
+        let center = (-6.2, 106.8);
+        let near = std::sync::Arc::new(MockGeocodingClient {
+            result: Ok(Some(common_geocoding::Coordinates {
+                latitude: -6.2 + 5.0 / 111.32,
+                longitude: 106.8,
+            })),
+        });
+        let far = std::sync::Arc::new(MockGeocodingClient {
+            result: Ok(Some(common_geocoding::Coordinates {
+                latitude: -6.2 + 15.0 / 111.32,
+                longitude: 106.8,
+            })),
+        });
+
+        IklanBarangBekasService::new(repo.clone())
+            .with_geocoding_client(near)
+            .create(Uuid::now_v7(), barang_input(Some("Dekat")))
+            .await
+            .unwrap();
+        IklanBarangBekasService::new(repo.clone())
+            .with_geocoding_client(far)
+            .create(Uuid::now_v7(), barang_input(Some("Jauh")))
+            .await
+            .unwrap();
+
+        let result = s
+            .list(ListQuery {
+                limit: Some(10),
+                offset: Some(0),
+                latitude: Some(center.0),
+                longitude: Some(center.1),
+            })
+            .await
+            .unwrap();
+
+        assert_eq!(
+            result.len(),
+            1,
+            "hanya barang dalam radius yang muncul: {result:?}"
+        );
+        assert_eq!(result[0].lokasi.as_deref(), Some("Dekat"));
+    }
+
+    // ── Bider (F-15, Kelompok 3 Phase 3, PRD §5.14.1-5.14.2 Gambar 5) ────────────
+
+    async fn buat_iklan(
+        s: &IklanBarangBekasService<MockIklanBarangBekasRepository>,
+        seller: Uuid,
+    ) -> Uuid {
+        s.create(
+            seller,
+            CreateIklanBarangBekasInput {
+                judul: "Kursi".into(),
+                deskripsi: "Masih bagus".into(),
+                jenis_barang: "bekas".into(),
+                jumlah: 1,
+                lokasi_pengambilan: "Rumah".into(),
+                lokasi: None,
+                region_id: None,
+                foto_urls: None,
+            },
+        )
+        .await
+        .unwrap()
+        .id
+    }
+
+    #[tokio::test]
+    async fn test_ambil_given_own_iklan_when_ambil_then_returns_error() {
+        let s = svc();
+        let seller = Uuid::now_v7();
+        let iklan_id = buat_iklan(&s, seller).await;
+        let result = s.ambil(seller, iklan_id).await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("milik sendiri"));
+    }
+
+    #[tokio::test]
+    async fn test_ambil_given_valid_when_ambil_then_creates_bider_menunggu() {
+        let s = svc();
+        let seller = Uuid::now_v7();
+        let peminat = Uuid::now_v7();
+        let iklan_id = buat_iklan(&s, seller).await;
+        let bider = s.ambil(peminat, iklan_id).await.unwrap();
+        assert_eq!(bider.status.as_str(), "menunggu");
+        assert_eq!(bider.peminat_id, peminat);
+    }
+
+    #[tokio::test]
+    async fn test_ambil_given_pending_bid_exists_when_ambil_again_then_returns_error() {
+        let s = svc();
+        let seller = Uuid::now_v7();
+        let peminat = Uuid::now_v7();
+        let iklan_id = buat_iklan(&s, seller).await;
+        s.ambil(peminat, iklan_id).await.unwrap();
+        let result = s.ambil(peminat, iklan_id).await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("sudah mengajukan"));
+    }
+
+    #[tokio::test]
+    async fn test_ambil_given_already_taken_when_ambil_then_returns_error() {
+        let s = svc();
+        let seller = Uuid::now_v7();
+        let peminat_a = Uuid::now_v7();
+        let peminat_b = Uuid::now_v7();
+        let iklan_id = buat_iklan(&s, seller).await;
+        let bider_a = s.ambil(peminat_a, iklan_id).await.unwrap();
+        s.setujui_bider(
+            seller,
+            bider_a.id,
+            SetujuiBiderInput {
+                sudah_menghubungi: true,
+            },
+        )
+        .await
+        .unwrap();
+        let result = s.ambil(peminat_b, iklan_id).await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("tidak tersedia"));
+    }
+
+    #[tokio::test]
+    async fn test_list_bider_given_other_user_when_list_then_returns_error() {
+        let s = svc();
+        let seller = Uuid::now_v7();
+        let other = Uuid::now_v7();
+        let peminat = Uuid::now_v7();
+        let iklan_id = buat_iklan(&s, seller).await;
+        s.ambil(peminat, iklan_id).await.unwrap();
+        assert!(s.list_bider(other, iklan_id).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_setujui_bider_given_other_user_when_setujui_then_returns_error() {
+        let s = svc();
+        let seller = Uuid::now_v7();
+        let other = Uuid::now_v7();
+        let peminat = Uuid::now_v7();
+        let iklan_id = buat_iklan(&s, seller).await;
+        let bider = s.ambil(peminat, iklan_id).await.unwrap();
+        let result = s
+            .setujui_bider(
+                other,
+                bider.id,
+                SetujuiBiderInput {
+                    sudah_menghubungi: true,
+                },
+            )
+            .await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_withdraw_bider_given_other_user_when_withdraw_then_returns_error() {
+        let s = svc();
+        let seller = Uuid::now_v7();
+        let other = Uuid::now_v7();
+        let peminat = Uuid::now_v7();
+        let iklan_id = buat_iklan(&s, seller).await;
+        let bider = s.ambil(peminat, iklan_id).await.unwrap();
+        assert!(s.withdraw_bider(other, bider.id).await.is_err());
+    }
+
+    /// P3.4: menyetujui satu bider menandai bider LAIN (masih `menunggu`) sebagai
+    /// `withdrawn` ("tidak relevan lagi").
+    #[tokio::test]
+    async fn test_setujui_bider_given_multiple_pending_when_approved_then_others_withdrawn() {
+        let s = svc();
+        let seller = Uuid::now_v7();
+        let peminat_a = Uuid::now_v7();
+        let peminat_b = Uuid::now_v7();
+        let iklan_id = buat_iklan(&s, seller).await;
+        let bider_a = s.ambil(peminat_a, iklan_id).await.unwrap();
+        s.ambil(peminat_b, iklan_id).await.unwrap();
+
+        s.setujui_bider(
+            seller,
+            bider_a.id,
+            SetujuiBiderInput {
+                sudah_menghubungi: true,
+            },
+        )
+        .await
+        .unwrap();
+
+        let list = s.list_bider(seller, iklan_id).await.unwrap();
+        let a = list.iter().find(|b| b.peminat_id == peminat_a).unwrap();
+        let b = list.iter().find(|b| b.peminat_id == peminat_b).unwrap();
+        assert_eq!(a.status.as_str(), "disetujui");
+        assert_eq!(b.status.as_str(), "withdrawn");
+    }
+
+    /// P3.5: withdraw bider yang SEBELUMNYA disetujui → iklan otomatis re-listing
+    /// (kembali `tersedia`).
+    #[tokio::test]
+    async fn test_withdraw_bider_given_previously_approved_when_withdrawn_then_iklan_relists() {
+        let s = svc();
+        let seller = Uuid::now_v7();
+        let peminat = Uuid::now_v7();
+        let iklan_id = buat_iklan(&s, seller).await;
+        let bider = s.ambil(peminat, iklan_id).await.unwrap();
+        s.setujui_bider(
+            seller,
+            bider.id,
+            SetujuiBiderInput {
+                sudah_menghubungi: true,
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            s.get(iklan_id).await.unwrap().availability_status.as_str(),
+            "sudah_diambil"
+        );
+
+        s.withdraw_bider(seller, bider.id).await.unwrap();
+
+        assert_eq!(
+            s.get(iklan_id).await.unwrap().availability_status.as_str(),
+            "tersedia"
+        );
+    }
+
+    /// P3.6: alur penuh — ambil→withdraw(bider menunggu)→ambil lagi(peminat lain)→setujui.
+    /// Withdraw bider yang MASIH `menunggu` (belum pernah disetujui) tidak mengubah status
+    /// iklan (tidak pernah delisted) — iklan tetap `tersedia`, jadi peminat lain tetap bisa
+    /// mengajukan bid baru ("re-listing" secara fungsional trivial: iklan tidak pernah
+    /// hilang dari listing). Lihat test re-listing di atas untuk kasus withdraw bider yang
+    /// SUDAH disetujui (transisi status iklan yang sesungguhnya).
+    #[tokio::test]
+    async fn test_bider_full_flow_ambil_withdraw_ambil_lagi_setujui() {
+        let s = svc();
+        let seller = Uuid::now_v7();
+        let peminat_a = Uuid::now_v7();
+        let peminat_b = Uuid::now_v7();
+        let iklan_id = buat_iklan(&s, seller).await;
+
+        // 1. Ambil (peminat A jadi bider, menunggu).
+        let bider_a = s.ambil(peminat_a, iklan_id).await.unwrap();
+        assert_eq!(bider_a.status.as_str(), "menunggu");
+
+        // 2. Withdraw (pemilik menolak bider A) — iklan tetap tersedia.
+        let withdrawn = s.withdraw_bider(seller, bider_a.id).await.unwrap();
+        assert_eq!(withdrawn.status.as_str(), "withdrawn");
+        assert_eq!(
+            s.get(iklan_id).await.unwrap().availability_status.as_str(),
+            "tersedia"
+        );
+
+        // 3. Ambil lagi (peminat B, karena iklan masih tersedia).
+        let bider_b = s.ambil(peminat_b, iklan_id).await.unwrap();
+        assert_eq!(bider_b.status.as_str(), "menunggu");
+
+        // 4. Setujui bider B → iklan SudahDiambil.
+        let approved = s
+            .setujui_bider(
+                seller,
+                bider_b.id,
+                SetujuiBiderInput {
+                    sudah_menghubungi: true,
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(approved.status.as_str(), "disetujui");
+        assert_eq!(
+            s.get(iklan_id).await.unwrap().availability_status.as_str(),
+            "sudah_diambil"
+        );
+    }
+
+    // ── list_my_ads / list_bider_saya (P4.10/P4.11) ─────────────────────────────
+
+    #[tokio::test]
+    async fn test_list_my_ads_given_two_sellers_when_listed_then_only_returns_own() {
+        let s = svc();
+        let seller_a = Uuid::now_v7();
+        let seller_b = Uuid::now_v7();
+        buat_iklan(&s, seller_a).await;
+        buat_iklan(&s, seller_a).await;
+        buat_iklan(&s, seller_b).await;
+
+        let mine = s.list_my_ads(seller_a, 20, 0).await.unwrap();
+        assert_eq!(mine.len(), 2);
+        assert!(mine.iter().all(|i| i.seller_id == seller_a));
+    }
+
+    #[tokio::test]
+    async fn test_list_bider_saya_given_bid_when_listed_then_includes_iklan_context() {
+        let s = svc();
+        let seller = Uuid::now_v7();
+        let peminat = Uuid::now_v7();
+        let iklan_id = buat_iklan(&s, seller).await;
+        s.ambil(peminat, iklan_id).await.unwrap();
+
+        let mine = s.list_bider_saya(peminat).await.unwrap();
+        assert_eq!(mine.len(), 1);
+        assert_eq!(mine[0].iklan_id, iklan_id);
+        assert_eq!(mine[0].iklan_judul.as_deref(), Some("Kursi"));
+        assert_eq!(mine[0].status.as_str(), "menunggu");
     }
 }

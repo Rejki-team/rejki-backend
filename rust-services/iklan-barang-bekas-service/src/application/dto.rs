@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use validator::Validate;
 
-use crate::domain::entity::{AvailabilityStatus, ModerationStatus};
+use crate::domain::entity::{AvailabilityStatus, BiderStatus, ModerationStatus};
 
 /// Response publik — tanpa harga/kondisi, dengan kolom gratis.
 #[derive(Debug, Serialize)]
@@ -85,6 +85,13 @@ pub struct UpdateBarangBekasInput {
 pub struct ListQuery {
     pub limit: Option<i64>,
     pub offset: Option<i64>,
+    /// Koordinat pengguna (F-1) — filter radius aktif hanya bila `latitude`+`longitude` diisi
+    /// keduanya. Kontrak baru (mobile saat ini memetakan radius ke filter teks
+    /// province/city/subdistrict, bukan geo — lihat `search_used_goods_ad_cubit.dart`; Phase 4
+    /// menyambungkan ulang bila diputuskan pindah ke geo, nama key konsisten dengan Iklan
+    /// Pekerjaan/Pekerja: `latitude`/`longitude`).
+    pub latitude: Option<f64>,
+    pub longitude: Option<f64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -124,6 +131,49 @@ pub struct SuspendResultItem {
 #[derive(Debug, Serialize)]
 pub struct SuspendResponse {
     pub results: Vec<SuspendResultItem>,
+}
+
+/// Response bider (F-15, PRD §5.14.2: "Nama bider", "Alamat dan jarak ... (kelurahan,
+/// kecamatan – jarak dalam km)", "Informasi bila bider belum menghubungi"). `peminat_*`
+/// dan `jarak_km` `None` bila user-service tidak terpasang atau data lokasi peminat kosong
+/// (degradasi anggun) — TIDAK PERNAH membawa koordinat mentah peminat ke response publik.
+#[derive(Debug, Serialize)]
+pub struct BiderResponse {
+    pub id: Uuid,
+    pub iklan_id: Uuid,
+    pub peminat_id: Uuid,
+    pub peminat_nama: Option<String>,
+    pub kelurahan: Option<String>,
+    pub kecamatan: Option<String>,
+    pub jarak_km: Option<f64>,
+    pub status: BiderStatus,
+    pub sudah_menghubungi: bool,
+    pub created_at: DateTime<Utc>,
+}
+
+/// Input "Setujui Bider" (§5.14.2: dialog menanyakan apakah bider sudah menghubungi).
+#[derive(Debug, Deserialize, Validate)]
+pub struct SetujuiBiderInput {
+    pub sudah_menghubungi: bool,
+}
+
+/// Response "Bider Saya" (P4.11, Riwayat → Aktifitas → Barang Bekas) — baris Bider
+/// + konteks iklan (judul/deskripsi/foto/dll.), pola kembar `LamaranWithIklanResponse`.
+#[derive(Debug, Serialize)]
+pub struct BiderWithIklanResponse {
+    pub id: Uuid,
+    pub iklan_id: Uuid,
+    pub peminat_id: Uuid,
+    pub status: BiderStatus,
+    pub sudah_menghubungi: bool,
+    pub created_at: DateTime<Utc>,
+    pub iklan_judul: Option<String>,
+    pub iklan_deskripsi: Option<String>,
+    pub iklan_jenis_barang: Option<String>,
+    pub iklan_jumlah: Option<i32>,
+    pub iklan_lokasi_pengambilan: Option<String>,
+    pub iklan_foto_urls: Vec<String>,
+    pub iklan_availability_status: Option<AvailabilityStatus>,
 }
 
 // ── Custom validators ────────────────────────────────────────────────────────

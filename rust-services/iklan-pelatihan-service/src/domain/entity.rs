@@ -49,6 +49,9 @@ pub enum PelatihanStatus {
     PelatihanBelumDimulai,
     PelatihanBerjalan,
     PelatihanSelesai,
+    /// Dibatalkan otomatis oleh sistem (Bab 10 P6.4 — H-8 jam sebelum mulai masih
+    /// verifikasi). Terminal, seperti `VerifikasiDitolak`/`PelatihanSelesai`.
+    Dibatalkan,
 }
 
 /// Nama status lifecycle yang disimpan di DB — jangan hardcode string literal.
@@ -60,6 +63,7 @@ pub mod status_name {
     pub const PELATIHAN_BELUM_DIMULAI: &str = "pelatihan_belum_dimulai";
     pub const PELATIHAN_BERJALAN: &str = "pelatihan_berjalan";
     pub const PELATIHAN_SELESAI: &str = "pelatihan_selesai";
+    pub const DIBATALKAN: &str = "dibatalkan";
 }
 
 impl PelatihanStatus {
@@ -72,6 +76,7 @@ impl PelatihanStatus {
             PelatihanStatus::PelatihanBelumDimulai => status_name::PELATIHAN_BELUM_DIMULAI,
             PelatihanStatus::PelatihanBerjalan => status_name::PELATIHAN_BERJALAN,
             PelatihanStatus::PelatihanSelesai => status_name::PELATIHAN_SELESAI,
+            PelatihanStatus::Dibatalkan => status_name::DIBATALKAN,
         }
     }
 
@@ -84,6 +89,7 @@ impl PelatihanStatus {
             status_name::PELATIHAN_BELUM_DIMULAI => Some(PelatihanStatus::PelatihanBelumDimulai),
             status_name::PELATIHAN_BERJALAN => Some(PelatihanStatus::PelatihanBerjalan),
             status_name::PELATIHAN_SELESAI => Some(PelatihanStatus::PelatihanSelesai),
+            status_name::DIBATALKAN => Some(PelatihanStatus::Dibatalkan),
             _ => None,
         }
     }
@@ -92,7 +98,9 @@ impl PelatihanStatus {
     pub fn is_terminal(&self) -> bool {
         matches!(
             self,
-            PelatihanStatus::VerifikasiDitolak | PelatihanStatus::PelatihanSelesai
+            PelatihanStatus::VerifikasiDitolak
+                | PelatihanStatus::PelatihanSelesai
+                | PelatihanStatus::Dibatalkan
         )
     }
 
@@ -171,6 +179,17 @@ pub struct IklanPelatihan {
     pub reviewed_by: Option<Uuid>,
     pub review_note: Option<String>,
     pub deleted_at: Option<DateTime<Utc>>,
+    /// Rekening perusahaan penyelenggara — tujuan transfer biaya komitmen
+    /// peserta (F-9, Kelompok 6 P1). Nullable: pelatihan lama historis.
+    pub bank_name: Option<String>,
+    pub bank_account_number: Option<String>,
+    pub bank_account_holder_name: Option<String>,
+    /// Tanda tangan pejabat perusahaan — aset gambar dipakai generator
+    /// sertifikat PDF (F-11/F-12, Kelompok 6 Phase 5/6). Opsional.
+    pub signature_object_key: Option<String>,
+    // Koordinat hasil geocoding `lokasi`/`region_id` (F-1) — dipakai filter radius 10km.
+    pub latitude: Option<f64>,
+    pub longitude: Option<f64>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

@@ -46,6 +46,21 @@ async fn main() {
         ) -> Result<Vec<uuid::Uuid>, auth_service_client::AuthClientError> {
             Err(auth_service_client::AuthClientError::Unavailable)
         }
+        async fn suspend_temporarily(
+            &self,
+            _user_id: uuid::Uuid,
+            _days: i64,
+            _reason: &str,
+        ) -> Result<(), auth_service_client::AuthClientError> {
+            Err(auth_service_client::AuthClientError::Unavailable)
+        }
+        async fn suspend_permanently(
+            &self,
+            _user_id: uuid::Uuid,
+            _reason: &str,
+        ) -> Result<(), auth_service_client::AuthClientError> {
+            Err(auth_service_client::AuthClientError::Unavailable)
+        }
     }
 
     let auth_client: std::sync::Arc<dyn auth_service_client::AuthClient> =

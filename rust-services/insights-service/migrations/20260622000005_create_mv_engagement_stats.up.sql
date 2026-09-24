@@ -6,8 +6,10 @@ SELECT
     (SELECT COUNT(DISTINCT conversation_id) FROM chat.messages WHERE created_at >= CURRENT_DATE - INTERVAL '7 days') AS conversations_active_7d,
     -- Notifikasi
     (SELECT COUNT(*) FROM notification.notifications WHERE created_at >= CURRENT_DATE - INTERVAL '7 days') AS notif_sent_7d,
-    (SELECT COUNT(*) FROM notification.notifications WHERE read_at IS NOT NULL AND created_at >= CURRENT_DATE - INTERVAL '7 days') AS notif_read_7d,
+    -- Catatan perbaikan (2026-09-21): kolom asli `read_at` tidak ada di
+    -- `notification.notifications` — status baca disimpan sebagai `is_read BOOLEAN`.
+    (SELECT COUNT(*) FROM notification.notifications WHERE is_read AND created_at >= CURRENT_DATE - INTERVAL '7 days') AS notif_read_7d,
     (SELECT COUNT(*) FROM notification.notifications WHERE created_at >= CURRENT_DATE - INTERVAL '30 days') AS notif_sent_30d,
-    (SELECT COUNT(*) FROM notification.notifications WHERE read_at IS NOT NULL AND created_at >= CURRENT_DATE - INTERVAL '30 days') AS notif_read_30d;
+    (SELECT COUNT(*) FROM notification.notifications WHERE is_read AND created_at >= CURRENT_DATE - INTERVAL '30 days') AS notif_read_30d;
 
 CREATE UNIQUE INDEX idx_mv_engagement_stats ON analytics.mv_engagement_stats (messages_7d);

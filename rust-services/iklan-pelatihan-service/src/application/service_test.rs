@@ -50,6 +50,7 @@ mod tests {
             &self,
             limit: i64,
             offset: i64,
+            radius: Option<common_geo::RadiusQuery>,
         ) -> Result<Vec<IklanPelatihan>, anyhow::Error> {
             Ok(self
                 .pelatihan
@@ -57,6 +58,15 @@ mod tests {
                 .unwrap()
                 .iter()
                 .filter(|i| i.deleted_at.is_none())
+                .filter(|i| match radius {
+                    None => true,
+                    Some(r) => match (i.latitude, i.longitude) {
+                        (Some(lat), Some(lng)) => {
+                            common_geo::within_radius_km(r.lat, r.lng, lat, lng, r.radius_km)
+                        }
+                        _ => false,
+                    },
+                })
                 .skip(offset as usize)
                 .take(limit as usize)
                 .cloned()
@@ -87,8 +97,14 @@ mod tests {
                 reviewed_by: None,
                 review_note: None,
                 deleted_at: None,
+                latitude: params.latitude,
+                longitude: params.longitude,
                 created_at: chrono::Utc::now(),
                 updated_at: chrono::Utc::now(),
+                bank_name: Some(params.bank_name.to_string()),
+                bank_account_number: Some(params.bank_account_number.to_string()),
+                bank_account_holder_name: Some(params.bank_account_holder_name.to_string()),
+                signature_object_key: params.signature_object_key.map(String::from),
             };
             self.pelatihan.lock().unwrap().push(pelatihan.clone());
             Ok(pelatihan)
@@ -248,6 +264,34 @@ mod tests {
             } else {
                 Ok(false)
             }
+        }
+        async fn set_pelatihan_status_system(
+            &self,
+            id: Uuid,
+            new_status: &str,
+        ) -> Result<bool, anyhow::Error> {
+            let mut p = self.pelatihan.lock().unwrap();
+            if let Some(item) = p
+                .iter_mut()
+                .find(|i| i.id == id && i.deleted_at.is_none() && !i.status.is_terminal())
+            {
+                item.status = PelatihanStatus::parse(new_status).unwrap_or(item.status.clone());
+                item.updated_at = chrono::Utc::now();
+                Ok(true)
+            } else {
+                Ok(false)
+            }
+        }
+        async fn has_any_badge_for_pelatihan(
+            &self,
+            pelatihan_id: Uuid,
+        ) -> Result<bool, anyhow::Error> {
+            Ok(self
+                .badges
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|b| b.pelatihan_id == pelatihan_id))
         }
         async fn expire_temporary_suspensions(&self) -> Result<u64, anyhow::Error> {
             Ok(0)
@@ -415,6 +459,19 @@ mod tests {
                 Ok(None)
             }
         }
+        async fn set_badge_sertifikat(
+            &self,
+            id: Uuid,
+            object_key: &str,
+        ) -> Result<Option<PelatihanBadge>, anyhow::Error> {
+            let mut badges = self.badges.lock().unwrap();
+            if let Some(b) = badges.iter_mut().find(|b| b.id == id) {
+                b.sertifikat_object_key = Some(object_key.to_string());
+                Ok(Some(b.clone()))
+            } else {
+                Ok(None)
+            }
+        }
         async fn admin_badge_list(
             &self,
             _params: ListParams,
@@ -476,6 +533,10 @@ mod tests {
             tanggal_selesai: None,
             jumlah_peserta: Some(30),
             foto_urls: None,
+            bank_name: "BCA".into(),
+            bank_account_number: "1234567890".into(),
+            bank_account_holder_name: "PT Edu".into(),
+            signature_object_key: None,
         }
     }
 
@@ -490,6 +551,8 @@ mod tests {
             .list(ListQuery {
                 limit: Some(10),
                 offset: Some(0),
+                latitude: None,
+                longitude: None,
             })
             .await
             .unwrap();
@@ -519,6 +582,10 @@ mod tests {
                     tanggal_selesai: None,
                     jumlah_peserta: Some(50),
                     foto_urls: None,
+                    bank_name: "BCA".into(),
+                    bank_account_number: "1234567890".into(),
+                    bank_account_holder_name: "Org".into(),
+                    signature_object_key: None,
                 },
             )
             .await
@@ -571,6 +638,10 @@ mod tests {
                     tanggal_selesai: None,
                     jumlah_peserta: None,
                     foto_urls: None,
+                    bank_name: "BCA".into(),
+                    bank_account_number: "1234567890".into(),
+                    bank_account_holder_name: "Edu".into(),
+                    signature_object_key: None,
                 },
             )
             .await
@@ -619,6 +690,10 @@ mod tests {
                     tanggal_mulai: None,
                     tanggal_selesai: None,
                     jumlah_peserta: Some(40),
+                    bank_name: "BCA".into(),
+                    bank_account_number: "1234567890".into(),
+                    bank_account_holder_name: "Updated Edu".into(),
+                    signature_object_key: None,
                 },
             )
             .await
@@ -650,6 +725,10 @@ mod tests {
                     tanggal_mulai: None,
                     tanggal_selesai: None,
                     jumlah_peserta: None,
+                    bank_name: "BCA".into(),
+                    bank_account_number: "1234567890".into(),
+                    bank_account_holder_name: "X".into(),
+                    signature_object_key: None,
                 },
             )
             .await;
@@ -820,5 +899,345 @@ mod tests {
         assert!(EnrollmentStatus::InReview.can_review());
         assert!(!EnrollmentStatus::Approved.can_review());
         assert!(!EnrollmentStatus::Rejected.can_review());
+    }
+
+    // ── radius filtering (F-1, F-14, Kelompok 2 Phase 3) ──────────────────────────
+
+    struct MockGeocodingClient {
+        result: Result<Option<common_geocoding::Coordinates>, ()>,
+    }
+
+    #[async_trait::async_trait]
+    impl common_geocoding::GeocodingClient for MockGeocodingClient {
+        async fn geocode(
+            &self,
+            _input: &common_geocoding::GeocodeInput,
+        ) -> Result<Option<common_geocoding::Coordinates>, common_geocoding::GeocodingClientError>
+        {
+            self.result
+                .map_err(|_| common_geocoding::GeocodingClientError::Unavailable)
+        }
+    }
+
+    fn training_input(lokasi: Option<&str>) -> CreateIklanPelatihanInput {
+        CreateIklanPelatihanInput {
+            lokasi: lokasi.map(String::from),
+            ..basic_input()
+        }
+    }
+
+    /// Filter radius (F-1/F-14, PRD §5.13.1): iklan di luar radius default (10km) tidak muncul.
+    #[tokio::test]
+    async fn test_list_given_lat_lng_when_filtered_then_only_returns_pelatihan_within_radius() {
+        let repo = std::sync::Arc::new(MockIklanPelatihanRepository::new());
+        let s = IklanPelatihanService::new(repo.clone());
+        let center = (-6.2, 106.8);
+        let near = std::sync::Arc::new(MockGeocodingClient {
+            result: Ok(Some(common_geocoding::Coordinates {
+                latitude: -6.2 + 5.0 / 111.32,
+                longitude: 106.8,
+            })),
+        });
+        let far = std::sync::Arc::new(MockGeocodingClient {
+            result: Ok(Some(common_geocoding::Coordinates {
+                latitude: -6.2 + 15.0 / 111.32,
+                longitude: 106.8,
+            })),
+        });
+
+        IklanPelatihanService::new(repo.clone())
+            .with_geocoding_client(near)
+            .create_user(Uuid::now_v7(), training_input(Some("Dekat")))
+            .await
+            .unwrap();
+        IklanPelatihanService::new(repo.clone())
+            .with_geocoding_client(far)
+            .create_user(Uuid::now_v7(), training_input(Some("Jauh")))
+            .await
+            .unwrap();
+
+        let result = s
+            .list(ListQuery {
+                limit: Some(10),
+                offset: Some(0),
+                latitude: Some(center.0),
+                longitude: Some(center.1),
+            })
+            .await
+            .unwrap();
+
+        assert_eq!(
+            result.len(),
+            1,
+            "hanya pelatihan dalam radius yang muncul: {result:?}"
+        );
+        assert_eq!(result[0].lokasi.as_deref(), Some("Dekat"));
+    }
+
+    // ── admin_review_badge: generate sertifikat otomatis (F-12, Kelompok 6 P6.3/P6.5) ──
+
+    /// Mock `CertificateGenerator` — hanya mencatat input yang diterima, tidak
+    /// render PDF sungguhan (itu sudah diuji terpisah di
+    /// `infrastructure::certificate_generator::tests`). Menjaga test service
+    /// ini tetap di boundary application+domain (tidak import infrastructure).
+    struct MockCertificateGenerator {
+        peserta_nama_calls: Mutex<Vec<String>>,
+    }
+
+    impl MockCertificateGenerator {
+        fn new() -> Self {
+            Self {
+                peserta_nama_calls: Mutex::new(vec![]),
+            }
+        }
+    }
+
+    impl crate::domain::cert_generator::CertificateGenerator for MockCertificateGenerator {
+        fn generate(
+            &self,
+            input: crate::domain::cert_generator::CertificateInput,
+        ) -> Result<Vec<u8>, anyhow::Error> {
+            self.peserta_nama_calls
+                .lock()
+                .unwrap()
+                .push(input.peserta_nama.to_string());
+            Ok(b"%PDF-mock-cert".to_vec())
+        }
+    }
+
+    struct MockStorageClient {
+        upload_calls: std::sync::atomic::AtomicUsize,
+        download_calls: std::sync::atomic::AtomicUsize,
+    }
+
+    impl MockStorageClient {
+        fn new() -> Self {
+            Self {
+                upload_calls: std::sync::atomic::AtomicUsize::new(0),
+                download_calls: std::sync::atomic::AtomicUsize::new(0),
+            }
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl storage_service_client::StorageClient for MockStorageClient {
+        async fn request_upload(
+            &self,
+            _category: &str,
+            _user_id: Uuid,
+            _info: storage_service_client::FileInfo,
+        ) -> Result<
+            storage_service_client::UploadPermission,
+            storage_service_client::StorageClientError,
+        > {
+            unimplemented!("tidak dipakai test admin_review_badge")
+        }
+        async fn request_download(
+            &self,
+            object_key: &str,
+        ) -> Result<String, storage_service_client::StorageClientError> {
+            Ok(format!("https://mock-storage.local/{object_key}"))
+        }
+        async fn delete(
+            &self,
+            _object_key: &str,
+        ) -> Result<(), storage_service_client::StorageClientError> {
+            unimplemented!("tidak dipakai test admin_review_badge")
+        }
+        async fn download_bytes(
+            &self,
+            _object_key: &str,
+        ) -> Result<Vec<u8>, storage_service_client::StorageClientError> {
+            self.download_calls
+                .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            Ok(vec![1, 2, 3, 4])
+        }
+        async fn upload_bytes(
+            &self,
+            _category: &str,
+            _user_id: Uuid,
+            _bytes: Vec<u8>,
+            _mime: &str,
+        ) -> Result<String, storage_service_client::StorageClientError> {
+            let n = self
+                .upload_calls
+                .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            Ok(format!("uploads/training-certificate/cert-{n}.pdf"))
+        }
+    }
+
+    struct MockUserClientForCert;
+
+    #[async_trait::async_trait]
+    impl user_service_client::UserClient for MockUserClientForCert {
+        async fn get_user_summary(
+            &self,
+            user_id: Uuid,
+        ) -> Result<user_service_client::UserSummary, user_service_client::UserClientError>
+        {
+            Ok(user_service_client::UserSummary {
+                id: user_id,
+                username: "Budi Peserta".into(),
+                avatar: None,
+            })
+        }
+        async fn user_exists(
+            &self,
+            _user_id: Uuid,
+        ) -> Result<bool, user_service_client::UserClientError> {
+            unimplemented!()
+        }
+        async fn purge_kyc_documents(
+            &self,
+            _user_id: Uuid,
+        ) -> Result<(), user_service_client::UserClientError> {
+            unimplemented!()
+        }
+        async fn get_sensitive_doc_flags(
+            &self,
+            _auth_id: Uuid,
+        ) -> Result<user_service_client::SensitiveDocFlags, user_service_client::UserClientError>
+        {
+            unimplemented!()
+        }
+        async fn admin_reveal_nik(
+            &self,
+            _auth_id: Uuid,
+            _admin_id: Uuid,
+        ) -> Result<Option<String>, user_service_client::UserClientError> {
+            unimplemented!()
+        }
+        async fn admin_get_document_url(
+            &self,
+            _auth_id: Uuid,
+            _kind: &str,
+            _admin_id: Uuid,
+        ) -> Result<Option<String>, user_service_client::UserClientError> {
+            unimplemented!()
+        }
+        async fn get_location_summaries_by_auth_ids(
+            &self,
+            _auth_ids: &[Uuid],
+        ) -> Result<
+            Vec<user_service_client::UserLocationSummary>,
+            user_service_client::UserClientError,
+        > {
+            unimplemented!()
+        }
+        async fn get_demographic_summaries_by_auth_ids(
+            &self,
+            _auth_ids: &[Uuid],
+        ) -> Result<
+            Vec<user_service_client::UserDemographicSummary>,
+            user_service_client::UserClientError,
+        > {
+            unimplemented!()
+        }
+        async fn get_summaries_by_auth_ids(
+            &self,
+            _auth_ids: &[Uuid],
+        ) -> Result<Vec<user_service_client::UserSummary>, user_service_client::UserClientError>
+        {
+            unimplemented!()
+        }
+    }
+
+    #[tokio::test]
+    async fn test_admin_review_badge_given_approved_when_review_then_generates_certificate_once() {
+        let s = svc();
+        let admin = Uuid::now_v7();
+        let peserta = Uuid::now_v7();
+
+        let mut input = basic_input();
+        input.lokasi = Some("Jl. Merdeka No. 1, Jakarta".into());
+        input.bank_account_holder_name = "Siti Aminah".into();
+        input.signature_object_key = Some("sig-object-key".into());
+        let pelatihan = s.create_admin(admin, input).await.unwrap();
+        let badge = s.create_badge(pelatihan.id, peserta).await.unwrap();
+
+        let storage = MockStorageClient::new();
+        let user_client = MockUserClientForCert;
+        let cert_gen = MockCertificateGenerator::new();
+
+        let result = s
+            .admin_review_badge(
+                admin,
+                badge.id,
+                crate::application::dto::ReviewBadgeInput {
+                    approved: true,
+                    review_note: None,
+                },
+                None,
+                None,
+                Some(&storage),
+                Some(&user_client),
+                Some(&cert_gen),
+            )
+            .await
+            .unwrap();
+
+        assert!(result.sertifikat_object_key.is_some());
+        assert_eq!(
+            storage
+                .upload_calls
+                .load(std::sync::atomic::Ordering::SeqCst),
+            1
+        );
+        assert_eq!(
+            storage
+                .download_calls
+                .load(std::sync::atomic::Ordering::SeqCst),
+            1
+        );
+        let calls = cert_gen.peserta_nama_calls.lock().unwrap();
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0], "Budi Peserta");
+    }
+
+    // P6.5: N peserta (badge terpisah) direview satu per satu → setiap review
+    // menghasilkan TEPAT SATU panggilan upload (hindari N+1 akibat state
+    // yang tidak sengaja terbagi antar pemanggilan berurutan).
+    #[tokio::test]
+    async fn test_admin_review_badge_given_n_badges_when_review_each_then_one_upload_per_badge() {
+        let s = svc();
+        let admin = Uuid::now_v7();
+        let pelatihan = s.create_admin(admin, basic_input()).await.unwrap();
+
+        let storage = MockStorageClient::new();
+        let user_client = MockUserClientForCert;
+        let cert_gen = MockCertificateGenerator::new();
+
+        const N: usize = 3;
+        let mut sertifikat_keys = Vec::new();
+        for _ in 0..N {
+            let peserta = Uuid::now_v7();
+            let badge = s.create_badge(pelatihan.id, peserta).await.unwrap();
+            let result = s
+                .admin_review_badge(
+                    admin,
+                    badge.id,
+                    crate::application::dto::ReviewBadgeInput {
+                        approved: true,
+                        review_note: None,
+                    },
+                    None,
+                    None,
+                    Some(&storage),
+                    Some(&user_client),
+                    Some(&cert_gen),
+                )
+                .await
+                .unwrap();
+            sertifikat_keys.push(result.sertifikat_object_key.unwrap());
+        }
+
+        assert_eq!(
+            storage
+                .upload_calls
+                .load(std::sync::atomic::Ordering::SeqCst),
+            N
+        );
+        let unique: std::collections::HashSet<_> = sertifikat_keys.iter().collect();
+        assert_eq!(unique.len(), N, "setiap badge dapat object_key sendiri");
     }
 }

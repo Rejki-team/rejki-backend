@@ -1,0 +1,220 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT c.id, c.user_a, c.user_b, c.created_at, c.ended_at,\n                      c.related_ad_type, c.related_ad_id,\n                      c.user_a_last_read_message_id, c.user_b_last_read_message_id,\n                      m.id AS \"msg_id?\", m.sender_id AS \"msg_sender_id?\",\n                      m.content_type AS \"msg_content_type?\", m.content AS \"msg_content?\",\n                      m.lat AS \"msg_lat?\", m.lng AS \"msg_lng?\",\n                      m.photo_object_key AS \"msg_photo_object_key?\",\n                      m.created_at AS \"msg_created_at?\"\n               FROM chat.conversations c\n               LEFT JOIN LATERAL (\n                   SELECT * FROM chat.messages\n                   WHERE conversation_id = c.id\n                   ORDER BY created_at DESC LIMIT 1\n               ) m ON true\n               WHERE c.user_a = $1 OR c.user_b = $1\n               ORDER BY COALESCE(m.created_at, c.created_at) DESC",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "chat.conversations",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "user_a",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "chat.conversations",
+            "name": "user_a"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "user_b",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "chat.conversations",
+            "name": "user_b"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "chat.conversations",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "ended_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "chat.conversations",
+            "name": "ended_at"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "related_ad_type",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "chat.conversations",
+            "name": "related_ad_type"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "related_ad_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "chat.conversations",
+            "name": "related_ad_id"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "user_a_last_read_message_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "chat.conversations",
+            "name": "user_a_last_read_message_id"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "user_b_last_read_message_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "chat.conversations",
+            "name": "user_b_last_read_message_id"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "msg_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "chat.messages",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "msg_sender_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "chat.messages",
+            "name": "sender_id"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "msg_content_type?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "chat.messages",
+            "name": "content_type"
+          }
+        }
+      },
+      {
+        "ordinal": 12,
+        "name": "msg_content?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "chat.messages",
+            "name": "content"
+          }
+        }
+      },
+      {
+        "ordinal": 13,
+        "name": "msg_lat?",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "chat.messages",
+            "name": "lat"
+          }
+        }
+      },
+      {
+        "ordinal": 14,
+        "name": "msg_lng?",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "chat.messages",
+            "name": "lng"
+          }
+        }
+      },
+      {
+        "ordinal": 15,
+        "name": "msg_photo_object_key?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "chat.messages",
+            "name": "photo_object_key"
+          }
+        }
+      },
+      {
+        "ordinal": 16,
+        "name": "msg_created_at?",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "chat.messages",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "1373450c11a86a428f5e59821d4bbd6e1576a5c5261abff89a35d8f2d2e81b0d"
+}

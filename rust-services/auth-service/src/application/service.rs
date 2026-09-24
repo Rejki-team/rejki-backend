@@ -303,6 +303,12 @@ impl<R: AuthRepository> AuthService<R> {
             Some(p) => Some(crate::application::crypto::encrypt(p)?),
             None => None,
         };
+        // B-2: nomor telepon unik per akun. Hash deterministik terpisah dari ciphertext
+        // (yang non-deterministik) — dipakai backend untuk enforce UNIQUE di DB.
+        let phone_hash = match input.phone.as_deref() {
+            Some(p) => Some(crate::application::crypto::hash_lookup(p)?),
+            None => None,
+        };
         let tos_version = input.tos_version.as_deref().unwrap_or(DEFAULT_TOS_VERSION);
 
         let user = self
@@ -312,6 +318,7 @@ impl<R: AuthRepository> AuthService<R> {
                 &password_hash,
                 &password_algorithm,
                 phone_encrypted.as_deref(),
+                phone_hash.as_deref(),
                 tos_version,
             )
             .await?;
@@ -1255,7 +1262,7 @@ mod tests {
     use super::*;
     use crate::domain::entity::{AccountStatus, AuthUser, OtpPurpose, Role};
     use crate::domain::repository::AuthRepository;
-    use std::collections::HashMap;
+    use std::collections::{HashMap, HashSet};
     use std::sync::Mutex;
 
     /// Simple in-memory mock of AuthRepository for unit testing.
@@ -1264,6 +1271,7 @@ mod tests {
         users: Mutex<HashMap<Uuid, AuthUser>>,
         refresh_tokens: Mutex<HashMap<String, Uuid>>, // token_hash -> user_id
         otps: Mutex<HashMap<String, (String, i32)>>,  // "user_id:purpose" -> (otp_hash, attempts)
+        phone_hashes: Mutex<HashSet<String>>,         // simulasi uq_auth_users_phone_hash
     }
 
     impl MockAuthRepository {
@@ -1272,6 +1280,7 @@ mod tests {
                 users: Mutex::new(HashMap::new()),
                 refresh_tokens: Mutex::new(HashMap::new()),
                 otps: Mutex::new(HashMap::new()),
+                phone_hashes: Mutex::new(HashSet::new()),
             }
         }
 
@@ -1302,8 +1311,15 @@ mod tests {
             password_hash: &str,
             password_algorithm: &str,
             _phone_encrypted: Option<&str>,
+            phone_hash: Option<&str>,
             _tos_version: &str,
         ) -> Result<AuthUser, anyhow::Error> {
+            if let Some(h) = phone_hash {
+                let mut hashes = self.phone_hashes.lock().unwrap();
+                if !hashes.insert(h.to_owned()) {
+                    return Err(anyhow::anyhow!("PHONE_ALREADY_REGISTERED"));
+                }
+            }
             let user = AuthUser {
                 id: Uuid::now_v7(),
                 email: email.to_owned(),
@@ -1982,6 +1998,54 @@ mod tests {
         // Anti-enumeration: returns Ok even though user exists (no leak)
         let result = svc.register(input, empty_audit_ctx()).await;
         assert!(result.is_ok());
+    }
+
+    /// Set kunci enkripsi/hash tetap untuk test yang menyertakan nomor telepon nyata
+    /// (`encrypt`/`hash_lookup` fail-fast bila env var tidak di-set).
+    fn set_test_crypto_keys() {
+        use base64::{engine::general_purpose::STANDARD as B64, Engine};
+        std::env::set_var("DATA_ENCRYPTION_KEY", B64.encode([3u8; 32]));
+        std::env::set_var("DATA_HASH_KEY", B64.encode([5u8; 32]));
+    }
+
+    #[tokio::test]
+    async fn test_register_given_duplicate_phone_when_registering_then_returns_conflict() {
+        set_test_crypto_keys();
+        let svc = test_auth_service();
+
+        let first = RegisterInput {
+            email: "pekerja1@rejki.id".into(),
+            password: "Strong1!".into(),
+            phone: Some("081234567890".into()),
+            tos_accepted: true,
+            tos_version: Some("v1".into()),
+        };
+        svc.register(first, empty_audit_ctx())
+            .await
+            .expect("registrasi pertama harus sukses");
+
+        // B-2: akun kedua dengan nomor telepon yang SAMA (email berbeda) harus ditolak
+        // secara eksplisit — bukan anti-enumeration generik seperti email (keputusan
+        // klien 2026-09-21, lihat komentar di interface::handlers::register).
+        let second = RegisterInput {
+            email: "pekerja2@rejki.id".into(),
+            password: "Strong1!".into(),
+            phone: Some("081234567890".into()),
+            tos_accepted: true,
+            tos_version: Some("v1".into()),
+        };
+        let result = svc.register(second, empty_audit_ctx()).await;
+        assert!(
+            result.is_err(),
+            "registrasi kedua dengan telepon duplikat harus gagal"
+        );
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("PHONE_ALREADY_REGISTERED"),
+            "error harus dapat dibedakan agar handler bisa balas 409"
+        );
     }
 
     #[tokio::test]

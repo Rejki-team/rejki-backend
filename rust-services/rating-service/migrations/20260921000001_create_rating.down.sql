@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS rating.rating;
+DROP SCHEMA IF EXISTS rating;

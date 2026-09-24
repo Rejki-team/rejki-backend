@@ -47,10 +47,18 @@ pub struct IklanPekerja {
     pub region_id: Option<String>,
     pub tarif_min: Option<i64>,
     pub tarif_max: Option<i64>,
+    /// Jam kerja (F-7, Kelompok 6 P7.2) — teks bebas. Nullable: iklan lama historis.
+    pub jam_kerja: Option<String>,
+    /// Nomor kontak pekerja (F-7, Kelompok 6 P7.3) — SUDAH dikirim mobile,
+    /// sebelumnya dibuang diam-diam oleh backend. Terpisah dari `lokasi`.
+    pub phone_number: Option<String>,
     pub foto_urls: Vec<String>,
     pub is_active: bool,
     pub moderation_status: ModerationStatus,
     pub deleted_at: Option<DateTime<Utc>>,
+    // Koordinat hasil geocoding `lokasi`/`region_id` (F-1) — dipakai filter radius 2km.
+    pub latitude: Option<f64>,
+    pub longitude: Option<f64>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

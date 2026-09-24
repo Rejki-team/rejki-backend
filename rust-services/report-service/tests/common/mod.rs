@@ -8,7 +8,9 @@ use sqlx::PgPool;
 pub mod fixtures;
 
 #[allow(unused_imports)]
-pub use fixtures::{clean_test_data, seed_admin, seed_report, seed_user};
+pub use fixtures::{
+    clean_test_data, seed_admin, seed_report, seed_report_with_due_date, seed_user,
+};
 
 /// Test app — build router untuk report-service saja dengan pool test.
 /// Router ditempatkan di bawah `/api/v1/reports`.
@@ -32,7 +34,38 @@ pub async fn build_test_app(pool: PgPool) -> Router {
     let auth_client: Arc<dyn auth_service::AuthClient> =
         Arc::new(auth_service::AuthInProcessClient::new(jwt, auth_repo));
 
-    let report_router = report_service::router(pool, auth_client, None, None, None);
+    // Client in-process NYATA (bukan None) — dibutuhkan test integration P9.3
+    // untuk endpoint approve-and-suspend agar jalur Iklan (bukan cuma User)
+    // benar-benar tersambung ke schema service masing-masing.
+    let iklan_pekerjaan_client: Arc<dyn iklan_pekerjaan_service::IklanPekerjaanClient> = Arc::new(
+        iklan_pekerjaan_service::IklanPekerjaanInProcessClient::new(Arc::new(
+            iklan_pekerjaan_service::PgIklanPekerjaanRepository::new(pool.clone()),
+        )),
+    );
+    let iklan_pekerja_client: Arc<dyn iklan_pekerja_service::IklanPekerjaClient> = Arc::new(
+        iklan_pekerja_service::IklanPekerjaInProcessClient::new(Arc::new(
+            iklan_pekerja_service::PgIklanPekerjaRepository::new(pool.clone()),
+        )),
+    );
+    let iklan_barang_bekas_client: Arc<dyn iklan_barang_bekas_service::IklanBarangBekasClient> =
+        Arc::new(
+            iklan_barang_bekas_service::IklanBarangBekasInProcessClient::new(Arc::new(
+                iklan_barang_bekas_service::PgIklanBarangBekasRepository::new(pool.clone()),
+            )),
+        );
+
+    let report_router = report_service::router(report_service::RouterDeps {
+        pool,
+        auth_client,
+        storage: None,
+        notifier: None,
+        rate_limiter: None,
+        user_client: None,
+        region_client: None,
+        iklan_pekerjaan_client: Some(iklan_pekerjaan_client),
+        iklan_pekerja_client: Some(iklan_pekerja_client),
+        iklan_barang_bekas_client: Some(iklan_barang_bekas_client),
+    });
 
     Router::new().nest("/api/v1/reports", report_router)
 }

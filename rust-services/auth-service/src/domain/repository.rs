@@ -11,13 +11,18 @@ pub trait AuthRepository: Send + Sync {
 
     async fn find_by_id(&self, id: Uuid) -> Result<Option<AuthUser>, anyhow::Error>;
 
-    /// Buat user baru. `phone` sudah dalam bentuk terenkripsi (ciphertext) bila ada.
+    /// Buat user baru. `phone_encrypted` sudah dalam bentuk ciphertext bila ada.
+    /// `phone_hash` adalah HMAC-SHA256 deterministik dari plaintext (untuk UNIQUE lookup,
+    /// lihat migration `20260921000001_add_phone_hash_uniqueness`). Implementasi WAJIB
+    /// mengembalikan error yang bisa dibedakan (mis. pesan "PHONE_ALREADY_REGISTERED")
+    /// ketika `phone_hash` sudah dipakai akun lain — B-2.
     async fn create_user(
         &self,
         email: &str,
         password_hash: &str,
         password_algorithm: &str,
         phone_encrypted: Option<&str>,
+        phone_hash: Option<&str>,
         tos_version: &str,
     ) -> Result<AuthUser, anyhow::Error>;
 

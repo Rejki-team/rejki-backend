@@ -28,6 +28,10 @@ pub struct IklanPelatihanResponse {
     pub created_by_role: CreatedByRole,
     pub jumlah_peserta: Option<i32>,
     pub created_at: DateTime<Utc>,
+    pub bank_name: Option<String>,
+    pub bank_account_number: Option<String>,
+    pub bank_account_holder_name: Option<String>,
+    pub signature_object_key: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -51,6 +55,10 @@ pub struct AdminIklanPelatihanResponse {
     pub deleted_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    pub bank_name: Option<String>,
+    pub bank_account_number: Option<String>,
+    pub bank_account_holder_name: Option<String>,
+    pub signature_object_key: Option<String>,
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -71,6 +79,19 @@ pub struct CreateIklanPelatihanInput {
     pub tanggal_selesai: Option<DateTime<Utc>>,
     pub foto_urls: Option<Vec<String>>,
     pub jumlah_peserta: Option<i32>,
+    /// Rekening perusahaan penyelenggara — WAJIB untuk pengajuan baru (F-9,
+    /// keputusan final klien B-5b). Nama field match persis dengan yang
+    /// sudah dikirim mobile (`bank_name`/`bank_account_number`/
+    /// `bank_account_holder_name`), lihat Kelompok 6 P1.0.
+    #[validate(length(min = 1))]
+    pub bank_name: String,
+    #[validate(length(min = 1))]
+    pub bank_account_number: String,
+    #[validate(length(min = 1))]
+    pub bank_account_holder_name: String,
+    /// Tanda tangan pejabat — aset dipakai generator sertifikat (F-11/F-12,
+    /// Kelompok 6 Phase 5/6). Opsional, diisi via presigned-upload existing.
+    pub signature_object_key: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Validate)]
@@ -86,6 +107,13 @@ pub struct UpdateIklanPelatihanInput {
     pub tanggal_mulai: Option<DateTime<Utc>>,
     pub tanggal_selesai: Option<DateTime<Utc>>,
     pub jumlah_peserta: Option<i32>,
+    #[validate(length(min = 1))]
+    pub bank_name: String,
+    #[validate(length(min = 1))]
+    pub bank_account_number: String,
+    #[validate(length(min = 1))]
+    pub bank_account_holder_name: String,
+    pub signature_object_key: Option<String>,
 }
 
 #[derive(Debug, Clone, Validate, Deserialize)]
@@ -104,6 +132,10 @@ pub struct UpdatePelatihanInput {
     pub foto_urls: Option<Vec<String>>,
     pub jumlah_peserta: Option<i32>,
     pub is_active: Option<bool>,
+    pub bank_name: Option<String>,
+    pub bank_account_number: Option<String>,
+    pub bank_account_holder_name: Option<String>,
+    pub signature_object_key: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -120,6 +152,12 @@ pub struct ReviewPelatihanInput {
 pub struct ListQuery {
     pub limit: Option<i64>,
     pub offset: Option<i64>,
+    /// Koordinat pengguna (F-1, F-14) — filter radius aktif hanya bila `latitude`+`longitude`
+    /// diisi keduanya. Kontrak baru (mobile belum mengirim parameter apa pun untuk listing ini
+    /// selain `search` — lihat Phase 4 `training_listing_cubit.dart`), nama key konsisten
+    /// dengan Iklan Pekerjaan/Pekerja (`latitude`/`longitude`).
+    pub latitude: Option<f64>,
+    pub longitude: Option<f64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -157,6 +195,10 @@ pub struct EnrollmentResponse {
     pub review_note: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    /// Presigned URL untuk melihat gambar bukti transfer (F-10, P3.1) — hanya
+    /// diisi oleh `admin_enrollment_detail` (butuh `StorageClient`), `None`
+    /// di endpoint lain (fail-open bila storage-service tak tersedia).
+    pub bukti_transfer_read_url: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Validate)]
@@ -203,6 +245,9 @@ pub struct BadgeResponse {
     pub review_note: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    /// Presigned URL untuk melihat sertifikat (F-10, P3.2) — hanya diisi oleh
+    /// `admin_badge_detail`, `None` di endpoint lain.
+    pub sertifikat_read_url: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Validate)]

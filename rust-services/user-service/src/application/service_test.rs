@@ -233,6 +233,8 @@ mod tests {
             regency_id: None,
             district_id: None,
             village_id: None,
+            latitude: None,
+            longitude: None,
             created_at: chrono::Utc::now(),
             updated_at: chrono::Utc::now(),
         };
@@ -373,6 +375,21 @@ mod tests {
         async fn list_active_user_ids(&self) -> Result<Vec<Uuid>, AuthClientError> {
             Err(AuthClientError::Unavailable)
         }
+        async fn suspend_temporarily(
+            &self,
+            _user_id: Uuid,
+            _days: i64,
+            _reason: &str,
+        ) -> Result<(), AuthClientError> {
+            Ok(())
+        }
+        async fn suspend_permanently(
+            &self,
+            _user_id: Uuid,
+            _reason: &str,
+        ) -> Result<(), AuthClientError> {
+            Ok(())
+        }
     }
 
     // ── MockRegionClient ───────────────────────────────────────────────────────
@@ -474,6 +491,18 @@ mod tests {
                 .unwrap()
                 .push(object_key.to_owned());
             Ok(())
+        }
+        async fn download_bytes(&self, _object_key: &str) -> Result<Vec<u8>, StorageClientError> {
+            Err(StorageClientError::Unavailable)
+        }
+        async fn upload_bytes(
+            &self,
+            _category: &str,
+            _user_id: Uuid,
+            _bytes: Vec<u8>,
+            _mime: &str,
+        ) -> Result<String, StorageClientError> {
+            Err(StorageClientError::Unavailable)
         }
     }
 
@@ -602,10 +631,14 @@ mod tests {
 
     // ── MockUserRepository ─────────────────────────────────────────────────────
 
+    /// (actor_id, object_key, action, request_id) — satu baris `log_document_access`.
+    type DocumentAccessLogEntry = (Uuid, String, DocumentAccessAction, Option<String>);
+
     struct MockUserRepository {
         profiles: Mutex<HashMap<Uuid, UserProfile>>,
         submissions: Mutex<HashMap<Uuid, Vec<KycSubmission>>>, // profile_id → submissions
         review_result: Mutex<bool>,                            // result of review_submission
+        document_access_log: Mutex<Vec<DocumentAccessLogEntry>>,
     }
 
     impl MockUserRepository {
@@ -614,6 +647,7 @@ mod tests {
                 profiles: Mutex::new(HashMap::new()),
                 submissions: Mutex::new(HashMap::new()),
                 review_result: Mutex::new(true),
+                document_access_log: Mutex::new(Vec::new()),
             }
         }
 
@@ -650,6 +684,20 @@ mod tests {
                 .cloned())
         }
 
+        async fn find_by_auth_ids(
+            &self,
+            auth_ids: &[Uuid],
+        ) -> Result<Vec<UserProfile>, anyhow::Error> {
+            Ok(self
+                .profiles
+                .lock()
+                .unwrap()
+                .values()
+                .filter(|p| auth_ids.contains(&p.auth_id))
+                .cloned()
+                .collect())
+        }
+
         async fn create(
             &self,
             auth_id: Uuid,
@@ -676,6 +724,8 @@ mod tests {
                 regency_id: None,
                 district_id: None,
                 village_id: None,
+                latitude: None,
+                longitude: None,
                 created_at: chrono::Utc::now(),
                 updated_at: chrono::Utc::now(),
             };
@@ -809,11 +859,17 @@ mod tests {
 
         async fn log_document_access(
             &self,
-            _actor_id: Uuid,
-            _object_key: &str,
-            _action: DocumentAccessAction,
-            _request_id: Option<&str>,
+            actor_id: Uuid,
+            object_key: &str,
+            action: DocumentAccessAction,
+            request_id: Option<&str>,
         ) -> Result<(), anyhow::Error> {
+            self.document_access_log.lock().unwrap().push((
+                actor_id,
+                object_key.to_owned(),
+                action,
+                request_id.map(|s| s.to_owned()),
+            ));
             Ok(())
         }
 
@@ -841,6 +897,25 @@ mod tests {
             Ok(None)
         }
 
+        async fn get_nik_for_reveal(
+            &self,
+            submission_id: Uuid,
+        ) -> Result<Option<(Uuid, Vec<u8>)>, anyhow::Error> {
+            let submissions = self.submissions.lock().unwrap();
+            let Some(sub) = submissions
+                .values()
+                .flat_map(|v| v.iter())
+                .find(|s| s.id == submission_id)
+            else {
+                return Ok(None);
+            };
+            let profiles = self.profiles.lock().unwrap();
+            Ok(profiles
+                .get(&sub.profile_id)
+                .and_then(|p| p.nik_encrypted.clone())
+                .map(|bytes| (sub.profile_id, bytes)))
+        }
+
         async fn begin_transaction(&self) -> Result<Box<dyn TxUserRepository>, anyhow::Error> {
             // Return a fresh tx mock seeded with a generic profile.
             let p = UserProfile {
@@ -864,6 +939,8 @@ mod tests {
                 regency_id: None,
                 district_id: None,
                 village_id: None,
+                latitude: None,
+                longitude: None,
                 created_at: chrono::Utc::now(),
                 updated_at: chrono::Utc::now(),
             };
@@ -895,6 +972,8 @@ mod tests {
             regency_id: None,
             district_id: None,
             village_id: None,
+            latitude: None,
+            longitude: None,
             created_at: chrono::Utc::now(),
             updated_at: chrono::Utc::now(),
         }
@@ -913,6 +992,7 @@ mod tests {
             Arc::new(repo),
             Arc::new(MockAuthClient::new()),
             Arc::new(MockRegionClient::new()),
+            None,
             None,
             None,
         );
@@ -949,6 +1029,7 @@ mod tests {
             Arc::new(repo),
             Arc::new(MockAuthClient::new()),
             Arc::new(MockRegionClient::new()),
+            None,
             None,
             None,
         );
@@ -989,6 +1070,7 @@ mod tests {
             Arc::new(repo),
             Arc::new(MockAuthClient::new()),
             Arc::new(MockRegionClient::new()),
+            None,
             None,
             None,
         );
@@ -1037,6 +1119,7 @@ mod tests {
             Arc::new(region_client),
             None,
             None,
+            None,
         );
 
         let input = crate::application::dto::UpdateProfileInput {
@@ -1073,6 +1156,7 @@ mod tests {
             Arc::new(repo),
             Arc::new(MockAuthClient::new()),
             Arc::new(MockRegionClient::new()),
+            None,
             None,
             None,
         );
@@ -1121,6 +1205,7 @@ mod tests {
             Arc::new(region_client),
             Some(Arc::new(storage_client)),
             Some(Arc::new(notif_client)),
+            None,
         );
 
         let input = crate::application::dto::KycPersonalDataInput {
@@ -1209,6 +1294,7 @@ mod tests {
             Arc::new(MockRegionClient::new()),
             Some(Arc::new(MockStorageClient::new())),
             Some(Arc::new(notif_client)),
+            None,
         );
 
         let admin_id = Uuid::now_v7();
@@ -1253,6 +1339,7 @@ mod tests {
             Arc::new(MockRegionClient::new()),
             Some(Arc::new(storage_client)),
             Some(Arc::new(notif_client)),
+            None,
         );
 
         let admin_id = Uuid::now_v7();
@@ -1294,6 +1381,7 @@ mod tests {
             Arc::new(MockRegionClient::new()),
             None,
             None,
+            None,
         );
 
         let result = svc
@@ -1316,6 +1404,7 @@ mod tests {
             Arc::new(MockRegionClient::new()),
             None,
             None,
+            None,
         );
 
         let result = svc
@@ -1336,6 +1425,110 @@ mod tests {
             Arc::new(MockRegionClient::new()),
             None,
             None,
+            None,
         )
+    }
+
+    // ── admin_reveal_nik (F-26/F-27a — click-to-view NIK teraudit) ─────────────
+
+    /// Admin membuka NIK → NIK plain dikembalikan DAN tercatat di audit log
+    /// (actor_id, action, request_id) sebelum dikembalikan.
+    #[tokio::test]
+    async fn test_admin_reveal_nik_given_admin_when_reveal_then_returns_plain_nik_and_logs_audit() {
+        set_test_crypto_key();
+        let repo = Arc::new(MockUserRepository::new());
+        let auth_id = Uuid::now_v7();
+        let mut profile = make_profile(auth_id);
+        profile.nik_encrypted = Some(
+            common_crypto::encrypt("3201234567890123")
+                .unwrap()
+                .into_bytes(),
+        );
+        let submission = KycSubmission {
+            id: Uuid::now_v7(),
+            profile_id: profile.id,
+            status: KycSubmissionStatus::Pending,
+            ktp_object_key: None,
+            selfie_object_key: None,
+            reviewed_by: None,
+            review_note: None,
+            reviewed_at: None,
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+        };
+        repo.seed_profile(profile.clone());
+        repo.seed_submission(submission.clone());
+
+        let svc = UserService::new(
+            repo.clone(),
+            Arc::new(MockAuthClient::new()),
+            Arc::new(MockRegionClient::new()),
+            None,
+            None,
+            None,
+        );
+
+        let admin_id = Uuid::now_v7();
+        let result = svc
+            .admin_reveal_nik(submission.id, admin_id, Some("req-abc"))
+            .await;
+        assert_eq!(result.unwrap(), Some("3201234567890123".to_string()));
+
+        let log = repo.document_access_log.lock().unwrap();
+        assert_eq!(log.len(), 1, "harus ada tepat 1 entry audit log");
+        let (actor_id, object_key, action, request_id) = &log[0];
+        assert_eq!(*actor_id, admin_id);
+        assert_eq!(object_key, &format!("nik:{}", profile.id));
+        assert_eq!(*action, DocumentAccessAction::NikReadIssued);
+        assert_eq!(request_id.as_deref(), Some("req-abc"));
+    }
+
+    /// Submission ada tapi NIK belum pernah disimpan → None (handler → 404), TANPA
+    /// mencatat audit log (tidak ada apa pun yang benar-benar dibuka).
+    #[tokio::test]
+    async fn test_admin_reveal_nik_given_no_nik_when_reveal_then_returns_none_without_audit() {
+        let repo = Arc::new(MockUserRepository::new());
+        let profile = make_profile(Uuid::now_v7()); // nik_encrypted: None (default)
+        let submission = KycSubmission {
+            id: Uuid::now_v7(),
+            profile_id: profile.id,
+            status: KycSubmissionStatus::Pending,
+            ktp_object_key: None,
+            selfie_object_key: None,
+            reviewed_by: None,
+            review_note: None,
+            reviewed_at: None,
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+        };
+        repo.seed_profile(profile.clone());
+        repo.seed_submission(submission.clone());
+
+        let svc = UserService::new(
+            repo.clone(),
+            Arc::new(MockAuthClient::new()),
+            Arc::new(MockRegionClient::new()),
+            None,
+            None,
+            None,
+        );
+
+        let result = svc
+            .admin_reveal_nik(submission.id, Uuid::now_v7(), None)
+            .await;
+        assert_eq!(result.unwrap(), None);
+        assert_eq!(repo.document_access_log.lock().unwrap().len(), 0);
+    }
+
+    /// Submission tidak ditemukan → None (IDOR/404), bukan error.
+    #[tokio::test]
+    async fn test_admin_reveal_nik_given_unknown_submission_when_reveal_then_returns_none() {
+        let repo = MockUserRepository::new();
+        let svc = user_service_factory(repo);
+
+        let result = svc
+            .admin_reveal_nik(Uuid::now_v7(), Uuid::now_v7(), None)
+            .await;
+        assert_eq!(result.unwrap(), None);
     }
 }

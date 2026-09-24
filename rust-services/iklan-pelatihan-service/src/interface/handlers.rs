@@ -9,11 +9,11 @@ use crate::application::dto::{
 use auth_service_client::AuthClaims;
 use axum::{
     extract::{Path, Query, State},
-    http::{header, StatusCode},
+    http::StatusCode,
     response::Response,
     Extension, Json,
 };
-use common_errors::{created_response, ApiResponse, AppError, ValidatedJson};
+use common_errors::{created_response, csv_response, ApiResponse, AppError, ValidatedJson};
 use uuid::Uuid;
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -240,15 +240,7 @@ pub async fn admin_pelatihan_export_csv(
             item.created_at
         ));
     }
-    Ok(Response::builder()
-        .status(StatusCode::OK)
-        .header(header::CONTENT_TYPE, "text/csv; charset=utf-8")
-        .header(
-            header::CONTENT_DISPOSITION,
-            "attachment; filename=pelatihan.csv",
-        )
-        .body(axum::body::Body::from(csv))
-        .unwrap())
+    Ok(csv_response(csv, "pelatihan.csv"))
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -296,15 +288,7 @@ pub async fn admin_export_csv(
             item.created_at
         ));
     }
-    Ok(Response::builder()
-        .status(StatusCode::OK)
-        .header(header::CONTENT_TYPE, "text/csv; charset=utf-8")
-        .header(
-            header::CONTENT_DISPOSITION,
-            "attachment; filename=iklan_pelatihan_moderation.csv",
-        )
-        .body(axum::body::Body::from(csv))
-        .unwrap())
+    Ok(csv_response(csv, "iklan_pelatihan_moderation.csv"))
 }
 
 pub async fn admin_request_evidence(
@@ -410,15 +394,28 @@ pub async fn admin_enrollment_list(
     Ok(Json(ApiResponse::with_meta(items, meta)))
 }
 
+/// P3.1 (F-10): admin butuh benar-benar MELIHAT bukti transfer (presigned
+/// view URL), bukan cuma object key mentah — fail-open bila storage-service
+/// tak tersedia (tetap kembalikan detail, `bukti_transfer_read_url: null`).
 pub async fn admin_enrollment_detail(
     State(s): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<ApiResponse<EnrollmentResponse>>, AppError> {
-    let enrollment = s
+    let mut enrollment = s
         .svc
         .get_enrollment(id)
         .await
         .map_err(|e| AppError::NotFound(e.to_string()))?;
+
+    if let (Some(storage), Some(key)) = (&s.storage, &enrollment.bukti_transfer_object_key) {
+        match storage.request_download(key).await {
+            Ok(url) => enrollment.bukti_transfer_read_url = Some(url),
+            Err(e) => {
+                tracing::warn!(enrollment_id = %id, error = ?e, "gagal presign bukti transfer")
+            }
+        }
+    }
+
     Ok(Json(ApiResponse::ok(enrollment)))
 }
 
@@ -469,15 +466,7 @@ pub async fn admin_enrollment_export_csv(
             item.updated_at
         ));
     }
-    Ok(Response::builder()
-        .status(StatusCode::OK)
-        .header(header::CONTENT_TYPE, "text/csv; charset=utf-8")
-        .header(
-            header::CONTENT_DISPOSITION,
-            "attachment; filename=enrollments.csv",
-        )
-        .body(axum::body::Body::from(csv))
-        .unwrap())
+    Ok(csv_response(csv, "enrollments.csv"))
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -548,15 +537,25 @@ pub async fn admin_badge_list(
     Ok(Json(ApiResponse::with_meta(items, meta)))
 }
 
+/// P3.2 (F-10): sama seperti `admin_enrollment_detail` — presigned view URL
+/// untuk sertifikat, fail-open bila storage-service tak tersedia.
 pub async fn admin_badge_detail(
     State(s): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<ApiResponse<BadgeResponse>>, AppError> {
-    let badge = s
+    let mut badge = s
         .svc
         .get_badge(id)
         .await
         .map_err(|e| AppError::NotFound(e.to_string()))?;
+
+    if let (Some(storage), Some(key)) = (&s.storage, &badge.sertifikat_object_key) {
+        match storage.request_download(key).await {
+            Ok(url) => badge.sertifikat_read_url = Some(url),
+            Err(e) => tracing::warn!(badge_id = %id, error = ?e, "gagal presign sertifikat"),
+        }
+    }
+
     Ok(Json(ApiResponse::ok(badge)))
 }
 
@@ -566,6 +565,7 @@ pub async fn admin_badge_review(
     Path(id): Path<Uuid>,
     Json(body): Json<ReviewBadgeInput>,
 ) -> Result<Json<ApiResponse<BadgeResponse>>, AppError> {
+    let cert_gen = crate::infrastructure::certificate_generator::GenpdfiCertificateGenerator;
     let result = s
         .svc
         .admin_review_badge(
@@ -574,6 +574,9 @@ pub async fn admin_badge_review(
             body,
             s.notifier.as_deref(),
             s.auth_client.as_deref(),
+            s.storage.as_deref(),
+            s.user_client.as_deref(),
+            Some(&cert_gen),
         )
         .await
         .map_err(|e| AppError::Validation(e.to_string()))?;
@@ -608,15 +611,7 @@ pub async fn admin_badge_export_csv(
             item.updated_at
         ));
     }
-    Ok(Response::builder()
-        .status(StatusCode::OK)
-        .header(header::CONTENT_TYPE, "text/csv; charset=utf-8")
-        .header(
-            header::CONTENT_DISPOSITION,
-            "attachment; filename=badges.csv",
-        )
-        .body(axum::body::Body::from(csv))
-        .unwrap())
+    Ok(csv_response(csv, "badges.csv"))
 }
 
 // ── CSV helper ───────────────────────────────────────────────────────────

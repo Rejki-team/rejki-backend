@@ -1,0 +1,125 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE chat.conversations\n               SET ended_at = COALESCE(ended_at, now())\n               WHERE id = $1 AND (user_a = $2 OR user_b = $2)\n               RETURNING id, user_a, user_b, created_at, ended_at, related_ad_type, related_ad_id,\n                         user_a_last_read_message_id, user_b_last_read_message_id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "chat.conversations",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "user_a",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "chat.conversations",
+            "name": "user_a"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "user_b",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "chat.conversations",
+            "name": "user_b"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "chat.conversations",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "ended_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "chat.conversations",
+            "name": "ended_at"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "related_ad_type",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "chat.conversations",
+            "name": "related_ad_type"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "related_ad_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "chat.conversations",
+            "name": "related_ad_id"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "user_a_last_read_message_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "chat.conversations",
+            "name": "user_a_last_read_message_id"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "user_b_last_read_message_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "chat.conversations",
+            "name": "user_b_last_read_message_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "55fea9be892980d06512b89b0ded10ce0d9ad0333687889745a7843cb9eacd11"
+}

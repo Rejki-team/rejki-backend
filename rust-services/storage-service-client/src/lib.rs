@@ -78,6 +78,23 @@ pub trait StorageClient: Send + Sync {
 
     /// Hapus objek dari storage. Dipakai untuk pemusnahan dokumen (retensi K11).
     async fn delete(&self, object_key: &str) -> Result<(), StorageClientError>;
+
+    /// Ambil isi objek sebagai bytes langsung (server-side, BUKAN presigned) —
+    /// dipakai generator sertifikat PDF (F-12) untuk membaca gambar tanda
+    /// tangan yang akan ditempel ke PDF.
+    async fn download_bytes(&self, object_key: &str) -> Result<Vec<u8>, StorageClientError>;
+
+    /// Unggah bytes langsung (server-side, BUKAN presigned two-step client) —
+    /// dipakai untuk mengunggah hasil generate backend sendiri (mis. PDF
+    /// sertifikat), bukan file dari klien. `category` sama seperti
+    /// `request_upload` (menentukan path/validasi).
+    async fn upload_bytes(
+        &self,
+        category: &str,
+        user_id: uuid::Uuid,
+        bytes: Vec<u8>,
+        mime: &str,
+    ) -> Result<String, StorageClientError>;
 }
 
 #[cfg(test)]

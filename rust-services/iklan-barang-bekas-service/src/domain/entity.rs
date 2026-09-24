@@ -58,6 +58,9 @@ pub struct IklanBarangBekas {
     pub availability_status: AvailabilityStatus,
     pub moderation_status: ModerationStatus,
     pub deleted_at: Option<DateTime<Utc>>,
+    // Koordinat hasil geocoding `lokasi`/`region_id` (F-1) — dipakai filter radius 10km.
+    pub latitude: Option<f64>,
+    pub longitude: Option<f64>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -106,6 +109,69 @@ impl<'de> serde::Deserialize<'de> for AvailabilityStatus {
             serde::de::Error::custom(format!("availability_status tidak dikenal: {s}"))
         })
     }
+}
+
+/// Status bider (F-15, PRD §5.14.1-5.14.2, Gambar 5) — daftar peminat Iklan Barang Bekas.
+/// Hanya 3 nilai (bukan 4/5 seperti Lamaran): tidak ada state "ditolak" eksplisit — bider yang
+/// tidak disetujui saat pemilik menyetujui bider lain otomatis ditandai `Withdrawn` (P3.4).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum BiderStatus {
+    #[default]
+    Menunggu,
+    Disetujui,
+    Withdrawn,
+}
+
+impl BiderStatus {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            BiderStatus::Menunggu => "menunggu",
+            BiderStatus::Disetujui => "disetujui",
+            BiderStatus::Withdrawn => "withdrawn",
+        }
+    }
+
+    pub fn parse(s: &str) -> Option<Self> {
+        match s {
+            "menunggu" => Some(BiderStatus::Menunggu),
+            "disetujui" => Some(BiderStatus::Disetujui),
+            "withdrawn" => Some(BiderStatus::Withdrawn),
+            _ => None,
+        }
+    }
+}
+
+impl std::fmt::Display for BiderStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+impl serde::Serialize for BiderStatus {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(self.as_str())
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for BiderStatus {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let s = String::deserialize(deserializer)?;
+        BiderStatus::parse(&s)
+            .ok_or_else(|| serde::de::Error::custom(format!("status bider tidak dikenal: {s}")))
+    }
+}
+
+/// Satu baris "jadi bider" (§5.14.1: "Menekan Ambil Barang" → peminat). `sudah_menghubungi`
+/// diisi pemilik iklan saat menyetujui (§5.14.2: dialog "apakah bider sudah menghubungi").
+#[derive(Debug, Clone)]
+pub struct Bider {
+    pub id: Uuid,
+    pub iklan_id: Uuid,
+    pub peminat_id: Uuid,
+    pub status: BiderStatus,
+    pub sudah_menghubungi: bool,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
 /// Riwayat suspend iklan (audit trail).

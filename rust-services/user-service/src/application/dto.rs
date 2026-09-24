@@ -43,6 +43,14 @@ pub struct UserProfileResponse {
     /// ID kelurahan/desa.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub village_id: Option<String>,
+    // ── Koordinat (F-1, P4.6 Kelompok 3 Phase 4) ───────────────────────────
+    /// Koordinat hasil geocoding alamat terdaftar — dipakai mobile untuk filter
+    /// radius (mis. "search_ad" Barang Bekas). `None` bila alamat belum diisi
+    /// atau geocoding belum pernah berhasil.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub latitude: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub longitude: Option<f64>,
 }
 
 #[derive(Debug, Deserialize, Validate)]

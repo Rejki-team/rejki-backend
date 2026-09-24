@@ -45,6 +45,22 @@ pub async fn build_test_app(pool: PgPool) -> Router {
     let storage_client: Arc<dyn storage_service::StorageClient> =
         Arc::new(storage_service::StorageInProcessClient::new().await);
 
+    // IklanPekerjaClient in-process — wajib agar validasi P1.3 ("sudah punya Iklan
+    // Pekerja aktif") di alur Lamaran (F-3) ter-cover di integration test.
+    let iklan_pekerja_client: Arc<dyn iklan_pekerja_service::IklanPekerjaClient> = Arc::new(
+        iklan_pekerja_service::IklanPekerjaInProcessClient::new(Arc::new(
+            iklan_pekerja_service::PgIklanPekerjaRepository::new(pool.clone()),
+        )),
+    );
+
+    // IklanPekerjaanClient in-process — wajib agar validasi "lamaran Selesai" di
+    // rating-service (F-17, Kelompok 3 Phase 5) ter-cover di integration test.
+    let iklan_pekerjaan_client: Arc<dyn iklan_pekerjaan_service::IklanPekerjaanClient> = Arc::new(
+        iklan_pekerjaan_service::IklanPekerjaanInProcessClient::new(Arc::new(
+            iklan_pekerjaan_service::PgIklanPekerjaanRepository::new(pool.clone()),
+        )),
+    );
+
     // UserClient in-process — wajib agar jalur purge dokumen saat suspend permanen
     // (extend-user-suspension-bulk-purge D4) ter-cover di integration test.
     let user_client: Arc<dyn user_service::UserClient> = {
@@ -54,6 +70,7 @@ pub async fn build_test_app(pool: PgPool) -> Router {
             auth_client.clone(),
             region_client.clone(),
             Some(storage_client.clone()),
+            None,
             None,
         ));
         Arc::new(user_service::UserInProcessClient::new(user_svc))
@@ -81,11 +98,12 @@ pub async fn build_test_app(pool: PgPool) -> Router {
                 region_client.clone(),
                 storage_client.clone(),
                 None,
+                None,
             ),
         )
         .nest(
             "/chat",
-            chat_service::router(pool.clone(), auth_client.clone(), None),
+            chat_service::router(pool.clone(), auth_client.clone(), None, None, None, None),
         )
         .nest(
             "/notif",
@@ -93,46 +111,65 @@ pub async fn build_test_app(pool: PgPool) -> Router {
         )
         .nest(
             "/pekerjaan",
-            iklan_pekerjaan_service::router(
-                pool.clone(),
-                auth_client.clone(),
-                None,
-                None,
-                None,
-                None,
-            ),
+            iklan_pekerjaan_service::router(iklan_pekerjaan_service::RouterDeps {
+                pool: pool.clone(),
+                auth_client: auth_client.clone(),
+                storage: None,
+                notifier: None,
+                rate_limiter: None,
+                region_client: None,
+                geocoding_client: None,
+                iklan_pekerja_client: Some(iklan_pekerja_client.clone()),
+                chat_client: None,
+            }),
         )
         .nest(
             "/pekerja",
-            iklan_pekerja_service::router(
-                pool.clone(),
-                auth_client.clone(),
-                None,
-                None,
-                None,
-                None,
-            ),
+            iklan_pekerja_service::router(iklan_pekerja_service::RouterDeps {
+                pool: pool.clone(),
+                auth_client: auth_client.clone(),
+                storage: None,
+                notifier: None,
+                rate_limiter: None,
+                region_client: None,
+                user_client: None,
+                geocoding_client: None,
+            }),
         )
         .nest(
             "/barang",
-            iklan_barang_bekas_service::router(
-                pool.clone(),
-                auth_client.clone(),
-                None,
-                None,
-                None,
-                None,
-            ),
+            iklan_barang_bekas_service::router(iklan_barang_bekas_service::RouterDeps {
+                pool: pool.clone(),
+                auth_client: auth_client.clone(),
+                storage: None,
+                notifier: None,
+                rate_limiter: None,
+                region_client: Some(region_client.clone()),
+                geocoding_client: None,
+                user_client: Some(user_client.clone()),
+                chat_client: None,
+            }),
         )
         .nest(
             "/pelatihan",
-            iklan_pelatihan_service::router(
+            iklan_pelatihan_service::router(iklan_pelatihan_service::RouterDeps {
+                pool: pool.clone(),
+                auth_client: auth_client.clone(),
+                storage: None,
+                notifier: None,
+                rate_limiter: None,
+                region_client: None,
+                geocoding_client: None,
+                scheduler_client: None,
+                user_client: Some(user_client.clone()),
+            }),
+        )
+        .nest(
+            "/rating",
+            rating_service::router(
                 pool.clone(),
                 auth_client.clone(),
-                None,
-                None,
-                None,
-                None,
+                Some(iklan_pekerjaan_client.clone()),
             ),
         );
 

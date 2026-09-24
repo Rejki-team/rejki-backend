@@ -19,6 +19,7 @@ members = [
     "corporate-comms-service",
     "report-service",
     "insights-service",
+    "rating-service",
 
     # ── Client Domains ────────────────────────────────────
     "region-service-client",
@@ -43,6 +44,9 @@ members = [
     "common/rate-limit",
     "common/idempotency",
     "common/clamav",
+    "common/geocoding",
+    "common/geo",
+    "common/scheduler",
 ]
 
 # ── Shared dependency versions (semua member pakai ini) ───
@@ -69,15 +73,25 @@ dotenvy            = "0.15"
 anyhow             = "1"
 sha2               = "0.10"
 hex                = "0.4"
+hmac               = "0.12"
 ammonia            = "4"
 async-trait        = "0.1"
 tower              = { version = "0.5",  features = ["util"] }
 redis              = { version = "0.27", features = ["tokio-comp", "connection-manager", "aio", "streams"] }
+# Concurrent map ter-shard — hindari lock global tunggal untuk struktur "banyak entry independen"
+# (mis. registry broadcast channel per conversation di chat-service, Audit Finding #1).
+dashmap            = "6"
 aes-gcm            = "0.10"
 base64             = "0.22"
+reqwest            = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
 aws-config         = { version = "1", features = ["behavior-version-latest"] }
 aws-sdk-s3         = "1"
 aws-credential-types = "1"
+# Generator PDF sertifikat pelatihan (F-12, Kelompok 6 P6) — fork aktif dari `genpdf`
+# (nama pada plan/spec), lisensi sama (Apache-2.0/MIT dual), rilis terbaru per riset Context7.
+genpdfi            = { version = "0.2", features = ["images"] }
+# Dev-dependency (test-only): ekstraksi teks PDF untuk assert isi sertifikat (P6.5).
+pdf-extract        = "0.12"
 # OpenAPI / Swagger UI — hanya disajikan saat APP_ENV=development (gated di rejki-app).
 utoipa             = { version = "5", features = ["axum_extras", "uuid", "chrono"] }
 utoipa-swagger-ui  = { version = "9", features = ["axum"] }
@@ -100,6 +114,9 @@ common-tracing     = { path = "common/tracing-setup" }
 common-auth-mw     = { path = "common/auth-middleware" }
 common-rate-limit  = { path = "common/rate-limit" }
 common-idempotency = { path = "common/idempotency" }
+common-geocoding   = { path = "common/geocoding" }
+common-geo         = { path = "common/geo" }
+common-scheduler   = { path = "common/scheduler" }
 
 [profile.release]
 opt-level = 3

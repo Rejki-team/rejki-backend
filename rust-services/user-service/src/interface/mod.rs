@@ -10,6 +10,7 @@ use sqlx::PgPool;
 
 use auth_service_client::AuthClient;
 use common_auth_mw::{require_auth, require_role};
+use common_geocoding::GeocodingClient;
 use notification_service_client::NotificationClient;
 use region_service_client::RegionClient;
 use storage_service_client::StorageClient;
@@ -29,6 +30,7 @@ pub fn router(
     region_client: Arc<dyn RegionClient>,
     storage_client: Arc<dyn StorageClient>,
     notifier: Option<Arc<dyn NotificationClient>>,
+    geocoding_client: Option<Arc<dyn GeocodingClient>>,
 ) -> Router {
     let repo = Arc::new(PgUserRepository::new(pool));
     let storage_for_svc: Option<Arc<dyn StorageClient>> = Some(storage_client.clone());
@@ -39,6 +41,7 @@ pub fn router(
             region_client,
             storage_for_svc,
             notifier,
+            geocoding_client,
         )),
         storage_client,
     };
@@ -88,6 +91,7 @@ pub fn router(
             "/admin/kyc/{id}/documents/{kind}",
             get(handlers::admin_get_document),
         )
+        .route("/admin/kyc/{id}/nik", get(handlers::admin_reveal_nik))
         .route("/admin/kyc/{id}", get(handlers::admin_get_kyc))
         .with_state(state.clone())
         .layer(axum::middleware::from_fn_with_state(80u8, require_role))

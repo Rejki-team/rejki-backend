@@ -8,10 +8,12 @@ mod tests {
         AdminListQuery, CreateIklanPekerjaanInput, ListQuery, SuspendEvidenceInput, SuspendInput,
     };
     use crate::application::service::IklanPekerjaanService;
-    use crate::domain::entity::{IklanPekerjaan, IklanSuspension, ModerationStatus};
+    use crate::domain::entity::{
+        IklanPekerjaan, IklanSuspension, Lamaran, LamaranStatus, ModerationStatus, PekerjaanStatus,
+    };
     use crate::domain::repository::{
-        AdminListParams, AdminListResult, CreatePekerjaanParams, IklanPekerjaanRepository,
-        UpdatePekerjaanParams,
+        AdminListParams, AdminListResult, CreateLamaranParams, CreatePekerjaanParams,
+        IklanPekerjaanRepository, UpdatePekerjaanParams,
     };
 
     // ── MockIklanPekerjaanRepository ──────────────────────────────────────────────
@@ -19,6 +21,7 @@ mod tests {
     struct MockIklanPekerjaanRepository {
         iklan: Mutex<Vec<IklanPekerjaan>>,
         suspensions: Mutex<Vec<IklanSuspension>>,
+        lamaran: Mutex<Vec<Lamaran>>,
     }
 
     impl MockIklanPekerjaanRepository {
@@ -26,6 +29,7 @@ mod tests {
             Self {
                 iklan: Mutex::new(vec![]),
                 suspensions: Mutex::new(vec![]),
+                lamaran: Mutex::new(vec![]),
             }
         }
     }
@@ -42,10 +46,14 @@ mod tests {
             gaji_min: None,
             gaji_max: None,
             tipe: "full_time".to_string(),
+            jam_kerja: None,
             foto_urls: vec![],
             is_active: true,
             moderation_status: ModerationStatus::Active,
+            status: PekerjaanStatus::default(),
             deleted_at: None,
+            latitude: None,
+            longitude: None,
             created_at: chrono::Utc::now(),
             updated_at: chrono::Utc::now(),
         }
@@ -63,15 +71,54 @@ mod tests {
                 .cloned())
         }
 
+        async fn find_by_ids(&self, ids: &[Uuid]) -> Result<Vec<IklanPekerjaan>, anyhow::Error> {
+            Ok(self
+                .iklan
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|i| ids.contains(&i.id) && i.deleted_at.is_none())
+                .cloned()
+                .collect())
+        }
+
+        async fn list_by_poster(
+            &self,
+            poster_id: Uuid,
+            limit: i64,
+            offset: i64,
+        ) -> Result<Vec<IklanPekerjaan>, anyhow::Error> {
+            Ok(self
+                .iklan
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|i| i.poster_id == poster_id && i.deleted_at.is_none())
+                .skip(offset as usize)
+                .take(limit as usize)
+                .cloned()
+                .collect())
+        }
+
         async fn list(
             &self,
             limit: i64,
             offset: i64,
+            radius: Option<common_geo::RadiusQuery>,
         ) -> Result<Vec<IklanPekerjaan>, anyhow::Error> {
             let iklan = self.iklan.lock().unwrap();
             let items: Vec<_> = iklan
                 .iter()
                 .filter(|i| i.deleted_at.is_none())
+                .filter(|i| match radius {
+                    None => true,
+                    Some(r) => match (i.latitude, i.longitude) {
+                        (Some(lat), Some(lng)) => {
+                            common_geo::within_radius_km(r.lat, r.lng, lat, lng, r.radius_km)
+                        }
+                        _ => false,
+                    },
+                })
                 .skip(offset as usize)
                 .take(limit as usize)
                 .cloned()
@@ -90,6 +137,7 @@ mod tests {
                 perusahaan: params.perusahaan.to_string(),
                 deskripsi: params.deskripsi.to_string(),
                 tipe: params.tipe.to_string(),
+                jam_kerja: params.jam_kerja.map(String::from),
                 lokasi: params.lokasi.map(String::from),
                 region_id: params.region_id.map(String::from),
                 gaji_min: params.gaji_min,
@@ -97,7 +145,10 @@ mod tests {
                 foto_urls: vec![],
                 is_active: true,
                 moderation_status: ModerationStatus::Active,
+                status: PekerjaanStatus::default(),
                 deleted_at: None,
+                latitude: params.latitude,
+                longitude: params.longitude,
                 created_at: chrono::Utc::now(),
                 updated_at: chrono::Utc::now(),
             };
@@ -206,6 +257,198 @@ mod tests {
                 Err(anyhow::anyhow!("not found"))
             }
         }
+
+        async fn find_lamaran_by_id(&self, id: Uuid) -> Result<Option<Lamaran>, anyhow::Error> {
+            Ok(self
+                .lamaran
+                .lock()
+                .unwrap()
+                .iter()
+                .find(|l| l.id == id)
+                .cloned())
+        }
+
+        async fn find_lamaran_by_iklan_and_pelamar(
+            &self,
+            iklan_id: Uuid,
+            pelamar_id: Uuid,
+        ) -> Result<Option<Lamaran>, anyhow::Error> {
+            Ok(self
+                .lamaran
+                .lock()
+                .unwrap()
+                .iter()
+                .find(|l| l.iklan_id == iklan_id && l.pelamar_id == pelamar_id)
+                .cloned())
+        }
+
+        async fn create_lamaran(
+            &self,
+            params: CreateLamaranParams,
+        ) -> Result<Lamaran, anyhow::Error> {
+            let l = Lamaran {
+                id: Uuid::now_v7(),
+                iklan_id: params.iklan_id,
+                pelamar_id: params.pelamar_id,
+                status: LamaranStatus::default(),
+                tanggal: params.tanggal,
+                jam_mulai: params.jam_mulai,
+                jam_akhir: params.jam_akhir,
+                kuota_diambil: params.kuota_diambil,
+                alasan_batal: None,
+                created_at: chrono::Utc::now(),
+                updated_at: chrono::Utc::now(),
+            };
+            self.lamaran.lock().unwrap().push(l.clone());
+            Ok(l)
+        }
+
+        async fn list_lamaran_for_iklan(
+            &self,
+            iklan_id: Uuid,
+        ) -> Result<Vec<Lamaran>, anyhow::Error> {
+            Ok(self
+                .lamaran
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|l| l.iklan_id == iklan_id)
+                .cloned()
+                .collect())
+        }
+
+        async fn list_lamaran_for_pelamar(
+            &self,
+            pelamar_id: Uuid,
+        ) -> Result<Vec<Lamaran>, anyhow::Error> {
+            Ok(self
+                .lamaran
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|l| l.pelamar_id == pelamar_id)
+                .cloned()
+                .collect())
+        }
+
+        async fn has_conflicting_lamaran(
+            &self,
+            pelamar_id: Uuid,
+            tanggal: chrono::NaiveDate,
+            jam_mulai: chrono::NaiveTime,
+            jam_akhir: chrono::NaiveTime,
+        ) -> Result<bool, anyhow::Error> {
+            Ok(self.lamaran.lock().unwrap().iter().any(|l| {
+                l.pelamar_id == pelamar_id
+                    && l.tanggal == tanggal
+                    && matches!(l.status, LamaranStatus::Diterima | LamaranStatus::Proses)
+                    && l.jam_mulai < jam_akhir
+                    && l.jam_akhir > jam_mulai
+            }))
+        }
+
+        async fn review_lamaran(
+            &self,
+            id: Uuid,
+            iklan_owner_id: Uuid,
+            approved: bool,
+        ) -> Result<Option<Lamaran>, anyhow::Error> {
+            let iklan = self.iklan.lock().unwrap();
+            let mut lamaran = self.lamaran.lock().unwrap();
+            if let Some(l) = lamaran.iter_mut().find(|l| {
+                l.id == id
+                    && l.status == LamaranStatus::Diajukan
+                    && iklan
+                        .iter()
+                        .any(|i| i.id == l.iklan_id && i.poster_id == iklan_owner_id)
+            }) {
+                l.status = if approved {
+                    LamaranStatus::Diterima
+                } else {
+                    LamaranStatus::Ditolak
+                };
+                l.updated_at = chrono::Utc::now();
+                Ok(Some(l.clone()))
+            } else {
+                Ok(None)
+            }
+        }
+
+        async fn mulai_bekerja(
+            &self,
+            lamaran_id: Uuid,
+            pelamar_id: Uuid,
+        ) -> Result<Option<Lamaran>, anyhow::Error> {
+            let mut lamaran = self.lamaran.lock().unwrap();
+            let Some(l) = lamaran.iter_mut().find(|l| {
+                l.id == lamaran_id
+                    && l.pelamar_id == pelamar_id
+                    && l.status == LamaranStatus::Diterima
+            }) else {
+                return Ok(None);
+            };
+            l.status = LamaranStatus::Proses;
+            l.updated_at = chrono::Utc::now();
+            let result = l.clone();
+            let mut iklan = self.iklan.lock().unwrap();
+            if let Some(i) = iklan
+                .iter_mut()
+                .find(|i| i.id == result.iklan_id && i.status == PekerjaanStatus::Tersedia)
+            {
+                i.status = PekerjaanStatus::SedangDikerjakan;
+            }
+            Ok(Some(result))
+        }
+
+        async fn tandai_selesai(
+            &self,
+            lamaran_id: Uuid,
+            pelamar_id: Uuid,
+        ) -> Result<Option<Lamaran>, anyhow::Error> {
+            let mut lamaran = self.lamaran.lock().unwrap();
+            let Some(l) = lamaran.iter_mut().find(|l| {
+                l.id == lamaran_id
+                    && l.pelamar_id == pelamar_id
+                    && l.status == LamaranStatus::Proses
+            }) else {
+                return Ok(None);
+            };
+            l.status = LamaranStatus::Selesai;
+            l.updated_at = chrono::Utc::now();
+            let result = l.clone();
+            let mut iklan = self.iklan.lock().unwrap();
+            if let Some(i) = iklan
+                .iter_mut()
+                .find(|i| i.id == result.iklan_id && i.status == PekerjaanStatus::SedangDikerjakan)
+            {
+                i.status = PekerjaanStatus::Selesai;
+            }
+            Ok(Some(result))
+        }
+
+        async fn batalkan_lamaran(
+            &self,
+            lamaran_id: Uuid,
+            iklan_owner_id: Uuid,
+            alasan: &str,
+        ) -> Result<Option<Lamaran>, anyhow::Error> {
+            let iklan = self.iklan.lock().unwrap();
+            let mut lamaran = self.lamaran.lock().unwrap();
+            if let Some(l) = lamaran.iter_mut().find(|l| {
+                l.id == lamaran_id
+                    && l.status == LamaranStatus::Diterima
+                    && iklan
+                        .iter()
+                        .any(|i| i.id == l.iklan_id && i.poster_id == iklan_owner_id)
+            }) {
+                l.status = LamaranStatus::Ditolak;
+                l.alasan_batal = Some(alasan.to_string());
+                l.updated_at = chrono::Utc::now();
+                Ok(Some(l.clone()))
+            } else {
+                Ok(None)
+            }
+        }
     }
 
     fn svc() -> IklanPekerjaanService<MockIklanPekerjaanRepository> {
@@ -226,6 +469,7 @@ mod tests {
             perusahaan: "PT A".into(),
             deskripsi: "Rust dev".into(),
             tipe: "full_time".into(),
+            jam_kerja: None,
             lokasi: None,
             region_id: None,
             gaji_min: None,
@@ -238,6 +482,8 @@ mod tests {
             .list(ListQuery {
                 limit: Some(10),
                 offset: Some(0),
+                latitude: None,
+                longitude: None,
             })
             .await
             .unwrap();
@@ -257,6 +503,7 @@ mod tests {
                 perusahaan: "PT A".into(),
                 deskripsi: "Desc".into(),
                 tipe: "full_time".into(),
+                jam_kerja: None,
                 lokasi: None,
                 region_id: None,
                 gaji_min: None,
@@ -271,6 +518,8 @@ mod tests {
             .list(ListQuery {
                 limit: Some(1),
                 offset: Some(0),
+                latitude: None,
+                longitude: None,
             })
             .await
             .unwrap();
@@ -293,6 +542,7 @@ mod tests {
                     perusahaan: "PT Test".into(),
                     deskripsi: "Desc".into(),
                     tipe: "full_time".into(),
+                    jam_kerja: None,
                     lokasi: Some("Jakarta".into()),
                     region_id: None,
                     gaji_min: Some(10_000_000),
@@ -334,6 +584,7 @@ mod tests {
                     perusahaan: "PT Inovasi".into(),
                     deskripsi: "Memimpin tim engineering".into(),
                     tipe: "full_time".into(),
+                    jam_kerja: None,
                     lokasi: Some("Bandung".into()),
                     region_id: None,
                     gaji_min: Some(15_000_000),
@@ -362,12 +613,27 @@ mod tests {
             async fn find_by_id(&self, id: Uuid) -> Result<Option<IklanPekerjaan>, anyhow::Error> {
                 self.inner.find_by_id(id).await
             }
+            async fn find_by_ids(
+                &self,
+                ids: &[Uuid],
+            ) -> Result<Vec<IklanPekerjaan>, anyhow::Error> {
+                self.inner.find_by_ids(ids).await
+            }
+            async fn list_by_poster(
+                &self,
+                poster_id: Uuid,
+                limit: i64,
+                offset: i64,
+            ) -> Result<Vec<IklanPekerjaan>, anyhow::Error> {
+                self.inner.list_by_poster(poster_id, limit, offset).await
+            }
             async fn list(
                 &self,
                 limit: i64,
                 offset: i64,
+                radius: Option<common_geo::RadiusQuery>,
             ) -> Result<Vec<IklanPekerjaan>, anyhow::Error> {
-                self.inner.list(limit, offset).await
+                self.inner.list(limit, offset, radius).await
             }
             async fn create(
                 &self,
@@ -428,6 +694,81 @@ mod tests {
             async fn is_poster_in_cooldown(&self, _poster_id: Uuid) -> Result<bool, anyhow::Error> {
                 Ok(true)
             }
+            async fn find_lamaran_by_id(&self, id: Uuid) -> Result<Option<Lamaran>, anyhow::Error> {
+                self.inner.find_lamaran_by_id(id).await
+            }
+            async fn find_lamaran_by_iklan_and_pelamar(
+                &self,
+                iklan_id: Uuid,
+                pelamar_id: Uuid,
+            ) -> Result<Option<Lamaran>, anyhow::Error> {
+                self.inner
+                    .find_lamaran_by_iklan_and_pelamar(iklan_id, pelamar_id)
+                    .await
+            }
+            async fn create_lamaran(
+                &self,
+                params: CreateLamaranParams,
+            ) -> Result<Lamaran, anyhow::Error> {
+                self.inner.create_lamaran(params).await
+            }
+            async fn list_lamaran_for_iklan(
+                &self,
+                iklan_id: Uuid,
+            ) -> Result<Vec<Lamaran>, anyhow::Error> {
+                self.inner.list_lamaran_for_iklan(iklan_id).await
+            }
+            async fn list_lamaran_for_pelamar(
+                &self,
+                pelamar_id: Uuid,
+            ) -> Result<Vec<Lamaran>, anyhow::Error> {
+                self.inner.list_lamaran_for_pelamar(pelamar_id).await
+            }
+            async fn has_conflicting_lamaran(
+                &self,
+                pelamar_id: Uuid,
+                tanggal: chrono::NaiveDate,
+                jam_mulai: chrono::NaiveTime,
+                jam_akhir: chrono::NaiveTime,
+            ) -> Result<bool, anyhow::Error> {
+                self.inner
+                    .has_conflicting_lamaran(pelamar_id, tanggal, jam_mulai, jam_akhir)
+                    .await
+            }
+            async fn review_lamaran(
+                &self,
+                id: Uuid,
+                iklan_owner_id: Uuid,
+                approved: bool,
+            ) -> Result<Option<Lamaran>, anyhow::Error> {
+                self.inner
+                    .review_lamaran(id, iklan_owner_id, approved)
+                    .await
+            }
+            async fn mulai_bekerja(
+                &self,
+                lamaran_id: Uuid,
+                pelamar_id: Uuid,
+            ) -> Result<Option<Lamaran>, anyhow::Error> {
+                self.inner.mulai_bekerja(lamaran_id, pelamar_id).await
+            }
+            async fn tandai_selesai(
+                &self,
+                lamaran_id: Uuid,
+                pelamar_id: Uuid,
+            ) -> Result<Option<Lamaran>, anyhow::Error> {
+                self.inner.tandai_selesai(lamaran_id, pelamar_id).await
+            }
+            async fn batalkan_lamaran(
+                &self,
+                lamaran_id: Uuid,
+                iklan_owner_id: Uuid,
+                alasan: &str,
+            ) -> Result<Option<Lamaran>, anyhow::Error> {
+                self.inner
+                    .batalkan_lamaran(lamaran_id, iklan_owner_id, alasan)
+                    .await
+            }
         }
 
         let repo = std::sync::Arc::new(CooldownRepo {
@@ -443,6 +784,7 @@ mod tests {
                     perusahaan: "PT X".into(),
                     deskripsi: "Desc".into(),
                     tipe: "full_time".into(),
+                    jam_kerja: None,
                     lokasi: None,
                     region_id: None,
                     gaji_min: None,
@@ -469,6 +811,7 @@ mod tests {
                     perusahaan: "PT A".into(),
                     deskripsi: "<b>Deskripsi</b> dengan <a href='evil'>link</a>".into(),
                     tipe: "full_time".into(),
+                    jam_kerja: None,
                     lokasi: None,
                     region_id: None,
                     gaji_min: None,
@@ -500,6 +843,7 @@ mod tests {
                     perusahaan: "PT X".into(),
                     deskripsi: "Desc".into(),
                     tipe: "full_time".into(),
+                    jam_kerja: None,
                     lokasi: None,
                     region_id: None,
                     gaji_min: None,
@@ -529,6 +873,7 @@ mod tests {
                     perusahaan: "PT X".into(),
                     deskripsi: "Desc".into(),
                     tipe: "full_time".into(),
+                    jam_kerja: None,
                     lokasi: None,
                     region_id: None,
                     gaji_min: None,
@@ -557,6 +902,7 @@ mod tests {
                 perusahaan: "PT A".into(),
                 deskripsi: "D".into(),
                 tipe: "full_time".into(),
+                jam_kerja: None,
                 lokasi: None,
                 region_id: None,
                 gaji_min: None,
@@ -600,6 +946,7 @@ mod tests {
                     perusahaan: "PT X".into(),
                     deskripsi: "D".into(),
                     tipe: "full_time".into(),
+                    jam_kerja: None,
                     lokasi: None,
                     region_id: None,
                     gaji_min: None,
@@ -737,5 +1084,86 @@ mod tests {
             ModerationStatus::SuspendedTemp.to_string(),
             "suspended_temp"
         );
+    }
+
+    // ── radius filtering (F-1, Kelompok 2 Phase 3) ────────────────────────────────
+
+    struct MockGeocodingClient {
+        result: Result<Option<common_geocoding::Coordinates>, ()>,
+    }
+
+    #[async_trait::async_trait]
+    impl common_geocoding::GeocodingClient for MockGeocodingClient {
+        async fn geocode(
+            &self,
+            _input: &common_geocoding::GeocodeInput,
+        ) -> Result<Option<common_geocoding::Coordinates>, common_geocoding::GeocodingClientError>
+        {
+            self.result
+                .map_err(|_| common_geocoding::GeocodingClientError::Unavailable)
+        }
+    }
+
+    fn make_job_input(lokasi: Option<&str>) -> CreateIklanPekerjaanInput {
+        CreateIklanPekerjaanInput {
+            judul: "Software Engineer".into(),
+            perusahaan: "PT A".into(),
+            deskripsi: "Rust dev".into(),
+            tipe: "full_time".into(),
+            jam_kerja: None,
+            lokasi: lokasi.map(String::from),
+            region_id: None,
+            gaji_min: None,
+            gaji_max: None,
+            foto_urls: None,
+        }
+    }
+
+    /// Filter radius (F-1, PRD §5.11.1): iklan di luar radius default (2km) tidak muncul.
+    #[tokio::test]
+    async fn test_list_given_lat_lng_when_filtered_then_only_returns_iklan_within_radius() {
+        let repo = std::sync::Arc::new(MockIklanPekerjaanRepository::new());
+        let s = IklanPekerjaanService::new(repo.clone());
+        let center = (-6.2, 106.8);
+        let near = std::sync::Arc::new(MockGeocodingClient {
+            result: Ok(Some(common_geocoding::Coordinates {
+                latitude: -6.2 + 1.0 / 111.32,
+                longitude: 106.8,
+            })),
+        });
+        let far = std::sync::Arc::new(MockGeocodingClient {
+            result: Ok(Some(common_geocoding::Coordinates {
+                latitude: -6.2 + 5.0 / 111.32,
+                longitude: 106.8,
+            })),
+        });
+
+        IklanPekerjaanService::new(repo.clone())
+            .with_geocoding_client(near)
+            .create(Uuid::now_v7(), make_job_input(Some("Dekat")))
+            .await
+            .unwrap();
+        IklanPekerjaanService::new(repo.clone())
+            .with_geocoding_client(far)
+            .create(Uuid::now_v7(), make_job_input(Some("Jauh")))
+            .await
+            .unwrap();
+
+        let result = s
+            .list(ListQuery {
+                limit: Some(10),
+                offset: Some(0),
+                latitude: Some(center.0),
+                longitude: Some(center.1),
+            })
+            .await
+            .unwrap();
+
+        assert_eq!(
+            result.len(),
+            1,
+            "hanya iklan dalam radius yang muncul: {result:?}"
+        );
+        assert_eq!(result[0].lokasi.as_deref(), Some("Dekat"));
     }
 }

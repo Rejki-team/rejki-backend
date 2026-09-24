@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE chat.conversations SET ended_at = now() WHERE id = $1 AND ended_at IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "b48d69e4a4d6a14a188a8a2d0fee685ef08190dae6889d8b19c430806315afba"
+}

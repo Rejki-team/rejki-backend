@@ -61,6 +61,9 @@ async fn test_create_given_valid_input_when_create_then_200_or_201() {
                 "judul": "Pelatihan Rust Dasar",
                 "penyelenggara": "Rejki Academy",
                 "deskripsi": "Belajar Rust dari nol sampai mahir",
+                "bank_name": "BCA",
+                "bank_account_number": "1234567890",
+                "bank_account_holder_name": "RejkiAcademy",
             }),
         ))
         .await
@@ -79,6 +82,34 @@ async fn test_create_given_valid_input_when_create_then_200_or_201() {
         .and_then(|i| i.as_str())
         .map(|s| !s.is_empty())
         .unwrap_or(false));
+
+    // P1.4: rekening perusahaan tersimpan & muncul di response dengan field name yang benar.
+    // `sanitize()` meng-escape spasi jadi `&#32;` (pola sama chat-service) — pakai nilai
+    // tanpa spasi di sini supaya assert tetap sederhana, bukan bug baru.
+    assert_eq!(body["data"]["bank_name"], "BCA");
+    assert_eq!(body["data"]["bank_account_number"], "1234567890");
+    assert_eq!(body["data"]["bank_account_holder_name"], "RejkiAcademy");
+}
+
+/// P1.4 (F-9): pengajuan baru tanpa rekening perusahaan wajib ditolak validasi.
+#[tokio::test]
+async fn test_create_given_no_rekening_when_create_then_422() {
+    let (app, pool) = setup().await;
+    let user = seed_user(&pool, "crt3").await;
+
+    let resp = app
+        .oneshot(post_authed(
+            BASE,
+            &user.access_token,
+            serde_json::json!({
+                "judul": "Pelatihan Tanpa Rekening",
+                "penyelenggara": "Rejki Academy",
+                "deskripsi": "Harus ditolak karena rekening kosong",
+            }),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
 }
 
 #[tokio::test]

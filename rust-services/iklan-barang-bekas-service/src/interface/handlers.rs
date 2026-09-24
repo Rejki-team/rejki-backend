@@ -1,16 +1,17 @@
 use super::AppState;
 use crate::application::dto::{
-    AdminListQuery, CreateIklanBarangBekasInput, IklanBarangBekasResponse, ListQuery,
-    SuspendEvidenceInput, SuspendInput, SuspendResponse, UpdateBarangBekasInput,
+    AdminListQuery, BiderResponse, BiderWithIklanResponse, CreateIklanBarangBekasInput,
+    IklanBarangBekasResponse, ListQuery, SetujuiBiderInput, SuspendEvidenceInput, SuspendInput,
+    SuspendResponse, UpdateBarangBekasInput,
 };
 use auth_service_client::AuthClaims;
 use axum::{
     extract::{Path, Query, State},
-    http::{header, StatusCode},
+    http::StatusCode,
     response::Response,
     Extension, Json,
 };
-use common_errors::{created_response, ApiResponse, AppError, ValidatedJson};
+use common_errors::{created_response, csv_response, ApiResponse, AppError, ValidatedJson};
 use uuid::Uuid;
 
 pub async fn list(
@@ -19,6 +20,33 @@ pub async fn list(
 ) -> Result<Json<ApiResponse<Vec<IklanBarangBekasResponse>>>, AppError> {
     Ok(Json(ApiResponse::ok(
         s.svc.list(q).await.map_err(AppError::Internal)?,
+    )))
+}
+
+/// "Iklan Saya" (P4.10) — entry point ke "Kelola Iklan Saya" (PRD §5.14.2).
+pub async fn list_my_ads(
+    State(s): State<AppState>,
+    Extension(claims): Extension<AuthClaims>,
+    Query(q): Query<ListQuery>,
+) -> Result<Json<ApiResponse<Vec<IklanBarangBekasResponse>>>, AppError> {
+    Ok(Json(ApiResponse::ok(
+        s.svc
+            .list_my_ads(claims.user_id, q.limit.unwrap_or(20), q.offset.unwrap_or(0))
+            .await
+            .map_err(AppError::Internal)?,
+    )))
+}
+
+/// "Bider Saya" (P4.11) — Riwayat → Aktifitas → Barang Bekas.
+pub async fn list_bider_saya(
+    State(s): State<AppState>,
+    Extension(claims): Extension<AuthClaims>,
+) -> Result<Json<ApiResponse<Vec<BiderWithIklanResponse>>>, AppError> {
+    Ok(Json(ApiResponse::ok(
+        s.svc
+            .list_bider_saya(claims.user_id)
+            .await
+            .map_err(AppError::Internal)?,
     )))
 }
 
@@ -106,6 +134,70 @@ pub async fn update_iklan(
     Ok(Json(ApiResponse::ok(item)))
 }
 
+/// P3.2: "Ambil Barang" — jadi bider.
+pub async fn ambil(
+    State(s): State<AppState>,
+    Extension(claims): Extension<AuthClaims>,
+    Path(id): Path<Uuid>,
+) -> Result<Response, AppError> {
+    let bider = s.svc.ambil(claims.user_id, id).await.map_err(|e| {
+        let msg = e.to_string();
+        if msg.contains("tidak ditemukan") {
+            AppError::NotFound(msg)
+        } else {
+            AppError::Validation(msg)
+        }
+    })?;
+    let bider_id = bider.id;
+    Ok(created_response(
+        ApiResponse::ok(bider),
+        &format!("/api/v1/barang/{id}/bider/{bider_id}"),
+    ))
+}
+
+/// P3.3: "Kelola Iklan Saya" → daftar bider.
+pub async fn list_bider(
+    State(s): State<AppState>,
+    Extension(claims): Extension<AuthClaims>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<ApiResponse<Vec<BiderResponse>>>, AppError> {
+    Ok(Json(ApiResponse::ok(
+        s.svc
+            .list_bider(claims.user_id, id)
+            .await
+            .map_err(|e| AppError::NotFound(e.to_string()))?,
+    )))
+}
+
+/// P3.4: "Tombol Setujui Bider".
+pub async fn setujui_bider(
+    State(s): State<AppState>,
+    Extension(claims): Extension<AuthClaims>,
+    Path((_id, bider_id)): Path<(Uuid, Uuid)>,
+    ValidatedJson(body): ValidatedJson<SetujuiBiderInput>,
+) -> Result<Json<ApiResponse<BiderResponse>>, AppError> {
+    Ok(Json(ApiResponse::ok(
+        s.svc
+            .setujui_bider(claims.user_id, bider_id, body)
+            .await
+            .map_err(|e| AppError::NotFound(e.to_string()))?,
+    )))
+}
+
+/// P3.5: "Tombol Withdraw Bider".
+pub async fn withdraw_bider(
+    State(s): State<AppState>,
+    Extension(claims): Extension<AuthClaims>,
+    Path((_id, bider_id)): Path<(Uuid, Uuid)>,
+) -> Result<Json<ApiResponse<BiderResponse>>, AppError> {
+    Ok(Json(ApiResponse::ok(
+        s.svc
+            .withdraw_bider(claims.user_id, bider_id)
+            .await
+            .map_err(|e| AppError::NotFound(e.to_string()))?,
+    )))
+}
+
 pub async fn health() -> (StatusCode, Json<serde_json::Value>) {
     (StatusCode::OK, Json(serde_json::json!({ "status": "ok" })))
 }
@@ -150,15 +242,7 @@ pub async fn admin_export_csv(
             item.created_at
         ));
     }
-    Ok(Response::builder()
-        .status(StatusCode::OK)
-        .header(header::CONTENT_TYPE, "text/csv; charset=utf-8")
-        .header(
-            header::CONTENT_DISPOSITION,
-            "attachment; filename=iklan_barang_bekas.csv",
-        )
-        .body(axum::body::Body::from(csv))
-        .unwrap())
+    Ok(csv_response(csv, "iklan_barang_bekas.csv"))
 }
 
 pub async fn admin_request_evidence(

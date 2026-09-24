@@ -64,6 +64,10 @@ mod tests {
         assert_eq!(DocumentAccessAction::UploadIssued.as_str(), "upload_issued");
         assert_eq!(DocumentAccessAction::Commit.as_str(), "commit");
         assert_eq!(DocumentAccessAction::ReadIssued.as_str(), "read_issued");
+        assert_eq!(
+            DocumentAccessAction::NikReadIssued.as_str(),
+            "nik_read_issued"
+        );
     }
 
     // ── ReviewError ─────────────────────────────────────────────────────────

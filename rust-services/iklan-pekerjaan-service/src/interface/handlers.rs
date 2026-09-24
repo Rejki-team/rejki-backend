@@ -1,16 +1,18 @@
 use super::AppState;
 use crate::application::dto::{
-    AdminListQuery, CreateIklanPekerjaanInput, IklanPekerjaanResponse, ListQuery,
-    SuspendEvidenceInput, SuspendInput, SuspendResponse, UpdatePekerjaanInput,
+    AdminListQuery, BatalkanLamaranInput, CreateIklanPekerjaanInput, IklanPekerjaanResponse,
+    LamarInput, LamaranResponse, LamaranWithIklanResponse, LamaranWithPelamarResponse, ListQuery,
+    MulaiBekerjaInput, ReviewLamaranInput, SuspendEvidenceInput, SuspendInput, SuspendResponse,
+    UpdatePekerjaanInput,
 };
 use auth_service_client::AuthClaims;
 use axum::{
     extract::{Path, Query, State},
-    http::{header, StatusCode},
+    http::StatusCode,
     response::Response,
     Extension, Json,
 };
-use common_errors::{created_response, ApiResponse, AppError, ValidatedJson};
+use common_errors::{created_response, csv_response, ApiResponse, AppError, ValidatedJson};
 use uuid::Uuid;
 
 // ── Public handlers ──────────────────────────────────────────────────────────
@@ -21,6 +23,20 @@ pub async fn list(
 ) -> Result<Json<ApiResponse<Vec<IklanPekerjaanResponse>>>, AppError> {
     Ok(Json(ApiResponse::ok(
         s.svc.list(q).await.map_err(AppError::Internal)?,
+    )))
+}
+
+/// "Iklan Saya" (Kelompok 3 Phase 2) — entry point ke "Kelola Pelamar".
+pub async fn list_my_jobs(
+    State(s): State<AppState>,
+    Extension(claims): Extension<AuthClaims>,
+    Query(q): Query<ListQuery>,
+) -> Result<Json<ApiResponse<Vec<IklanPekerjaanResponse>>>, AppError> {
+    Ok(Json(ApiResponse::ok(
+        s.svc
+            .list_my_jobs(claims.user_id, q)
+            .await
+            .map_err(AppError::Internal)?,
     )))
 }
 
@@ -98,6 +114,129 @@ pub async fn health() -> (StatusCode, Json<serde_json::Value>) {
     (StatusCode::OK, Json(serde_json::json!({ "status": "ok" })))
 }
 
+// ── Lamaran (F-3, Kelompok 3 Phase 1) ────────────────────────────────────────
+
+/// Pemetaan pesan error `anyhow` dari `IklanPekerjaanService` alur Lamaran ke `AppError`
+/// HTTP yang tepat — pola sama dengan `update_iklan` (match substring, bukan error enum
+/// terpisah, karena error berasal dari lintas layer domain/infrastructure).
+fn map_lamaran_error(e: anyhow::Error) -> AppError {
+    let msg = e.to_string();
+    if msg.contains("tidak ditemukan") {
+        AppError::NotFound(msg)
+    } else if msg.contains("milik sendiri")
+        || msg.contains("Iklan Pekerja aktif")
+        || msg.contains("luar radius 50m")
+    {
+        AppError::Validation(msg)
+    } else if msg.contains("rentang waktu yang sama")
+        || msg.contains("jam sebelum pekerjaan dimulai")
+        || msg.contains("tidak dapat dimulai")
+        || msg.contains("tidak dapat ditandai selesai")
+    {
+        AppError::Conflict(msg)
+    } else {
+        AppError::Internal(e)
+    }
+}
+
+pub async fn lamar(
+    State(s): State<AppState>,
+    Extension(claims): Extension<AuthClaims>,
+    Path(iklan_id): Path<Uuid>,
+    ValidatedJson(body): ValidatedJson<LamarInput>,
+) -> Result<Response, AppError> {
+    let item = s
+        .svc
+        .lamar(claims.user_id, iklan_id, body)
+        .await
+        .map_err(map_lamaran_error)?;
+    let id = item.id;
+    Ok(created_response(
+        ApiResponse::ok(item),
+        &format!("/api/v1/pekerjaan/{iklan_id}/lamaran/{id}"),
+    ))
+}
+
+pub async fn review_lamaran(
+    State(s): State<AppState>,
+    Extension(claims): Extension<AuthClaims>,
+    Path((_iklan_id, lamaran_id)): Path<(Uuid, Uuid)>,
+    Json(body): Json<ReviewLamaranInput>,
+) -> Result<Json<ApiResponse<LamaranResponse>>, AppError> {
+    let item = s
+        .svc
+        .review_lamaran(claims.user_id, lamaran_id, body)
+        .await
+        .map_err(map_lamaran_error)?;
+    Ok(Json(ApiResponse::ok(item)))
+}
+
+pub async fn mulai_bekerja(
+    State(s): State<AppState>,
+    Extension(claims): Extension<AuthClaims>,
+    Path((_iklan_id, lamaran_id)): Path<(Uuid, Uuid)>,
+    ValidatedJson(body): ValidatedJson<MulaiBekerjaInput>,
+) -> Result<Json<ApiResponse<LamaranResponse>>, AppError> {
+    let item = s
+        .svc
+        .mulai_bekerja(claims.user_id, lamaran_id, body)
+        .await
+        .map_err(map_lamaran_error)?;
+    Ok(Json(ApiResponse::ok(item)))
+}
+
+pub async fn tandai_selesai(
+    State(s): State<AppState>,
+    Extension(claims): Extension<AuthClaims>,
+    Path((_iklan_id, lamaran_id)): Path<(Uuid, Uuid)>,
+) -> Result<Json<ApiResponse<LamaranResponse>>, AppError> {
+    let item = s
+        .svc
+        .tandai_selesai(claims.user_id, lamaran_id)
+        .await
+        .map_err(map_lamaran_error)?;
+    Ok(Json(ApiResponse::ok(item)))
+}
+
+pub async fn batalkan_lamaran(
+    State(s): State<AppState>,
+    Extension(claims): Extension<AuthClaims>,
+    Path((_iklan_id, lamaran_id)): Path<(Uuid, Uuid)>,
+    ValidatedJson(body): ValidatedJson<BatalkanLamaranInput>,
+) -> Result<Json<ApiResponse<LamaranResponse>>, AppError> {
+    let item = s
+        .svc
+        .batalkan_lamaran(claims.user_id, lamaran_id, body)
+        .await
+        .map_err(map_lamaran_error)?;
+    Ok(Json(ApiResponse::ok(item)))
+}
+
+pub async fn list_lamaran_for_iklan(
+    State(s): State<AppState>,
+    Extension(claims): Extension<AuthClaims>,
+    Path(iklan_id): Path<Uuid>,
+) -> Result<Json<ApiResponse<Vec<LamaranWithPelamarResponse>>>, AppError> {
+    let items = s
+        .svc
+        .list_lamaran_for_iklan(claims.user_id, iklan_id)
+        .await
+        .map_err(map_lamaran_error)?;
+    Ok(Json(ApiResponse::ok(items)))
+}
+
+pub async fn list_lamaran_saya(
+    State(s): State<AppState>,
+    Extension(claims): Extension<AuthClaims>,
+) -> Result<Json<ApiResponse<Vec<LamaranWithIklanResponse>>>, AppError> {
+    let items = s
+        .svc
+        .list_lamaran_for_pelamar(claims.user_id)
+        .await
+        .map_err(AppError::Internal)?;
+    Ok(Json(ApiResponse::ok(items)))
+}
+
 // ── Admin: listing ───────────────────────────────────────────────────────────
 
 pub async fn admin_list(
@@ -141,15 +280,7 @@ pub async fn admin_export_csv(
         ));
     }
 
-    Ok(Response::builder()
-        .status(StatusCode::OK)
-        .header(header::CONTENT_TYPE, "text/csv; charset=utf-8")
-        .header(
-            header::CONTENT_DISPOSITION,
-            "attachment; filename=iklan_pekerjaan.csv",
-        )
-        .body(axum::body::Body::from(csv))
-        .unwrap())
+    Ok(csv_response(csv, "iklan_pekerjaan.csv"))
 }
 
 // ── Admin: suspend evidence ──────────────────────────────────────────────────

@@ -72,6 +72,43 @@ pub fn decrypt(stored: &str) -> anyhow::Result<String> {
     String::from_utf8(plaintext).map_err(|e| anyhow::anyhow!("plaintext bukan utf-8: {e}"))
 }
 
+// ── Deterministic lookup hash (untuk kolom UNIQUE di atas nilai terenkripsi) ──
+//
+// `encrypt()`/`decrypt()` di atas memakai nonce acak — ciphertext-nya TIDAK deterministik,
+// sehingga tidak bisa dipakai untuk UNIQUE constraint (nilai plaintext yang sama akan
+// menghasilkan ciphertext berbeda tiap kali). `hash_lookup()` memakai HMAC-SHA256 dengan
+// kunci terpisah (`DATA_HASH_KEY`, bukan `DATA_ENCRYPTION_KEY`) sehingga deterministik dan
+// aman dijadikan kolom `UNIQUE` (mis. `phone_hash`), tanpa membocorkan plaintext (satu arah).
+
+use hmac::{Hmac, Mac};
+use sha2::Sha256;
+
+type HmacSha256 = Hmac<Sha256>;
+
+const HASH_KEY_ENV: &str = "DATA_HASH_KEY";
+
+fn load_hash_key() -> anyhow::Result<[u8; 32]> {
+    let raw =
+        std::env::var(HASH_KEY_ENV).map_err(|_| anyhow::anyhow!("{HASH_KEY_ENV} tidak di-set"))?;
+    let bytes = B64
+        .decode(raw.trim())
+        .map_err(|e| anyhow::anyhow!("{HASH_KEY_ENV} bukan base64 valid: {e}"))?;
+    let arr: [u8; 32] = bytes
+        .as_slice()
+        .try_into()
+        .map_err(|_| anyhow::anyhow!("{HASH_KEY_ENV} harus 32 byte setelah decode base64"))?;
+    Ok(arr)
+}
+
+/// Hash deterministik (hex-encoded HMAC-SHA256) untuk lookup/uniqueness — bukan enkripsi.
+pub fn hash_lookup(value: &str) -> anyhow::Result<String> {
+    let key = load_hash_key()?;
+    let mut mac = <HmacSha256 as Mac>::new_from_slice(&key)
+        .map_err(|e| anyhow::anyhow!("kunci HMAC tidak valid: {e}"))?;
+    mac.update(value.as_bytes());
+    Ok(hex::encode(mac.finalize().into_bytes()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -108,4 +145,32 @@ mod tests {
         tampered.push('X');
         assert!(decrypt(&tampered).is_err());
     }
+
+    fn set_test_hash_key() {
+        let key = B64.encode([9u8; 32]);
+        std::env::set_var(HASH_KEY_ENV, key);
+    }
+
+    #[test]
+    fn test_hash_lookup_given_same_value_when_hashed_twice_then_deterministic() {
+        set_test_hash_key();
+        let a = hash_lookup("081234567890").unwrap();
+        let b = hash_lookup("081234567890").unwrap();
+        assert_eq!(
+            a, b,
+            "hash_lookup harus deterministik untuk nilai yang sama"
+        );
+    }
+
+    #[test]
+    fn test_hash_lookup_given_different_values_when_hashed_then_different_output() {
+        set_test_hash_key();
+        let a = hash_lookup("081234567890").unwrap();
+        let b = hash_lookup("089999999999").unwrap();
+        assert_ne!(a, b);
+    }
+    // Catatan: tidak ada test "missing key" via `remove_var` di sini — env var bersifat
+    // global per-proses dan test lain di modul ini berjalan paralel (thread berbeda,
+    // proses sama); meng-unset akan berisiko race dengan test lain yang mengharapkan
+    // key tetap terpasang (Hazard #1 — hindari kondisi yang sama di test sendiri).
 }

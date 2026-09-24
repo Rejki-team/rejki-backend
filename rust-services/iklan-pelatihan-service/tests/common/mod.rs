@@ -32,8 +32,17 @@ pub async fn build_test_app(pool: PgPool) -> Router {
     let auth_client: Arc<dyn auth_service::AuthClient> =
         Arc::new(auth_service::AuthInProcessClient::new(jwt, auth_repo));
 
-    let pelatihan_router =
-        iklan_pelatihan_service::router(pool, auth_client, None, None, None, None);
+    let pelatihan_router = iklan_pelatihan_service::router(iklan_pelatihan_service::RouterDeps {
+        pool,
+        auth_client,
+        storage: None,
+        notifier: None,
+        rate_limiter: None,
+        region_client: None,
+        geocoding_client: None,
+        scheduler_client: None,
+        user_client: None,
+    });
 
     Router::new().nest("/api/v1/pelatihan", pelatihan_router)
 }
